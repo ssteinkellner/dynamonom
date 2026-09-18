@@ -1194,8 +1194,6 @@ function startBreak() {
       return;
     }
   }
-  record.durationSeconds = durationSeconds;
-
   dom.executionMessage.textContent = "";
   clearTimer("beatTimer");
   state.phase = "paused";
@@ -1310,11 +1308,10 @@ function resumeFromBreak(reason) {
     0,
     Math.round((performance.now() - state.activeBreak.startedAt) / 1000),
   );
-  state.activeBreak.record.durationSeconds =
-    state.activeBreak.durationSeconds ?? elapsedSeconds;
+  state.activeBreak.record.durationSeconds = elapsedSeconds;
   state.activeBreak.record.ended =
     reason === "timer"
-      ? `Automatisch fortgesetzt nach ${state.activeBreak.durationSeconds} Sekunden`
+      ? `Automatisch fortgesetzt nach ${elapsedSeconds} Sekunden`
       : reason === "stopped"
         ? `Gestoppt nach ${elapsedSeconds} Sekunden`
         : `Manuell fortgesetzt nach ${elapsedSeconds} Sekunden`;

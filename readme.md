@@ -197,7 +197,9 @@ clipboard confirmation, remains visible while scrolling.
 The **Copy short to Clipboard** button copies a compact summary with the total
 beat count, BPM range, and progression tokens on the first line. When breaks
 were used, `Pausen bei:` is added, followed by one beat and used
-duration per line, such as:
+actual elapsed duration per line. The duration is measured when the break is
+resumed or stopped, rather than copied from the configured maximum. For
+example:
 
 ```text
 Pausen bei:
