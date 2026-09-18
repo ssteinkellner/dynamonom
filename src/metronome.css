@@ -550,6 +550,18 @@ label {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr);
 }
 
+.report-actions {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: stretch;
+}
+
+.report-actions > button {
+  flex: 1 1 0;
+  width: auto;
+  min-width: 0;
+}
+
 .report-card h3 {
   margin: 0 0 1rem;
   font-size: 1.2rem;

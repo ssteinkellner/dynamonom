@@ -100,11 +100,13 @@ const dom = {
   reportBreaks: document.getElementById("report-breaks"),
   reportBreaksRow: document.getElementById("report-breaks-row"),
   reportSessionEnd: document.getElementById("report-session-end"),
+  reportBreaksTitle: document.getElementById("report-breaks-title"),
   reportNoBreaks: document.getElementById("report-no-breaks"),
   breakTableWrapper: document.getElementById("break-table-wrapper"),
   breakTableBody: document.getElementById("break-table-body"),
   breakRowTemplate: document.getElementById("break-row-template"),
   copyReportButton: document.getElementById("copy-report-button"),
+  copyShortReportButton: document.getElementById("copy-short-report-button"),
   clipboardBuffer: document.getElementById("clipboard-buffer"),
   backButton: document.getElementById("back-button"),
 };
@@ -133,7 +135,7 @@ const state = {
 };
 
 let audioContext = null;
-let copyFeedbackTimer = null;
+const copyFeedbackTimers = new Map();
 let progressDialogMode = null;
 let progressDialogTrigger = null;
 let progressDialogSnapshot = null;
@@ -218,6 +220,7 @@ function bindEvents() {
   dom.abortButton.addEventListener("click", handleAbort);
   dom.stopButton.addEventListener("click", handleStop);
   dom.copyReportButton.addEventListener("click", handleCopyReport);
+  dom.copyShortReportButton.addEventListener("click", handleCopyShortReport);
   dom.backButton.addEventListener("click", handleBackToSettings);
 
   document.querySelectorAll('input[name="maximum"]').forEach((input) => {
@@ -1170,6 +1173,7 @@ function startBreak() {
     beat: state.beatCount,
     bpm: state.currentBpm,
     overLimit,
+    durationSeconds: null,
     ended: "Active",
   };
   state.breakRecords.push(record);
@@ -1187,6 +1191,7 @@ function startBreak() {
       return;
     }
   }
+  record.durationSeconds = durationSeconds;
 
   dom.executionMessage.textContent = "";
   clearTimer("beatTimer");
@@ -1302,6 +1307,8 @@ function resumeFromBreak(reason) {
     0,
     Math.round((performance.now() - state.activeBreak.startedAt) / 1000),
   );
+  state.activeBreak.record.durationSeconds =
+    state.activeBreak.durationSeconds ?? elapsedSeconds;
   state.activeBreak.record.ended =
     reason === "timer"
       ? `Auto-resumed after ${state.activeBreak.durationSeconds} seconds`
@@ -1358,21 +1365,45 @@ async function handleCopyReport() {
     return;
   }
 
-  const text = buildReportText(state.report);
+  await handleCopyReportText(
+    buildReportText(state.report),
+    dom.copyReportButton,
+    "Copy to clipboard",
+    "Report copied to clipboard.",
+  );
+}
 
+async function handleCopyShortReport() {
+  if (!state.report) {
+    return;
+  }
+
+  await handleCopyReportText(
+    buildShortReportText(state.report),
+    dom.copyShortReportButton,
+    "Copy short to Clipboard",
+    "Short report copied to clipboard.",
+  );
+}
+
+async function handleCopyReportText(text, button, defaultLabel, successMessage) {
   try {
-    await copyText(text);
+    await copyText(text, button);
     dom.reportStatus.classList.remove("error-status");
-    dom.reportStatus.textContent = "Report copied to clipboard.";
-    dom.copyReportButton.textContent = "Copied!";
+    dom.reportStatus.textContent = successMessage;
+    button.textContent = "Copied!";
 
-    if (copyFeedbackTimer !== null) {
-      window.clearTimeout(copyFeedbackTimer);
+    const existingTimer = copyFeedbackTimers.get(button);
+    if (existingTimer !== undefined) {
+      window.clearTimeout(existingTimer);
     }
-    copyFeedbackTimer = window.setTimeout(() => {
-      dom.copyReportButton.textContent = "Copy to clipboard";
-      copyFeedbackTimer = null;
-    }, 2000);
+    copyFeedbackTimers.set(
+      button,
+      window.setTimeout(() => {
+        button.textContent = defaultLabel;
+        copyFeedbackTimers.delete(button);
+      }, 2000),
+    );
   } catch (error) {
     dom.reportStatus.classList.add("error-status");
     dom.reportStatus.textContent = getErrorMessage(
@@ -1380,6 +1411,20 @@ async function handleCopyReport() {
       "The report could not be copied to the clipboard.",
     );
   }
+}
+
+function resetReportCopyFeedback() {
+  [
+    [dom.copyReportButton, "Copy to clipboard"],
+    [dom.copyShortReportButton, "Copy short to Clipboard"],
+  ].forEach(([button, defaultLabel]) => {
+    const timer = copyFeedbackTimers.get(button);
+    if (timer !== undefined) {
+      window.clearTimeout(timer);
+      copyFeedbackTimers.delete(button);
+    }
+    button.textContent = defaultLabel;
+  });
 }
 
 async function copyText(text, focusTarget = dom.copyReportButton) {
@@ -1418,11 +1463,7 @@ function handleBackToSettings() {
   dom.executionMessage.textContent = "";
   dom.reportStatus.textContent = "";
   dom.reportStatus.classList.remove("error-status");
-  dom.copyReportButton.textContent = "Copy to clipboard";
-  if (copyFeedbackTimer !== null) {
-    window.clearTimeout(copyFeedbackTimer);
-    copyFeedbackTimer = null;
-  }
+  resetReportCopyFeedback();
   showView("settings", true);
   dom.bpm.focus();
 }
@@ -1559,13 +1600,14 @@ function renderReport() {
 
   dom.reportStatus.textContent = "";
   dom.reportStatus.classList.remove("error-status");
-  dom.copyReportButton.textContent = "Copy to clipboard";
+  resetReportCopyFeedback();
   dom.reportTotalBeats.textContent = String(report.beatCount);
   dom.reportBpm.textContent = formatBpm(settings);
 
   dom.reportBreaks.textContent = formatBreaks(settings);
   dom.reportBreaksRow.hidden = settings.breaks === "none";
   dom.reportSessionEnd.textContent = formatSessionEnd(settings);
+  dom.reportBreaksTitle.textContent = formatReportBreaksTitle(settings);
 
   dom.breakTableBody.replaceChildren();
   dom.reportNoBreaks.hidden = report.breakRecords.length > 0;
@@ -1595,7 +1637,11 @@ function buildReportText(report) {
   if (settings.breaks !== "none") {
     lines.push(`Breaks: ${formatBreaks(settings)}`);
   }
-  lines.push(`Session end: ${formatSessionEnd(settings)}`, "", "Breaks used:");
+  lines.push(
+    `Session end: ${formatSessionEnd(settings)}`,
+    "",
+    formatReportBreaksHeading(settings),
+  );
 
   if (report.breakRecords.length === 0) {
     lines.push("No breaks used.");
@@ -1610,6 +1656,58 @@ function buildReportText(report) {
   }
 
   return lines.join("\n");
+}
+
+function buildShortReportText(report) {
+  const settings = report.settings;
+  const parts = [`${report.beatCount}x`, formatShortBpm(settings)];
+  const progression = formatShortProgression(settings);
+
+  if (progression) {
+    parts.push(progression);
+  }
+  if (report.breakRecords.length > 0) {
+    parts.push(
+      `breaks at: ${report.breakRecords
+        .map((record) => `${record.beat} (${record.durationSeconds}s)`)
+        .join(", ")}`,
+    );
+  }
+
+  return parts.join("; ");
+}
+
+function formatShortBpm(settings) {
+  if (settings.maximum === "none") {
+    return `${settings.initialBpm} BPM`;
+  }
+  return `${settings.initialBpm} - ${settings.maximumLimit} BPM`;
+}
+
+function formatShortProgression(settings) {
+  if (!settings.increaseTempo) {
+    return "";
+  }
+
+  let progression = `+${settings.increaseBy}/${settings.increaseAfter}`;
+  if (settings.maximum === "reverse") {
+    progression += ` -${settings.decreaseBy}/${settings.decreaseAfter}`;
+  }
+  return progression;
+}
+
+function formatReportBreaksHeading(settings) {
+  if (settings.breaks !== "limited" || !settings.breakSecondsRaw) {
+    return "Breaks used:";
+  }
+  return `Breaks used (max ${settings.breakSecondsRaw}s):`;
+}
+
+function formatReportBreaksTitle(settings) {
+  if (settings.breaks !== "limited" || !settings.breakSecondsRaw) {
+    return "Breaks used";
+  }
+  return `Breaks used (max ${settings.breakSecondsRaw}s)`;
 }
 
 function formatBpm(settings) {

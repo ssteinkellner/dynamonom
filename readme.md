@@ -185,12 +185,18 @@ automatically after a configured number of beats.
 
 The Ended column records durations for breaks, such as
 `Auto-resumed after 30 seconds` or `Manually resumed after 5 seconds`.
+When a break time limit is configured, the report's break section is labeled
+`Breaks used (max Ns):` with the configured limit.
 
 The **Copy to clipboard** button copies all report information as labeled plain
 text. Each item is separated by a newline, with a separate newline-delimited
 section for break records. The button announces success or failure and returns
 to its normal label after a successful copy. Report feedback, including the
 clipboard confirmation, remains visible while scrolling.
+
+The **Copy short to Clipboard** button copies a compact one-line summary with
+the total beat count, BPM range, progression tokens, and the beat numbers and
+used durations for breaks, such as `45 (30s), 71 (5s)`.
 
 The **Back to settings** button returns to the Settings view while preserving
 the form values for another run.
