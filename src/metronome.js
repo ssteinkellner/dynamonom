@@ -1829,3 +1829,9 @@ function getErrorMessage(error, fallback) {
 }
 
 init();
+
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("./sw.js").catch((error) => {
+    console.error("Metronome service worker registration failed.", error);
+  });
+}

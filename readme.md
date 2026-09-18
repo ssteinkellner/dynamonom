@@ -10,6 +10,26 @@ Only one view is visible at a time. The application is implemented with plain
 JavaScript, with all markup in `index.html` and all behavior in
 `metronome.js`. Preset definitions are kept in `presets.js`.
 
+## Local development and phone installation
+
+The project uses Vite with `src` as its application root. Install the
+development dependency and start the LAN-accessible server with:
+
+```text
+npm install
+npm run dev
+```
+
+Vite listens on port `5173` on all network interfaces. On a phone connected to
+the same network, open `http://<computer-ip>:5173`. The computer's firewall
+must allow incoming connections on that port.
+
+The app includes a web app manifest, generated icons, standalone display
+metadata, and a service worker for offline caching. Browsers may require HTTPS
+before offering a full PWA installation prompt; over local HTTP, use the
+browser's **Add to Home Screen** action if it is available. The Vite preview
+server is also available with `npm run build` followed by `npm run preview`.
+
 ## View "Settings"
 
 The settings view configures the run. Dependent settings are kept visible in
