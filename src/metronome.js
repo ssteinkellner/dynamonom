@@ -1505,7 +1505,11 @@ function updateExecutionUi() {
   dom.pauseButton.disabled = !isRunning && !isBreakActive;
   dom.pauseButton.classList.toggle(
     "over-limit",
-    state.settings.breakCount !== null && state.breakSessions >= state.settings.breakCount,
+    isBreakLimitReached(
+      state.settings.breakCount,
+      state.breakSessions,
+      isBreakActive,
+    ),
   );
 
   if (isBreakActive) {
@@ -1568,6 +1572,16 @@ function getPauseLabel() {
     return "Pause (0 übrig)";
   }
   return `Pause (${state.breakSessions - state.settings.breakCount} über dem Limit)`;
+}
+
+function isBreakLimitReached(breakCount, breakSessions, isBreakActive) {
+  if (breakCount === null) {
+    return false;
+  }
+  return (
+    breakSessions > breakCount ||
+    (breakSessions === breakCount && !isBreakActive)
+  );
 }
 
 function getBreakSecondsRemaining() {
