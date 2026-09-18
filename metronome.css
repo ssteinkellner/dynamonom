@@ -278,17 +278,64 @@ label {
   min-width: 0;
 }
 
-.increase-primary-row {
-  display: grid;
-  grid-template-columns: minmax(12rem, 1.2fr) repeat(2, minmax(11rem, 1fr));
-  align-items: start;
-  gap: 1rem;
+.inline-option-row,
+.maximum-option-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
   min-width: 0;
   overflow-x: auto;
 }
 
-.increase-primary-row > .field {
-  margin-top: 0;
+.inline-option-row > .checkbox-label,
+.maximum-option-row > .radio-label {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.inline-input-wrapper {
+  display: flex;
+  flex: 0 0 6rem;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 6rem;
+}
+
+.inline-input-wrapper > label,
+.inline-input-wrapper > input,
+.inline-input-wrapper > .field-error {
+  margin: 0;
+}
+
+.inline-input-wrapper > input {
+  width: 6rem;
+}
+
+.inline-input-wrapper > .field-error {
+  display: block;
+}
+
+.inline-option-text {
+  flex: 0 0 auto;
+  padding-top: 0.8rem;
+  white-space: nowrap;
+}
+
+.increase-primary-row {
+  display: grid;
+  grid-template-columns: auto auto 6rem auto 6rem auto;
+  align-items: start;
+  gap: 0.75rem;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.increase-primary-row > .checkbox-label {
+  white-space: nowrap;
+}
+
+.increase-primary-row > .inline-input-wrapper {
+  width: 6rem;
 }
 
 .compact-fieldset {
@@ -302,11 +349,6 @@ label {
 
 .compact-fieldset .radio-option-card {
   margin: 0;
-}
-
-.compact-fieldset .radio-option-card .option-details {
-  margin-top: 0.65rem;
-  padding-top: 0.65rem;
 }
 
 .checkbox-label,

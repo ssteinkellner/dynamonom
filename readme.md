@@ -29,41 +29,28 @@ Whole-number input.
 - Default: 120
 - Allowed starting range: 20-300
 
-### Accentuate first beat
+### Accentuate every N beats
 
-Checkbox, enabled by default. When enabled, the first beat and every configured
-interval are accented.
-
-#### Repeat accent every N beats
-
-Whole-number input inside the Accentuate option card.
+Inline checkbox and whole-number input, enabled by default. When enabled, the
+first beat and every configured interval are accented.
 
 - Default: 10
 - Minimum: 1
 
 ### Increase tempo
 
-Checkbox, enabled by default. Its dependent settings remain visible inside the
-Increase tempo option card and are disabled when the checkbox is unchecked.
+Inline checkbox and values in the form **Increase tempo by N BPM every N
+beats**, enabled by default. Its values remain visible and are disabled when
+the checkbox is unchecked.
 
-#### Increase by
-
-Whole-number BPM increment.
-
-- Default: 1
-- Allowed range: 1-20
-
-#### Increase after
-
-Whole-number beat interval.
-
-- Default: 10
-- Minimum: 1
+- Increase by: default 1 BPM, allowed range 1-20
+- Increase after: default 10 beats, minimum 1
 
 #### Maximum
 
 Radio options. Each option has its own bordered card and preserves its own
-values.
+values. The options are phrased inline as **Limit at N**, **Reset at N**, and
+**Reverse at N by N BPM every N beats**.
 
 - **None**: tempo increases without a configured limit.
 - **Stick when met**: the tempo holds at the configured limit.
@@ -85,7 +72,8 @@ Radio options. Each option is displayed in its own bordered card.
 - **None**: the Pause control is unavailable during execution.
 - **Unlimited**: pauses are allowed without a count limit.
 - **Limited**: Count and Seconds remain visible in the Limited card and are
-  active when Limited is selected.
+  active when Limited is selected. The Limited option stays vertically
+  organized while Count and Seconds share one horizontal value row.
 
 Count accepts a blank value or a positive whole number. Seconds accepts a
 positive whole number, or an expression such as `BPM/2`, `BPM+5`, `BPM-2`, or
@@ -93,9 +81,9 @@ positive whole number, or an expression such as `BPM/2`, `BPM+5`, `BPM-2`, or
 
 ### Session end
 
-The **End session automatically** checkbox is unchecked by default. Its
-dependent **End after (beats)** input remains visible and is disabled until
-the checkbox is selected.
+The unchecked-by-default option is phrased **End session automatically after N
+beats**. Its value remains visible and is disabled until the checkbox is
+selected.
 
 - Default value: 100 beats
 - Minimum: 1 beat
@@ -105,8 +93,8 @@ the checkbox is selected.
 
 #### Lock
 
-Checkbox in the Session end section. Its beat threshold is always visible and
-becomes active when Lock is selected.
+The unchecked-by-default option is phrased **Lock Stop until N beats**. Its
+value remains visible and is disabled until Lock is selected.
 
 - Default: unchecked
 - Default threshold: 10 beats
