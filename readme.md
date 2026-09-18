@@ -29,6 +29,14 @@ preset applies its values and starts the session immediately. Each preset entry
 supplies a `label` and a `values` object using the settings names from the
 form. Add or remove presets by editing the dictionary in `presets.js`.
 
+The **Import** field accepts a bare URL parameter list, a list with a leading
+`?`, or a full URL. Settings are applied as the text changes. Unparseable
+strings and invalid values are ignored without a message. The **Export
+settings** button writes the current settings as a bare URL parameter list
+into the Import field and copies it to the clipboard. The same recognized
+parameters are applied automatically when they are present in the page URL;
+loading parameters does not start a session.
+
 ### BPM (beats per minute)
 
 Whole-number input.
@@ -110,8 +118,8 @@ value remains visible and is disabled until Lock is selected.
 
 ### Start
 
-The Start button validates the active settings and navigates to the Execution
-view.
+The Export settings button is positioned to the left of Start. Start validates
+the active settings and navigates to the Execution view.
 
 ## View "Execution"
 

@@ -39,6 +39,8 @@ const dom = {
   settingsTitle: document.getElementById("settings-title"),
   settingsStatus: document.getElementById("settings-status"),
   presetList: document.getElementById("preset-list"),
+  settingsImport: document.getElementById("settings-import"),
+  exportButton: document.getElementById("export-button"),
   bpm: document.getElementById("bpm"),
   accentuate: document.getElementById("accentuate"),
   accentOptionCard: document.getElementById("accent-option-card"),
@@ -126,6 +128,34 @@ const state = {
 let audioContext = null;
 let copyFeedbackTimer = null;
 
+const TEXT_SETTING_CONTROLS = Object.freeze({
+  bpm: dom.bpm,
+  "accent-repeat": dom.accentRepeat,
+  "increase-by": dom.increaseBy,
+  "increase-after": dom.increaseAfter,
+  "maximum-limit-stick": dom.maximumLimitStick,
+  "maximum-limit-reset": dom.maximumLimitReset,
+  "maximum-limit-reverse": dom.maximumLimitReverse,
+  "decrease-by-reverse": dom.decreaseByReverse,
+  "decrease-after-reverse": dom.decreaseAfterReverse,
+  "break-count": dom.breakCount,
+  "break-seconds": dom.breakSeconds,
+  "session-end-beats": dom.sessionEndBeats,
+  "lock-beats": dom.lockBeats,
+});
+
+const BOOLEAN_SETTING_NAMES = Object.freeze([
+  "accentuate",
+  "increase-tempo",
+  "session-end-enabled",
+  "lock-settings",
+]);
+
+const RADIO_SETTING_VALUES = Object.freeze({
+  maximum: new Set(["none", "stick", "reset", "reverse"]),
+  breaks: new Set(["none", "unlimited", "limited"]),
+});
+
 function init() {
   if (Object.values(dom).some((element) => element === null)) {
     console.error("Metronome initialization failed because required markup is missing.");
@@ -133,6 +163,11 @@ function init() {
   }
 
   renderPresets();
+  const initialParameters = getInitialParameterText();
+  if (initialParameters) {
+    dom.settingsImport.value = initialParameters;
+    handleSettingsImport(initialParameters);
+  }
   bindEvents();
   syncSettingsVisibility();
   showView("settings", false);
@@ -141,6 +176,10 @@ function init() {
 
 function bindEvents() {
   dom.settingsForm.addEventListener("submit", handleStart);
+  dom.settingsImport.addEventListener("input", () => {
+    handleSettingsImport(dom.settingsImport.value);
+  });
+  dom.exportButton.addEventListener("click", handleExportSettings);
   dom.accentuate.addEventListener("change", syncSettingsVisibility);
   dom.increaseTempo.addEventListener("change", syncSettingsVisibility);
   dom.lockSettings.addEventListener("change", syncSettingsVisibility);
@@ -161,6 +200,9 @@ function bindEvents() {
 
   dom.settingsForm.addEventListener("input", (event) => {
     const control = event.target;
+    if (control === dom.settingsImport) {
+      return;
+    }
     if (control instanceof HTMLInputElement) {
       clearFieldError(control.id);
     }
@@ -240,6 +282,204 @@ function renderPresets() {
   if (!addedPreset) {
     console.error("No valid metronome presets are configured.");
     dom.settingsStatus.textContent = "No valid presets are available.";
+  }
+}
+
+function getInitialParameterText() {
+  if (typeof window === "undefined" || !window.location?.search) {
+    return "";
+  }
+  return window.location.search.slice(1);
+}
+
+function serializeSettings() {
+  const parameters = new URLSearchParams();
+  parameters.set("bpm", dom.bpm.value.trim());
+  parameters.set("accentuate", String(dom.accentuate.checked));
+  parameters.set("accent-repeat", dom.accentRepeat.value.trim());
+  parameters.set("increase-tempo", String(dom.increaseTempo.checked));
+  parameters.set("increase-by", dom.increaseBy.value.trim());
+  parameters.set("increase-after", dom.increaseAfter.value.trim());
+  parameters.set("maximum", getSelectedValue("maximum") || "");
+  parameters.set("maximum-limit-stick", dom.maximumLimitStick.value.trim());
+  parameters.set("maximum-limit-reset", dom.maximumLimitReset.value.trim());
+  parameters.set("maximum-limit-reverse", dom.maximumLimitReverse.value.trim());
+  parameters.set("decrease-by-reverse", dom.decreaseByReverse.value.trim());
+  parameters.set("decrease-after-reverse", dom.decreaseAfterReverse.value.trim());
+  parameters.set("breaks", getSelectedValue("breaks") || "");
+  parameters.set("break-count", dom.breakCount.value.trim());
+  parameters.set("break-seconds", dom.breakSeconds.value.trim());
+  parameters.set("session-end-enabled", String(dom.sessionEndEnabled.checked));
+  parameters.set("session-end-beats", dom.sessionEndBeats.value.trim());
+  parameters.set("lock-settings", String(dom.lockSettings.checked));
+  parameters.set("lock-beats", dom.lockBeats.value.trim());
+  return parameters.toString();
+}
+
+function handleExportSettings() {
+  const parameterList = serializeSettings();
+  dom.settingsImport.value = parameterList;
+
+  copyText(parameterList, dom.exportButton)
+    .then(() => {
+      dom.settingsStatus.classList.remove("error-status");
+      dom.settingsStatus.textContent = "Settings exported and copied to the clipboard.";
+    })
+    .catch((error) => {
+      dom.settingsStatus.classList.add("error-status");
+      dom.settingsStatus.textContent = getErrorMessage(
+        error,
+        "The settings could not be copied to the clipboard.",
+      );
+    });
+}
+
+function handleSettingsImport(parameterText) {
+  const rawText = String(parameterText).trim();
+  if (!rawText) {
+    return;
+  }
+
+  const parsed = parseSettingsParameters(rawText);
+  if (!parsed.valid || !parsed.foundSettings || Object.keys(parsed.values).length === 0) {
+    return;
+  }
+
+  applySettingsParameters(parsed.values);
+  syncSettingsVisibility();
+}
+
+function parseSettingsParameters(rawText) {
+  let parameterText = rawText.trim();
+  if (parameterText.startsWith("?")) {
+    parameterText = parameterText.slice(1);
+  } else if (/^[a-z][a-z\d+.-]*:\/\//i.test(parameterText)) {
+    try {
+      const baseUrl =
+        typeof window !== "undefined" && window.location?.href
+          ? window.location.href
+          : "http://localhost/";
+      parameterText = new URL(parameterText, baseUrl).search.slice(1);
+    } catch {
+      return { valid: false, foundSettings: false };
+    }
+  }
+
+  const parameters = new URLSearchParams(parameterText);
+  const values = {};
+  let foundSettings = false;
+
+  Object.keys(TEXT_SETTING_CONTROLS).forEach((name) => {
+    if (parameters.has(name)) {
+      foundSettings = true;
+      const importedValue = getValidTextSettingValue(name, parameters.get(name));
+      if (importedValue.valid) {
+        values[name] = importedValue.value;
+      }
+    }
+  });
+
+  BOOLEAN_SETTING_NAMES.forEach((name) => {
+    if (!parameters.has(name)) {
+      return;
+    }
+    foundSettings = true;
+    const parsed = parseBooleanParameter(parameters.get(name));
+    if (parsed !== null) {
+      values[name] = parsed;
+    }
+  });
+
+  Object.entries(RADIO_SETTING_VALUES).forEach(([name, allowedValues]) => {
+    if (!parameters.has(name)) {
+      return;
+    }
+    foundSettings = true;
+    const value = parameters.get(name);
+    if (allowedValues.has(value)) {
+      values[name] = value;
+    }
+  });
+
+  if (!foundSettings) {
+    return { valid: false, foundSettings: false };
+  }
+
+  return { valid: true, foundSettings: true, values };
+}
+
+function getValidTextSettingValue(name, rawValue) {
+  const value = String(rawValue ?? "").trim();
+  let valid = false;
+
+  switch (name) {
+    case "bpm":
+      valid = parseIntegerField(value, 20, 300) !== null;
+      break;
+    case "accent-repeat":
+    case "increase-after":
+    case "decrease-after-reverse":
+    case "session-end-beats":
+    case "lock-beats":
+      valid = parsePositiveInteger(value, Number.POSITIVE_INFINITY) !== null;
+      break;
+    case "increase-by":
+      valid = parseIntegerField(value, 1, 20) !== null;
+      break;
+    case "maximum-limit-stick":
+    case "maximum-limit-reset":
+    case "maximum-limit-reverse":
+      valid = parseIntegerField(value, 60, 400) !== null;
+      break;
+    case "decrease-by-reverse":
+      valid = parseIntegerField(value, 1, 50) !== null;
+      break;
+    case "break-count":
+      valid = value === "" || parsePositiveInteger(value, Number.POSITIVE_INFINITY) !== null;
+      break;
+    case "break-seconds":
+      valid = value === "" || parseBreakInput(value).valid;
+      break;
+    default:
+      break;
+  }
+
+  return { valid, value };
+}
+
+function parseBooleanParameter(rawValue) {
+  const value = String(rawValue).trim().toLowerCase();
+  if (value === "true" || value === "1") {
+    return true;
+  }
+  if (value === "false" || value === "0") {
+    return false;
+  }
+  return null;
+}
+
+function applySettingsParameters(values) {
+  Object.entries(TEXT_SETTING_CONTROLS).forEach(([name, control]) => {
+    if (Object.prototype.hasOwnProperty.call(values, name)) {
+      control.value = values[name] ?? "";
+    }
+  });
+
+  BOOLEAN_SETTING_NAMES.forEach((name) => {
+    if (!Object.prototype.hasOwnProperty.call(values, name)) {
+      return;
+    }
+    const control = document.querySelector(`input[name="${name}"]`);
+    if (control) {
+      control.checked = values[name];
+    }
+  });
+
+  if (Object.prototype.hasOwnProperty.call(values, "maximum")) {
+    setSelectedValue("maximum", values.maximum);
+  }
+  if (Object.prototype.hasOwnProperty.call(values, "breaks")) {
+    setSelectedValue("breaks", values.breaks);
   }
 }
 
@@ -980,7 +1220,7 @@ async function handleCopyReport() {
   }
 }
 
-async function copyText(text) {
+async function copyText(text, focusTarget = dom.copyReportButton) {
   const clipboard = typeof navigator !== "undefined" ? navigator.clipboard : null;
   if (clipboard && typeof clipboard.writeText === "function") {
     try {
@@ -998,7 +1238,7 @@ async function copyText(text) {
   const copied =
     typeof document.execCommand === "function" && document.execCommand("copy");
   buffer.setSelectionRange(0, 0);
-  dom.copyReportButton.focus();
+  focusTarget?.focus();
 
   if (!copied) {
     throw new Error("The browser did not allow clipboard access.");

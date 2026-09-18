@@ -368,12 +368,27 @@ label {
 .preset-row {
   display: flex;
   flex-wrap: wrap;
+  align-items: flex-end;
   gap: 0.75rem;
 }
 
-.preset-row > .secondary-button {
+.preset-buttons {
+  display: flex;
+  flex: 1 1 12rem;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.preset-buttons > .secondary-button {
   flex: 1 1 12rem;
   width: auto;
+}
+
+.settings-import-input {
+  flex: 1 1 12rem;
+  width: auto;
+  min-width: min(100%, 12rem);
 }
 
 .primary-button,
@@ -485,6 +500,10 @@ label {
 
 .button-row.single-action {
   grid-template-columns: 1fr;
+}
+
+.settings-actions {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr);
 }
 
 .report-card h3 {

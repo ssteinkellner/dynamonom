@@ -23,7 +23,20 @@
           <fieldset>
             <legend>Presets</legend>
 
-            <div id="preset-list" class="preset-row" role="group" aria-label="Available presets">
+            <div class="preset-row">
+              <input
+                id="settings-import"
+                class="settings-import-input"
+                type="text"
+                inputmode="url"
+                autocomplete="off"
+                spellcheck="false"
+                placeholder="Import"
+                aria-label="Import settings"
+              />
+
+              <div id="preset-list" class="preset-buttons" role="group" aria-label="Available presets">
+              </div>
             </div>
           </fieldset>
 
@@ -396,7 +409,12 @@
             </div>
           </fieldset>
 
-          <button id="start-button" class="primary-button" type="submit">Start</button>
+          <div class="button-row settings-actions">
+            <button id="export-button" class="secondary-button" type="button">
+              Export settings
+            </button>
+            <button id="start-button" class="primary-button" type="submit">Start</button>
+          </div>
         </form>
       </section>
 
