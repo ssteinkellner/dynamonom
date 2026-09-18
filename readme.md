@@ -8,7 +8,7 @@ This metronome is a single-page application with three views:
 
 Only one view is visible at a time. The application is implemented with plain
 JavaScript, with all markup in `index.html` and all behavior in
-`metronome.js`.
+`metronome.js`. Preset definitions are kept in `presets.js`.
 
 ## View "Settings"
 
@@ -21,6 +21,13 @@ horizontally on narrow screens. Each field uses a vertical input wrapper for
 its label, input, hint, and validation message. The Increase tempo card places
 its checkbox and two primary values in one row, then stacks the Maximum groups
 below a separator. Inputs within each group remain side by side.
+
+### Presets
+
+Preset buttons are generated from the dictionary in `presets.js`. Clicking a
+preset applies its values and starts the session immediately. Each preset entry
+supplies a `label` and a `values` object using the settings names from the
+form. Add or remove presets by editing the dictionary in `presets.js`.
 
 ### BPM (beats per minute)
 
@@ -53,11 +60,11 @@ values. The options are phrased inline as **Limit at N**, **Reset at N**, and
 **Reverse at N by N BPM every N beats**.
 
 - **None**: tempo increases without a configured limit.
-- **Stick when met**: the tempo holds at the configured limit.
-- **Reset when met**: the next beat uses the initial BPM after the limit is
+- **Limit at N**: the tempo holds at the configured limit.
+- **Reset at N**: the next beat uses the initial BPM after the limit is
   reached.
-- **Reverse when met**: the tempo reaches the limit, then decreases using its
-  own Decrease By and Decrease After values before cycling again.
+- **Reverse at N by N BPM every N beats**: the tempo reaches the limit, then
+  decreases before cycling again.
 
 Limit inputs accept whole numbers from 60-400 and must be greater than the
 starting BPM. Reverse values use the following defaults:

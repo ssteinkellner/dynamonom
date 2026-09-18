@@ -38,6 +38,7 @@ const dom = {
   settingsForm: document.getElementById("settings-form"),
   settingsTitle: document.getElementById("settings-title"),
   settingsStatus: document.getElementById("settings-status"),
+  presetList: document.getElementById("preset-list"),
   bpm: document.getElementById("bpm"),
   accentuate: document.getElementById("accentuate"),
   accentOptionCard: document.getElementById("accent-option-card"),
@@ -131,6 +132,7 @@ function init() {
     return;
   }
 
+  renderPresets();
   bindEvents();
   syncSettingsVisibility();
   showView("settings", false);
@@ -208,9 +210,77 @@ function syncSettingsVisibility() {
   setControlDisabled(dom.sessionEndBeats, !sessionEndEnabled);
 }
 
+function renderPresets() {
+  const presets = window.METRONOME_PRESETS;
+  if (!presets || typeof presets !== "object") {
+    console.error("Metronome presets are unavailable.");
+    dom.settingsStatus.textContent = "Presets could not be loaded.";
+    return;
+  }
+
+  dom.presetList.replaceChildren();
+  let addedPreset = false;
+
+  Object.entries(presets).forEach(([presetId, preset]) => {
+    if (!preset || typeof preset.label !== "string" || !preset.values) {
+      console.error(`Preset "${presetId}" has an invalid definition.`);
+      return;
+    }
+
+    const button = document.createElement("button");
+    button.className = "secondary-button";
+    button.type = "button";
+    button.textContent = preset.label;
+    button.dataset.presetId = presetId;
+    button.addEventListener("click", () => handlePresetStart(preset.values));
+    dom.presetList.append(button);
+    addedPreset = true;
+  });
+
+  if (!addedPreset) {
+    console.error("No valid metronome presets are configured.");
+    dom.settingsStatus.textContent = "No valid presets are available.";
+  }
+}
+
 async function handleStart(event) {
   event.preventDefault();
+  await startConfiguredSession();
+}
 
+async function handlePresetStart(values) {
+  applyPreset(values);
+  syncSettingsVisibility();
+  await startConfiguredSession();
+}
+
+function applyPreset(values) {
+  const setInputValue = (control, value) => {
+    control.value = value === null || value === undefined ? "" : String(value);
+  };
+
+  setInputValue(dom.bpm, values.bpm);
+  dom.accentuate.checked = Boolean(values.accentuate);
+  setInputValue(dom.accentRepeat, values.accentRepeat);
+  dom.increaseTempo.checked = Boolean(values.increaseTempo);
+  setInputValue(dom.increaseBy, values.increaseBy);
+  setInputValue(dom.increaseAfter, values.increaseAfter);
+  setSelectedValue("maximum", values.maximum);
+  setInputValue(dom.maximumLimitStick, values.maximumLimit);
+  setInputValue(dom.maximumLimitReset, values.maximumLimit);
+  setInputValue(dom.maximumLimitReverse, values.maximumLimit);
+  setInputValue(dom.decreaseByReverse, values.decreaseBy);
+  setInputValue(dom.decreaseAfterReverse, values.decreaseAfter);
+  setSelectedValue("breaks", values.breaks);
+  setInputValue(dom.breakCount, values.breakCount);
+  setInputValue(dom.breakSeconds, values.breakSeconds);
+  dom.sessionEndEnabled.checked = Boolean(values.sessionEndEnabled);
+  setInputValue(dom.sessionEndBeats, values.sessionEndBeats);
+  dom.lockSettings.checked = Boolean(values.lockSettings);
+  setInputValue(dom.lockBeats, values.lockBeats);
+}
+
+async function startConfiguredSession() {
   const validation = validateSettings();
   if (!validation.valid) {
     dom.settingsStatus.textContent = "Please correct the highlighted settings.";
@@ -1270,6 +1340,12 @@ function setControlDisabled(control, disabled) {
 
 function getSelectedValue(name) {
   return document.querySelector(`input[name="${name}"]:checked`)?.value || null;
+}
+
+function setSelectedValue(name, value) {
+  document.querySelectorAll(`input[name="${name}"]`).forEach((input) => {
+    input.checked = input.value === value;
+  });
 }
 
 function getMaximumControls(maximum) {

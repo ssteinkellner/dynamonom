@@ -6,6 +6,7 @@
     <meta name="theme-color" content="#f4f6f8" />
     <title>Metronome</title>
     <link rel="stylesheet" href="./metronome.css" />
+    <script src="./presets.js" defer></script>
     <script src="./metronome.js" defer></script>
   </head>
 
@@ -19,6 +20,13 @@
         <p id="settings-status" class="status" role="status" aria-live="polite"></p>
 
         <form id="settings-form" novalidate>
+          <fieldset>
+            <legend>Presets</legend>
+
+            <div id="preset-list" class="preset-row" role="group" aria-label="Available presets">
+            </div>
+          </fieldset>
+
           <fieldset>
             <legend>Tempo</legend>
 
