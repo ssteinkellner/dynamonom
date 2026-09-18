@@ -86,12 +86,9 @@ const dom = {
   reportTitle: document.getElementById("report-title"),
   reportStatus: document.getElementById("report-status"),
   reportTotalBeats: document.getElementById("report-total-beats"),
-  reportStartBpm: document.getElementById("report-start-bpm"),
-  reportAccent: document.getElementById("report-accent"),
-  reportIncrease: document.getElementById("report-increase"),
-  reportMaximum: document.getElementById("report-maximum"),
+  reportBpm: document.getElementById("report-bpm"),
   reportBreaks: document.getElementById("report-breaks"),
-  reportLock: document.getElementById("report-lock"),
+  reportBreaksRow: document.getElementById("report-breaks-row"),
   reportSessionEnd: document.getElementById("report-session-end"),
   reportNoBreaks: document.getElementById("report-no-breaks"),
   breakTableWrapper: document.getElementById("break-table-wrapper"),
@@ -982,7 +979,10 @@ function updateExecutionUi() {
     : String(state.currentBpm);
   dom.beatCount.textContent = `Beats completed: ${state.beatCount}`;
 
-  dom.executionActions.classList.toggle("single-action", isCountdown);
+  dom.executionActions.classList.toggle(
+    "single-action",
+    isCountdown || state.settings.breaks === "none",
+  );
   dom.abortButton.hidden = !isCountdown;
   dom.pauseButton.hidden = state.settings.breaks === "none" || isCountdown;
   dom.stopButton.hidden = isCountdown;
@@ -1034,7 +1034,7 @@ function updateExecutionUi() {
     state.settings.lockSettings && state.beatCount < state.settings.lockBeats;
   dom.stopButton.disabled = stopLocked;
   dom.stopButton.textContent = stopLocked
-    ? `Stop (${state.settings.lockBeats - state.beatCount} beats left)`
+    ? `Stop (locked for ${state.settings.lockBeats - state.beatCount} beats)`
     : "Stop";
 
   if (isCountdown) {
@@ -1099,20 +1099,10 @@ function renderReport() {
   dom.reportStatus.classList.remove("error-status");
   dom.copyReportButton.textContent = "Copy to clipboard";
   dom.reportTotalBeats.textContent = String(report.beatCount);
-  dom.reportStartBpm.textContent = `${settings.initialBpm} BPM`;
-  dom.reportAccent.textContent = settings.accentuate
-    ? `Enabled every ${settings.accentRepeat} beats`
-    : "Disabled";
+  dom.reportBpm.textContent = formatBpm(settings);
 
-  dom.reportIncrease.textContent = settings.increaseTempo
-    ? `+${settings.increaseBy} BPM every ${settings.increaseAfter} beats`
-    : "Disabled";
-
-  dom.reportMaximum.textContent = formatMaximum(settings);
   dom.reportBreaks.textContent = formatBreaks(settings);
-  dom.reportLock.textContent = settings.lockSettings
-    ? `until ${settings.lockBeats} beats are passed`
-    : "No";
+  dom.reportBreaksRow.hidden = settings.breaks === "none";
   dom.reportSessionEnd.textContent = formatSessionEnd(settings);
 
   dom.breakTableBody.replaceChildren();
@@ -1137,26 +1127,13 @@ function buildReportText(report) {
   const lines = [
     "Metronome report",
     `Total beats: ${report.beatCount}`,
-    `Starting BPM: ${settings.initialBpm} BPM`,
-    `Accent: ${
-      settings.accentuate ? `Enabled every ${settings.accentRepeat} beats` : "Disabled"
-    }`,
-    `Tempo progression: ${
-      settings.increaseTempo
-        ? `+${settings.increaseBy} BPM every ${settings.increaseAfter} beats`
-        : "Disabled"
-    }`,
-    `Maximum: ${formatMaximum(settings)}`,
-    `Breaks: ${formatBreaks(settings)}`,
-    `Settings locked: ${
-      settings.lockSettings
-        ? `until ${settings.lockBeats} beats are passed`
-        : "No"
-    }`,
-    `Session end: ${formatSessionEnd(settings)}`,
-    "",
-    "Breaks used:",
+    `BPM: ${formatBpm(settings)}`,
   ];
+
+  if (settings.breaks !== "none") {
+    lines.push(`Breaks: ${formatBreaks(settings)}`);
+  }
+  lines.push(`Session end: ${formatSessionEnd(settings)}`, "", "Breaks used:");
 
   if (report.breakRecords.length === 0) {
     lines.push("No breaks used.");
@@ -1173,21 +1150,22 @@ function buildReportText(report) {
   return lines.join("\n");
 }
 
-function formatMaximum(settings) {
-  if (!settings.increaseTempo || settings.maximum === "none") {
-    return "None";
+function formatBpm(settings) {
+  if (!settings.increaseTempo) {
+    return `${settings.initialBpm} BPM`;
   }
 
-  const labels = {
-    stick: "Stick",
-    reset: "Reset",
-    reverse: "Reverse",
-  };
-  let value = `${labels[settings.maximum]} at ${settings.maximumLimit} BPM`;
+  const value =
+    settings.maximum === "none"
+      ? `${settings.initialBpm} BPM`
+      : `${settings.initialBpm} - ${settings.maximumLimit} BPM`;
+  let formatted = value;
+  formatted += `; +${settings.increaseBy} BPM every ${settings.increaseAfter} beats`;
   if (settings.maximum === "reverse") {
-    value += `; -${settings.decreaseBy} BPM every ${settings.decreaseAfter} beats`;
+    formatted += `; -${settings.decreaseBy} BPM every ${settings.decreaseAfter} beats`;
   }
-  return value;
+
+  return formatted;
 }
 
 function formatBreaks(settings) {
@@ -1206,9 +1184,13 @@ function formatBreaks(settings) {
 }
 
 function formatSessionEnd(settings) {
-  return settings.sessionEndEnabled
+  const sessionEnd = settings.sessionEndEnabled
     ? `After ${settings.sessionEndBeats} beats`
     : "Manual stop";
+  if (!settings.lockSettings) {
+    return sessionEnd;
+  }
+  return `${sessionEnd}; Locked until ${settings.lockBeats} beats are passed`;
 }
 
 function playTone(frequency) {

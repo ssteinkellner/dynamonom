@@ -134,13 +134,15 @@ The countdown value is shown inside the Resume button while it is active.
 The report displays:
 
 - A summary of the effective settings
+- A combined BPM summary with the starting BPM, progression, and maximum
+  information
 - Total completed beats
 - Each break's beat number, active BPM, allowance status, and end reason
 
-The settings summary uses **Settings locked** with the value
-`until N beats are passed` when locking is enabled. It also reports whether
-the session ended manually or automatically after a configured number of
-beats.
+The summary omits settings configured as **None**. When Lock is enabled, its
+`Settings locked until N beats are passed` text is combined into the **Session
+end** value, which also reports whether the session ended manually or
+automatically after a configured number of beats.
 
 The Ended column records durations for breaks, such as
 `Auto-resumed after 30 seconds` or `Manually resumed after 5 seconds`.
