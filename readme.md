@@ -35,7 +35,8 @@ strings and invalid values are ignored without a message. The **Export
 settings** button writes the current settings as a bare URL parameter list
 into the Import field and copies it to the clipboard. The same recognized
 parameters are applied automatically when they are present in the page URL;
-loading parameters does not start a session.
+loading parameters does not start a session. Settings feedback, including
+clipboard confirmations, remains visible while scrolling.
 
 ### BPM (beats per minute)
 
@@ -132,7 +133,7 @@ available after the first beat starts.
 
 The view displays:
 
-- During startup, Countdown and Initial BPM in the two metric cards
+- During startup, **Starting in** and Initial BPM in the two metric cards
 - After startup, Current BPM and the next BPM change
 - The next BPM change and its beat countdown when tempo progression is active
 - Completed beat count
@@ -165,7 +166,8 @@ The Ended column records durations for breaks, such as
 The **Copy to clipboard** button copies all report information as labeled plain
 text. Each item is separated by a newline, with a separate newline-delimited
 section for break records. The button announces success or failure and returns
-to its normal label after a successful copy.
+to its normal label after a successful copy. Report feedback, including the
+clipboard confirmation, remains visible while scrolling.
 
 The **Back to settings** button returns to the Settings view while preserving
 the form values for another run.

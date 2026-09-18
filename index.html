@@ -14,10 +14,15 @@
     <main id="app">
       <section id="settings-view" class="view" aria-labelledby="settings-title">
         <header class="view-header">
-          <h1 id="settings-title" tabindex="-1">Metronome</h1>
+          <h1 id="settings-title" tabindex="-1">Metronome Settings</h1>
         </header>
 
-        <p id="settings-status" class="status" role="status" aria-live="polite"></p>
+        <p
+          id="settings-status"
+          class="status status-sticky"
+          role="status"
+          aria-live="polite"
+        ></p>
 
         <form id="settings-form" novalidate>
           <fieldset>
@@ -420,11 +425,8 @@
 
       <section id="execution-view" class="view" aria-labelledby="execution-title" hidden>
         <header class="view-header">
-          <p class="eyebrow">Execution</p>
-          <h2 id="execution-title" tabindex="-1">Metronome running</h2>
+          <h2 id="execution-title" tabindex="-1">Metronome</h2>
         </header>
-
-        <p id="execution-status" class="status" role="status" aria-live="assertive"></p>
 
         <div class="execution-card">
           <p id="execution-phase" class="eyebrow">Starting</p>
@@ -456,11 +458,15 @@
 
       <section id="report-view" class="view" aria-labelledby="report-title" hidden>
         <header class="view-header">
-          <p class="eyebrow">Report</p>
-          <h2 id="report-title" tabindex="-1">Run report</h2>
+          <h2 id="report-title" tabindex="-1">Metronome Report</h2>
         </header>
 
-        <p id="report-status" class="status" role="status" aria-live="polite"></p>
+        <p
+          id="report-status"
+          class="status status-sticky"
+          role="status"
+          aria-live="polite"
+        ></p>
 
         <div class="report-card">
           <h3>Summary</h3>

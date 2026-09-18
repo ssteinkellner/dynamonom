@@ -71,7 +71,6 @@ const dom = {
   sessionEndEnabled: document.getElementById("session-end-enabled"),
   sessionEndBeats: document.getElementById("session-end-beats"),
   executionTitle: document.getElementById("execution-title"),
-  executionStatus: document.getElementById("execution-status"),
   executionPhase: document.getElementById("execution-phase"),
   currentBpmLabel: document.getElementById("current-bpm-label"),
   currentBpm: document.getElementById("current-bpm"),
@@ -1283,7 +1282,7 @@ function updateExecutionUi() {
       : isPaused
       ? "Break active"
       : "Running";
-  dom.currentBpmLabel.textContent = isCountdown ? "Countdown" : "Current BPM";
+  dom.currentBpmLabel.textContent = isCountdown ? "Starting in" : "Current BPM";
   dom.currentBpm.textContent = isCountdown
     ? String(state.countdownValue)
     : String(state.currentBpm);
@@ -1346,16 +1345,6 @@ function updateExecutionUi() {
   dom.stopButton.textContent = stopLocked
     ? `Stop (locked for ${state.settings.lockBeats - state.beatCount} beats)`
     : "Stop";
-
-  if (isCountdown) {
-    dom.executionStatus.textContent = `Starting in ${state.countdownValue}...`;
-  } else if (isResumeCountdown) {
-    dom.executionStatus.textContent = "Metronome paused.";
-  } else if (isPaused) {
-    dom.executionStatus.textContent = "Metronome paused.";
-  } else if (isRunning) {
-    dom.executionStatus.textContent = "Metronome running.";
-  }
 }
 
 function getPauseLabel() {

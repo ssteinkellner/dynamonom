@@ -173,6 +173,15 @@ label {
   color: var(--muted);
 }
 
+.status-sticky {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  border-bottom: 0.1rem solid var(--border);
+  padding: 0.5rem 0;
+  background: var(--page-bg);
+}
+
 .error-status,
 .field-error {
   color: var(--danger);
