@@ -1666,19 +1666,22 @@ function buildShortReportText(report) {
   const settings = report.settings;
   const parts = [`${report.beatCount}x`, formatShortBpm(settings)];
   const progression = formatShortProgression(settings);
+  const lines = [parts.join("; ")];
 
   if (progression) {
-    parts.push(progression);
+    lines[0] += `; ${progression}`;
   }
   if (report.breakRecords.length > 0) {
-    parts.push(
-      `Pausen bei: ${report.breakRecords
-        .map((record) => `${record.beat} (${record.durationSeconds}s)`)
-        .join(", ")}`,
+    lines[0] += "; Pausen bei:";
+    lines.push(
+      ...report.breakRecords.map((record) => {
+        const bpm = settings.increaseTempo ? `, ${record.bpm} BPM` : "";
+        return `- ${record.beat} (${record.durationSeconds}s${bpm})`;
+      }),
     );
   }
 
-  return parts.join("; ");
+  return lines.join("\n");
 }
 
 function formatShortBpm(settings) {

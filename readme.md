@@ -194,9 +194,16 @@ section for break records. The button announces success or failure and returns
 to its normal label after a successful copy. Report feedback, including the
 clipboard confirmation, remains visible while scrolling.
 
-The **Copy short to Clipboard** button copies a compact one-line summary with
-the total beat count, BPM range, progression tokens, and the beat numbers and
-used durations for breaks, such as `45 (30s), 71 (5s)`.
+The **Copy short to Clipboard** button copies a compact summary with the total
+beat count, BPM range, and progression tokens on the first line. When breaks
+were used, `Pausen bei:` is added, followed by one beat and used
+duration per line, such as:
+
+```text
+Pausen bei:
+- 45 (30s)
+- 71 (5s)
+```
 
 The **Back to settings** button returns to the Settings view while preserving
 the form values for another run.
