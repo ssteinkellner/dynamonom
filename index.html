@@ -14,7 +14,6 @@
       <section id="settings-view" class="view" aria-labelledby="settings-title">
         <header class="view-header">
           <h1 id="settings-title" tabindex="-1">Metronome</h1>
-          <p>Configure your tempo, accents, progression, and breaks.</p>
         </header>
 
         <p id="settings-status" class="status" role="status" aria-live="polite"></p>
@@ -24,54 +23,63 @@
             <legend>Tempo</legend>
 
             <div class="field">
-              <label for="bpm">Beats per minute (BPM)</label>
-              <input
-                id="bpm"
-                name="bpm"
-                type="number"
-                inputmode="numeric"
-                min="20"
-                max="300"
-                step="1"
-                value="120"
-                aria-describedby="bpm-error"
-              />
-              <p id="bpm-error" class="field-error"></p>
+              <div class="input-wrapper">
+                <label for="bpm">Beats per minute (BPM)</label>
+                <input
+                  id="bpm"
+                  name="bpm"
+                  type="number"
+                  inputmode="numeric"
+                  min="20"
+                  max="300"
+                  step="1"
+                  value="120"
+                  aria-describedby="bpm-error"
+                />
+                <p id="bpm-error" class="field-error"></p>
+              </div>
             </div>
 
-            <div id="accent-option-card" class="option-card">
+            <div id="accent-option-card" class="option-card checkbox-option-card">
               <label class="checkbox-label" for="accentuate">
                 <input id="accentuate" name="accentuate" type="checkbox" checked />
                 <span>Accentuate the first beat</span>
               </label>
 
               <div id="accent-options" class="option-details">
-                <div class="field">
-                  <label for="accent-repeat">Repeat accent every N beats</label>
-                  <input
-                    id="accent-repeat"
-                    name="accent-repeat"
-                    type="number"
-                    inputmode="numeric"
-                    min="1"
-                    step="1"
-                    value="10"
-                    aria-describedby="accent-repeat-error"
-                  />
-                  <p id="accent-repeat-error" class="field-error"></p>
+                <div class="input-row">
+                  <div class="field">
+                    <div class="input-wrapper">
+                      <label for="accent-repeat">Repeat accent every N beats</label>
+                      <input
+                        id="accent-repeat"
+                        name="accent-repeat"
+                        type="number"
+                        inputmode="numeric"
+                        min="1"
+                        step="1"
+                        value="10"
+                        aria-describedby="accent-repeat-error"
+                      />
+                      <p id="accent-repeat-error" class="field-error"></p>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
 
-            <div id="increase-option-card" class="option-card">
-              <label class="checkbox-label" for="increase-tempo">
-                <input id="increase-tempo" name="increase-tempo" type="checkbox" checked />
-                <span>Increase tempo</span>
-              </label>
+            <div
+              id="increase-option-card"
+              class="option-card checkbox-option-card increase-option-card"
+            >
+              <div class="increase-primary-row">
+                <label class="checkbox-label" for="increase-tempo">
+                  <input id="increase-tempo" name="increase-tempo" type="checkbox" checked />
+                  <span>Increase tempo</span>
+                </label>
 
-              <div id="increase-options" class="option-details">
-                <div class="field-grid">
-                  <div class="field">
+                <div class="field">
+                  <div class="input-wrapper">
                     <label for="increase-by">Increase by (BPM)</label>
                     <input
                       id="increase-by"
@@ -86,8 +94,10 @@
                     />
                     <p id="increase-by-error" class="field-error"></p>
                   </div>
+                </div>
 
-                  <div class="field">
+                <div class="field">
+                  <div class="input-wrapper">
                     <label for="increase-after">Increase after (beats)</label>
                     <input
                       id="increase-after"
@@ -102,8 +112,10 @@
                     <p id="increase-after-error" class="field-error"></p>
                   </div>
                 </div>
+              </div>
 
-                <fieldset id="maximum-options">
+              <div id="increase-options" class="option-details">
+                <fieldset id="maximum-options" class="compact-fieldset">
                   <legend>Maximum</legend>
 
                   <div class="radio-option-list">
@@ -121,20 +133,24 @@
                         <span>Stick when met</span>
                       </label>
                       <div class="option-details">
-                        <div class="field">
-                          <label for="maximum-limit-stick">Limit (BPM)</label>
-                          <input
-                            id="maximum-limit-stick"
-                            name="maximum-limit-stick"
-                            type="number"
-                            inputmode="numeric"
-                            min="60"
-                            max="400"
-                            step="1"
-                            value="180"
-                            aria-describedby="maximum-limit-stick-error"
-                          />
-                          <p id="maximum-limit-stick-error" class="field-error"></p>
+                        <div class="input-row">
+                          <div class="field">
+                            <div class="input-wrapper">
+                              <label for="maximum-limit-stick">Limit (BPM)</label>
+                              <input
+                                id="maximum-limit-stick"
+                                name="maximum-limit-stick"
+                                type="number"
+                                inputmode="numeric"
+                                min="60"
+                                max="400"
+                                step="1"
+                                value="180"
+                                aria-describedby="maximum-limit-stick-error"
+                              />
+                              <p id="maximum-limit-stick-error" class="field-error"></p>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -145,20 +161,24 @@
                         <span>Reset when met</span>
                       </label>
                       <div class="option-details">
-                        <div class="field">
-                          <label for="maximum-limit-reset">Limit (BPM)</label>
-                          <input
-                            id="maximum-limit-reset"
-                            name="maximum-limit-reset"
-                            type="number"
-                            inputmode="numeric"
-                            min="60"
-                            max="400"
-                            step="1"
-                            value="180"
-                            aria-describedby="maximum-limit-reset-error"
-                          />
-                          <p id="maximum-limit-reset-error" class="field-error"></p>
+                        <div class="input-row">
+                          <div class="field">
+                            <div class="input-wrapper">
+                              <label for="maximum-limit-reset">Limit (BPM)</label>
+                              <input
+                                id="maximum-limit-reset"
+                                name="maximum-limit-reset"
+                                type="number"
+                                inputmode="numeric"
+                                min="60"
+                                max="400"
+                                step="1"
+                                value="180"
+                                aria-describedby="maximum-limit-reset-error"
+                              />
+                              <p id="maximum-limit-reset-error" class="field-error"></p>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -169,52 +189,58 @@
                         <span>Reverse when met</span>
                       </label>
                       <div class="option-details">
-                        <div class="field">
-                          <label for="maximum-limit-reverse">Limit (BPM)</label>
-                          <input
-                            id="maximum-limit-reverse"
-                            name="maximum-limit-reverse"
-                            type="number"
-                            inputmode="numeric"
-                            min="60"
-                            max="400"
-                            step="1"
-                            value="180"
-                            aria-describedby="maximum-limit-reverse-error"
-                          />
-                          <p id="maximum-limit-reverse-error" class="field-error"></p>
-                        </div>
-
-                        <div class="field-grid">
+                        <div class="input-row">
                           <div class="field">
-                            <label for="decrease-by-reverse">Decrease by (BPM)</label>
-                            <input
-                              id="decrease-by-reverse"
-                              name="decrease-by-reverse"
-                              type="number"
-                              inputmode="numeric"
-                              min="1"
-                              max="50"
-                              step="1"
-                              value="1"
-                              aria-describedby="decrease-by-reverse-error"
-                            />
-                            <p id="decrease-by-reverse-error" class="field-error"></p>
+                            <div class="input-wrapper">
+                              <label for="maximum-limit-reverse">Limit (BPM)</label>
+                              <input
+                                id="maximum-limit-reverse"
+                                name="maximum-limit-reverse"
+                                type="number"
+                                inputmode="numeric"
+                                min="60"
+                                max="400"
+                                step="1"
+                                value="180"
+                                aria-describedby="maximum-limit-reverse-error"
+                              />
+                              <p id="maximum-limit-reverse-error" class="field-error"></p>
+                            </div>
                           </div>
 
                           <div class="field">
-                            <label for="decrease-after-reverse">Decrease after (beats)</label>
-                            <input
-                              id="decrease-after-reverse"
-                              name="decrease-after-reverse"
-                              type="number"
-                              inputmode="numeric"
-                              min="1"
-                              step="1"
-                              value="10"
-                              aria-describedby="decrease-after-reverse-error"
-                            />
-                            <p id="decrease-after-reverse-error" class="field-error"></p>
+                            <div class="input-wrapper">
+                              <label for="decrease-by-reverse">Decrease by (BPM)</label>
+                              <input
+                                id="decrease-by-reverse"
+                                name="decrease-by-reverse"
+                                type="number"
+                                inputmode="numeric"
+                                min="1"
+                                max="50"
+                                step="1"
+                                value="1"
+                                aria-describedby="decrease-by-reverse-error"
+                              />
+                              <p id="decrease-by-reverse-error" class="field-error"></p>
+                            </div>
+                          </div>
+
+                          <div class="field">
+                            <div class="input-wrapper">
+                              <label for="decrease-after-reverse">Decrease after (beats)</label>
+                              <input
+                                id="decrease-after-reverse"
+                                name="decrease-after-reverse"
+                                type="number"
+                                inputmode="numeric"
+                                min="1"
+                                step="1"
+                                value="10"
+                                aria-describedby="decrease-after-reverse-error"
+                              />
+                              <p id="decrease-after-reverse-error" class="field-error"></p>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -222,30 +248,6 @@
                   </div>
                   <p id="maximum-error" class="field-error"></p>
                 </fieldset>
-
-                <div id="lock-option-card" class="option-card">
-                  <label class="checkbox-label" for="lock-settings">
-                    <input id="lock-settings" name="lock-settings" type="checkbox" />
-                    <span>Lock settings during execution</span>
-                  </label>
-
-                  <div id="lock-beats-option" class="option-details">
-                    <div class="field">
-                      <label for="lock-beats">Unlock Stop after (beats)</label>
-                      <input
-                        id="lock-beats"
-                        name="lock-beats"
-                        type="number"
-                        inputmode="numeric"
-                        min="1"
-                        step="1"
-                        value="10"
-                        aria-describedby="lock-beats-error"
-                      />
-                      <p id="lock-beats-error" class="field-error"></p>
-                    </div>
-                  </div>
-                </div>
               </div>
             </div>
           </fieldset>
@@ -277,36 +279,42 @@
                 </label>
 
                 <div id="limited-break-options" class="option-details">
-                  <div class="field">
-                    <label for="break-count">Count (blank for unlimited)</label>
-                    <input
-                      id="break-count"
-                      name="break-count"
-                      type="number"
-                      inputmode="numeric"
-                      min="1"
-                      step="1"
-                      placeholder="Optional"
-                      aria-describedby="break-count-error"
-                    />
-                    <p id="break-count-error" class="field-error"></p>
-                  </div>
+                  <div class="input-row">
+                    <div class="field">
+                      <div class="input-wrapper">
+                        <label for="break-count">Count (blank for unlimited)</label>
+                        <input
+                          id="break-count"
+                          name="break-count"
+                          type="number"
+                          inputmode="numeric"
+                          min="1"
+                          step="1"
+                          placeholder="Optional"
+                          aria-describedby="break-count-error"
+                        />
+                        <p id="break-count-error" class="field-error"></p>
+                      </div>
+                    </div>
 
-                  <div class="field">
-                    <label for="break-seconds">Seconds or BPM expression (blank for manual)</label>
-                    <input
-                      id="break-seconds"
-                      name="break-seconds"
-                      type="text"
-                      inputmode="text"
-                      autocomplete="off"
-                      placeholder="e.g. 30 or BPM/2"
-                      aria-describedby="break-seconds-error break-seconds-help"
-                    />
-                    <p id="break-seconds-help" class="field-help">
-                      Use a positive integer or BPM followed by +, -, *, or / and a positive number.
-                    </p>
-                    <p id="break-seconds-error" class="field-error"></p>
+                    <div class="field">
+                      <div class="input-wrapper">
+                        <label for="break-seconds">Seconds or BPM expression (blank for manual)</label>
+                        <input
+                          id="break-seconds"
+                          name="break-seconds"
+                          type="text"
+                          inputmode="text"
+                          autocomplete="off"
+                          placeholder="e.g. 30 or BPM/2"
+                          aria-describedby="break-seconds-error break-seconds-help"
+                        />
+                        <p id="break-seconds-help" class="field-help">
+                          Use a positive integer or BPM followed by +, -, *, or / and a positive number.
+                        </p>
+                        <p id="break-seconds-error" class="field-error"></p>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -317,26 +325,58 @@
           <fieldset>
             <legend>Session end</legend>
 
-            <div id="session-end-option-card" class="option-card">
+            <div id="session-end-option-card" class="option-card checkbox-option-card">
               <label class="checkbox-label" for="session-end-enabled">
                 <input id="session-end-enabled" name="session-end-enabled" type="checkbox" />
                 <span>End session automatically</span>
               </label>
 
               <div class="option-details">
-                <div class="field">
-                  <label for="session-end-beats">End after (beats)</label>
-                  <input
-                    id="session-end-beats"
-                    name="session-end-beats"
-                    type="number"
-                    inputmode="numeric"
-                    min="1"
-                    step="1"
-                    value="100"
-                    aria-describedby="session-end-beats-error"
-                  />
-                  <p id="session-end-beats-error" class="field-error"></p>
+                <div class="input-row">
+                  <div class="field">
+                    <div class="input-wrapper">
+                      <label for="session-end-beats">End after (beats)</label>
+                      <input
+                        id="session-end-beats"
+                        name="session-end-beats"
+                        type="number"
+                        inputmode="numeric"
+                        min="1"
+                        step="1"
+                        value="100"
+                        aria-describedby="session-end-beats-error"
+                      />
+                      <p id="session-end-beats-error" class="field-error"></p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div id="lock-option-card" class="option-card checkbox-option-card">
+              <label class="checkbox-label" for="lock-settings">
+                <input id="lock-settings" name="lock-settings" type="checkbox" />
+                <span>Lock</span>
+              </label>
+
+              <div class="option-details">
+                <div class="input-row">
+                  <div class="field">
+                    <div class="input-wrapper">
+                      <label for="lock-beats">Unlock Stop after (beats)</label>
+                      <input
+                        id="lock-beats"
+                        name="lock-beats"
+                        type="number"
+                        inputmode="numeric"
+                        min="1"
+                        step="1"
+                        value="10"
+                        aria-describedby="lock-beats-error"
+                      />
+                      <p id="lock-beats-error" class="field-error"></p>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -356,15 +396,14 @@
 
         <div class="execution-card">
           <p id="execution-phase" class="eyebrow">Starting</p>
-          <p id="countdown-display" class="countdown" aria-live="assertive">3</p>
 
           <div class="metric-grid">
             <div class="metric">
-              <span class="metric-label">Current BPM</span>
+              <span id="current-bpm-label" class="metric-label">Current BPM</span>
               <strong id="current-bpm" class="metric-value" aria-live="polite">120</strong>
             </div>
             <div id="next-bpm-info" class="metric" aria-live="polite">
-              <span class="metric-label">Next BPM</span>
+              <span id="next-bpm-label" class="metric-label">Next BPM</span>
               <strong id="next-bpm" class="metric-value">121</strong>
               <span id="next-bpm-countdown" class="metric-detail">in 10 beats</span>
             </div>

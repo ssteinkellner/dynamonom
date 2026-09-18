@@ -192,26 +192,43 @@ label {
 
 .field {
   margin-top: 1rem;
+  min-width: 0;
 }
 
 .field:first-child {
   margin-top: 0;
 }
 
-.field-grid {
-  display: grid;
-  align-items: start;
-  gap: 1rem;
+.input-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.35rem;
+  min-width: 0;
 }
 
-.field-grid > .field {
+.input-wrapper > label,
+.input-wrapper > input,
+.input-wrapper > .field-help,
+.input-wrapper > .field-error {
+  margin: 0;
+}
+
+.input-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  overflow-x: auto;
+}
+
+.input-row > .field {
+  flex: 0 0 12rem;
   margin-top: 0;
 }
 
-.field-grid > .field > label {
-  display: flex;
-  align-items: flex-end;
-  min-height: 3rem;
+.radio-option-list {
+  display: grid;
+  gap: 0.85rem;
 }
 
 .option-card,
@@ -225,6 +242,10 @@ label {
 .option-card + .option-card,
 .radio-option-card + .radio-option-card {
   margin-top: 0.85rem;
+}
+
+.radio-option-list .radio-option-card + .radio-option-card {
+  margin-top: 0;
 }
 
 .option-details {
@@ -242,6 +263,50 @@ label {
 .option-card.is-disabled,
 .radio-option-card.is-disabled {
   opacity: 0.68;
+}
+
+.checkbox-option-card {
+  display: grid;
+  gap: 0;
+}
+
+.checkbox-option-card > .checkbox-label {
+  white-space: nowrap;
+}
+
+.checkbox-option-card > .option-details {
+  min-width: 0;
+}
+
+.increase-primary-row {
+  display: grid;
+  grid-template-columns: minmax(12rem, 1.2fr) repeat(2, minmax(11rem, 1fr));
+  align-items: start;
+  gap: 1rem;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.increase-primary-row > .field {
+  margin-top: 0;
+}
+
+.compact-fieldset {
+  padding: 0.65rem 0.75rem;
+}
+
+.compact-fieldset .radio-option-list {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.compact-fieldset .radio-option-card {
+  margin: 0;
+}
+
+.compact-fieldset .radio-option-card .option-details {
+  margin-top: 0.65rem;
+  padding-top: 0.65rem;
 }
 
 .checkbox-label,
@@ -319,14 +384,6 @@ label {
 
 .execution-card .eyebrow {
   margin: 0;
-}
-
-.countdown {
-  min-height: 4.5rem;
-  margin: 0.5rem 0 1rem;
-  font-size: clamp(3.5rem, 20vw, 6rem);
-  font-weight: 850;
-  line-height: 1;
 }
 
 .metric-grid {
@@ -453,7 +510,6 @@ th {
     padding-top: 2.5rem;
   }
 
-  .field-grid,
   .metric-grid,
   .button-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));

@@ -41,11 +41,9 @@ const dom = {
   bpm: document.getElementById("bpm"),
   accentuate: document.getElementById("accentuate"),
   accentOptionCard: document.getElementById("accent-option-card"),
-  accentOptions: document.getElementById("accent-options"),
   accentRepeat: document.getElementById("accent-repeat"),
   increaseTempo: document.getElementById("increase-tempo"),
   increaseOptionCard: document.getElementById("increase-option-card"),
-  increaseOptions: document.getElementById("increase-options"),
   increaseBy: document.getElementById("increase-by"),
   increaseAfter: document.getElementById("increase-after"),
   maximumOptions: document.getElementById("maximum-options"),
@@ -72,8 +70,9 @@ const dom = {
   executionTitle: document.getElementById("execution-title"),
   executionStatus: document.getElementById("execution-status"),
   executionPhase: document.getElementById("execution-phase"),
-  countdownDisplay: document.getElementById("countdown-display"),
+  currentBpmLabel: document.getElementById("current-bpm-label"),
   currentBpm: document.getElementById("current-bpm"),
+  nextBpmLabel: document.getElementById("next-bpm-label"),
   nextBpmInfo: document.getElementById("next-bpm-info"),
   nextBpm: document.getElementById("next-bpm"),
   nextBpmCountdown: document.getElementById("next-bpm-countdown"),
@@ -173,7 +172,7 @@ function bindEvents() {
 function syncSettingsVisibility() {
   const increaseEnabled = dom.increaseTempo.checked;
   const accentEnabled = dom.accentuate.checked;
-  const lockEnabled = increaseEnabled && dom.lockSettings.checked;
+  const lockEnabled = dom.lockSettings.checked;
   const maximum = getSelectedValue("maximum");
   const breaks = getSelectedValue("breaks");
 
@@ -198,8 +197,7 @@ function syncSettingsVisibility() {
   setControlDisabled(dom.decreaseAfterReverse, !increaseEnabled || maximum !== "reverse");
   dom.maximumOptions.setAttribute("aria-disabled", String(!increaseEnabled));
 
-  setOptionCardState(dom.lockOptionCard, increaseEnabled);
-  setControlDisabled(dom.lockSettings, !increaseEnabled);
+  setOptionCardState(dom.lockOptionCard, lockEnabled);
   setControlDisabled(dom.lockBeats, !lockEnabled);
 
   setOptionCardState(dom.breaksNoneOption, breaks === "none");
@@ -320,16 +318,16 @@ function validateSettings() {
         }
       }
     }
-
-    lockSettings = dom.lockSettings.checked;
-    if (lockSettings) {
-      lockBeats = parsePositiveInteger(dom.lockBeats.value, Number.POSITIVE_INFINITY);
-      if (lockBeats === null) {
-        markInvalid("lock-beats", "Enter a positive whole number.");
-      }
-    }
   } else {
     maximum = "none";
+  }
+
+  lockSettings = dom.lockSettings.checked;
+  if (lockSettings) {
+    lockBeats = parsePositiveInteger(dom.lockBeats.value, Number.POSITIVE_INFINITY);
+    if (lockBeats === null) {
+      markInvalid("lock-beats", "Enter a positive whole number.");
+    }
   }
 
   const breaks = getSelectedValue("breaks") || DEFAULTS.breaks;
@@ -371,6 +369,19 @@ function validateSettings() {
     if (sessionEndBeats === null) {
       markInvalid("session-end-beats", "Enter a positive whole number.");
     }
+  }
+
+  if (
+    lockSettings &&
+    sessionEndEnabled &&
+    lockBeats !== null &&
+    sessionEndBeats !== null &&
+    lockBeats > sessionEndBeats
+  ) {
+    markInvalid(
+      "lock-beats",
+      "Lock cannot exceed the automatic session end threshold.",
+    );
   }
 
   if (!valid) {
@@ -965,11 +976,10 @@ function updateExecutionUi() {
       : isPaused
       ? "Break active"
       : "Running";
-  dom.countdownDisplay.hidden = !isCountdown && !isResumeCountdown;
-  dom.countdownDisplay.textContent = isResumeCountdown
-    ? String(state.resumeCountdownValue)
-    : String(state.countdownValue);
-  dom.currentBpm.textContent = String(state.currentBpm);
+  dom.currentBpmLabel.textContent = isCountdown ? "Countdown" : "Current BPM";
+  dom.currentBpm.textContent = isCountdown
+    ? String(state.countdownValue)
+    : String(state.currentBpm);
   dom.beatCount.textContent = `Beats completed: ${state.beatCount}`;
 
   dom.executionActions.classList.toggle("single-action", isCountdown);
@@ -987,16 +997,22 @@ function updateExecutionUi() {
     dom.pauseButton.textContent =
       remaining === null ? "Resume" : `Resume (${remaining}s)`;
     dom.breakStatus.textContent = isResumeCountdown
-      ? `Resuming in ${remaining}s. Resume now to continue.`
+      ? "Resume now to continue."
       : remaining === null
-        ? "Break paused. Resume when you are ready."
-        : `Break active. ${remaining}s remaining, or resume manually.`;
+        ? "Resume when you are ready."
+        : `${remaining}s remaining, or resume manually.`;
   } else {
     dom.pauseButton.textContent = getPauseLabel();
     dom.breakStatus.textContent = "";
   }
 
-  if (state.settings.increaseTempo) {
+  if (isCountdown) {
+    dom.nextBpmLabel.textContent = "Initial BPM";
+    dom.nextBpmInfo.hidden = false;
+    dom.nextBpm.textContent = String(state.settings.initialBpm);
+    dom.nextBpmCountdown.textContent = "at start";
+  } else if (state.settings.increaseTempo) {
+    dom.nextBpmLabel.textContent = "Next BPM";
     dom.nextBpmInfo.hidden = false;
     if (state.stuckAtMaximum) {
       dom.nextBpm.textContent = "Max";
@@ -1024,7 +1040,7 @@ function updateExecutionUi() {
   if (isCountdown) {
     dom.executionStatus.textContent = `Starting in ${state.countdownValue}...`;
   } else if (isResumeCountdown) {
-    dom.executionStatus.textContent = `Resuming in ${state.resumeCountdownValue}...`;
+    dom.executionStatus.textContent = "Metronome paused.";
   } else if (isPaused) {
     dom.executionStatus.textContent = "Metronome paused.";
   } else if (isRunning) {

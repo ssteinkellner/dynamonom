@@ -15,7 +15,12 @@ JavaScript, with all markup in `index.html` and all behavior in
 The settings view configures the run. Dependent settings are kept visible in
 bordered option cards. When a parent checkbox or radio option is inactive, its
 dependent inputs remain visible but are disabled. Values are preserved when
-switching options.
+switching options. Checkbox cards keep their controls on one compact horizontal
+value row below the checkbox label; long value rows can be scrolled
+horizontally on narrow screens. Each field uses a vertical input wrapper for
+its label, input, hint, and validation message. The Increase tempo card places
+its checkbox and two primary values in one row, then stacks the Maximum groups
+below a separator. Inputs within each group remain side by side.
 
 ### BPM (beats per minute)
 
@@ -73,14 +78,6 @@ starting BPM. Reverse values use the following defaults:
 - Decrease By: 1 BPM, allowed range 1-50
 - Decrease After: 10 beats, minimum 1
 
-#### Lock settings during execution
-
-Checkbox inside the Increase tempo option card. Its beat threshold is always
-visible and becomes active when the checkbox is selected.
-
-- Default: unchecked
-- Default threshold: 10 beats
-
 ### Breaks
 
 Radio options. Each option is displayed in its own bordered card.
@@ -106,6 +103,16 @@ the checkbox is selected.
 - The session ends immediately after the configured beat, even when the
   manual Stop button is still locked
 
+#### Lock
+
+Checkbox in the Session end section. Its beat threshold is always visible and
+becomes active when Lock is selected.
+
+- Default: unchecked
+- Default threshold: 10 beats
+- When automatic session end is also enabled, Lock must be less than or equal
+  to the automatic end threshold
+
 ### Start
 
 The Start button validates the active settings and navigates to the Execution
@@ -122,7 +129,8 @@ available after the first beat starts.
 
 The view displays:
 
-- Current BPM
+- During startup, Countdown and Initial BPM in the two metric cards
+- After startup, Current BPM and the next BPM change
 - The next BPM change and its beat countdown when tempo progression is active
 - Completed beat count
 - Pause and Stop controls
@@ -131,6 +139,7 @@ For a timed break, the final available seconds are announced with the same
 countdown tone used at startup. A 3-second-or-longer break announces 3, 2, 1;
 shorter breaks announce every available second without extending the break.
 The user can still resume manually during this countdown.
+The countdown value is shown inside the Resume button while it is active.
 
 ## View "Report"
 
