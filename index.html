@@ -13,7 +13,6 @@
     <main id="app">
       <section id="settings-view" class="view" aria-labelledby="settings-title">
         <header class="view-header">
-          <p class="eyebrow">Plain JavaScript metronome</p>
           <h1 id="settings-title" tabindex="-1">Metronome</h1>
           <p>Configure your tempo, accents, progression, and breaks.</p>
         </header>
@@ -40,164 +39,213 @@
               <p id="bpm-error" class="field-error"></p>
             </div>
 
-            <div class="field">
+            <div id="accent-option-card" class="option-card">
               <label class="checkbox-label" for="accentuate">
                 <input id="accentuate" name="accentuate" type="checkbox" checked />
                 <span>Accentuate the first beat</span>
               </label>
-            </div>
 
-            <div id="accent-options" class="nested-options">
-              <div class="field">
-                <label for="accent-repeat">Repeat accent every N beats</label>
-                <input
-                  id="accent-repeat"
-                  name="accent-repeat"
-                  type="number"
-                  inputmode="numeric"
-                  min="1"
-                  step="1"
-                  value="10"
-                  aria-describedby="accent-repeat-error"
-                />
-                <p id="accent-repeat-error" class="field-error"></p>
-              </div>
-            </div>
-
-            <div class="field">
-              <label class="checkbox-label" for="increase-tempo">
-                <input id="increase-tempo" name="increase-tempo" type="checkbox" checked />
-                <span>Increase tempo</span>
-              </label>
-            </div>
-
-            <div id="increase-options" class="nested-options">
-              <div class="field-grid">
+              <div id="accent-options" class="option-details">
                 <div class="field">
-                  <label for="increase-by">Increase by (BPM)</label>
+                  <label for="accent-repeat">Repeat accent every N beats</label>
                   <input
-                    id="increase-by"
-                    name="increase-by"
-                    type="number"
-                    inputmode="numeric"
-                    min="1"
-                    max="20"
-                    step="1"
-                    value="1"
-                    aria-describedby="increase-by-error"
-                  />
-                  <p id="increase-by-error" class="field-error"></p>
-                </div>
-
-                <div class="field">
-                  <label for="increase-after">Increase after (beats)</label>
-                  <input
-                    id="increase-after"
-                    name="increase-after"
+                    id="accent-repeat"
+                    name="accent-repeat"
                     type="number"
                     inputmode="numeric"
                     min="1"
                     step="1"
                     value="10"
-                    aria-describedby="increase-after-error"
+                    aria-describedby="accent-repeat-error"
                   />
-                  <p id="increase-after-error" class="field-error"></p>
+                  <p id="accent-repeat-error" class="field-error"></p>
                 </div>
               </div>
+            </div>
 
-              <fieldset id="maximum-options">
-                <legend>Maximum</legend>
+            <div id="increase-option-card" class="option-card">
+              <label class="checkbox-label" for="increase-tempo">
+                <input id="increase-tempo" name="increase-tempo" type="checkbox" checked />
+                <span>Increase tempo</span>
+              </label>
 
-                <div class="radio-grid">
-                  <label class="radio-label" for="maximum-none">
-                    <input id="maximum-none" name="maximum" type="radio" value="none" checked />
-                    <span>None</span>
-                  </label>
-                  <label class="radio-label" for="maximum-stick">
-                    <input id="maximum-stick" name="maximum" type="radio" value="stick" />
-                    <span>Stick when met</span>
-                  </label>
-                  <label class="radio-label" for="maximum-reset">
-                    <input id="maximum-reset" name="maximum" type="radio" value="reset" />
-                    <span>Reset when met</span>
-                  </label>
-                  <label class="radio-label" for="maximum-reverse">
-                    <input id="maximum-reverse" name="maximum" type="radio" value="reverse" />
-                    <span>Reverse when met</span>
-                  </label>
-                </div>
-                <p id="maximum-error" class="field-error"></p>
-
-                <div id="maximum-limit-option" class="field">
-                  <label for="maximum-limit">Limit (BPM)</label>
-                  <input
-                    id="maximum-limit"
-                    name="maximum-limit"
-                    type="number"
-                    inputmode="numeric"
-                    min="60"
-                    max="400"
-                    step="1"
-                    value="180"
-                    aria-describedby="maximum-limit-error"
-                  />
-                  <p id="maximum-limit-error" class="field-error"></p>
-                </div>
-
-                <div id="reverse-options" class="field-grid">
+              <div id="increase-options" class="option-details">
+                <div class="field-grid">
                   <div class="field">
-                    <label for="decrease-by">Decrease by (BPM)</label>
+                    <label for="increase-by">Increase by (BPM)</label>
                     <input
-                      id="decrease-by"
-                      name="decrease-by"
+                      id="increase-by"
+                      name="increase-by"
                       type="number"
                       inputmode="numeric"
                       min="1"
-                      max="50"
+                      max="20"
                       step="1"
                       value="1"
-                      aria-describedby="decrease-by-error"
+                      aria-describedby="increase-by-error"
                     />
-                    <p id="decrease-by-error" class="field-error"></p>
+                    <p id="increase-by-error" class="field-error"></p>
                   </div>
 
                   <div class="field">
-                    <label for="decrease-after">Decrease after (beats)</label>
+                    <label for="increase-after">Increase after (beats)</label>
                     <input
-                      id="decrease-after"
-                      name="decrease-after"
+                      id="increase-after"
+                      name="increase-after"
                       type="number"
                       inputmode="numeric"
                       min="1"
                       step="1"
                       value="10"
-                      aria-describedby="decrease-after-error"
+                      aria-describedby="increase-after-error"
                     />
-                    <p id="decrease-after-error" class="field-error"></p>
+                    <p id="increase-after-error" class="field-error"></p>
                   </div>
                 </div>
-              </fieldset>
 
-              <div class="field">
-                <label class="checkbox-label" for="lock-settings">
-                  <input id="lock-settings" name="lock-settings" type="checkbox" />
-                  <span>Lock settings during execution</span>
-                </label>
-              </div>
+                <fieldset id="maximum-options">
+                  <legend>Maximum</legend>
 
-              <div id="lock-beats-option" class="field">
-                <label for="lock-beats">Unlock Stop after (beats)</label>
-                <input
-                  id="lock-beats"
-                  name="lock-beats"
-                  type="number"
-                  inputmode="numeric"
-                  min="1"
-                  step="1"
-                  value="10"
-                  aria-describedby="lock-beats-error"
-                />
-                <p id="lock-beats-error" class="field-error"></p>
+                  <div class="radio-option-list">
+                    <div id="maximum-none-option" class="radio-option-card">
+                      <label class="radio-label" for="maximum-none">
+                        <input id="maximum-none" name="maximum" type="radio" value="none" checked />
+                        <span>None</span>
+                      </label>
+                      <p class="option-help">Tempo increases without a configured limit.</p>
+                    </div>
+
+                    <div id="maximum-stick-option" class="radio-option-card">
+                      <label class="radio-label" for="maximum-stick">
+                        <input id="maximum-stick" name="maximum" type="radio" value="stick" />
+                        <span>Stick when met</span>
+                      </label>
+                      <div class="option-details">
+                        <div class="field">
+                          <label for="maximum-limit-stick">Limit (BPM)</label>
+                          <input
+                            id="maximum-limit-stick"
+                            name="maximum-limit-stick"
+                            type="number"
+                            inputmode="numeric"
+                            min="60"
+                            max="400"
+                            step="1"
+                            value="180"
+                            aria-describedby="maximum-limit-stick-error"
+                          />
+                          <p id="maximum-limit-stick-error" class="field-error"></p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div id="maximum-reset-option" class="radio-option-card">
+                      <label class="radio-label" for="maximum-reset">
+                        <input id="maximum-reset" name="maximum" type="radio" value="reset" />
+                        <span>Reset when met</span>
+                      </label>
+                      <div class="option-details">
+                        <div class="field">
+                          <label for="maximum-limit-reset">Limit (BPM)</label>
+                          <input
+                            id="maximum-limit-reset"
+                            name="maximum-limit-reset"
+                            type="number"
+                            inputmode="numeric"
+                            min="60"
+                            max="400"
+                            step="1"
+                            value="180"
+                            aria-describedby="maximum-limit-reset-error"
+                          />
+                          <p id="maximum-limit-reset-error" class="field-error"></p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div id="maximum-reverse-option" class="radio-option-card">
+                      <label class="radio-label" for="maximum-reverse">
+                        <input id="maximum-reverse" name="maximum" type="radio" value="reverse" />
+                        <span>Reverse when met</span>
+                      </label>
+                      <div class="option-details">
+                        <div class="field">
+                          <label for="maximum-limit-reverse">Limit (BPM)</label>
+                          <input
+                            id="maximum-limit-reverse"
+                            name="maximum-limit-reverse"
+                            type="number"
+                            inputmode="numeric"
+                            min="60"
+                            max="400"
+                            step="1"
+                            value="180"
+                            aria-describedby="maximum-limit-reverse-error"
+                          />
+                          <p id="maximum-limit-reverse-error" class="field-error"></p>
+                        </div>
+
+                        <div class="field-grid">
+                          <div class="field">
+                            <label for="decrease-by-reverse">Decrease by (BPM)</label>
+                            <input
+                              id="decrease-by-reverse"
+                              name="decrease-by-reverse"
+                              type="number"
+                              inputmode="numeric"
+                              min="1"
+                              max="50"
+                              step="1"
+                              value="1"
+                              aria-describedby="decrease-by-reverse-error"
+                            />
+                            <p id="decrease-by-reverse-error" class="field-error"></p>
+                          </div>
+
+                          <div class="field">
+                            <label for="decrease-after-reverse">Decrease after (beats)</label>
+                            <input
+                              id="decrease-after-reverse"
+                              name="decrease-after-reverse"
+                              type="number"
+                              inputmode="numeric"
+                              min="1"
+                              step="1"
+                              value="10"
+                              aria-describedby="decrease-after-reverse-error"
+                            />
+                            <p id="decrease-after-reverse-error" class="field-error"></p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <p id="maximum-error" class="field-error"></p>
+                </fieldset>
+
+                <div id="lock-option-card" class="option-card">
+                  <label class="checkbox-label" for="lock-settings">
+                    <input id="lock-settings" name="lock-settings" type="checkbox" />
+                    <span>Lock settings during execution</span>
+                  </label>
+
+                  <div id="lock-beats-option" class="option-details">
+                    <div class="field">
+                      <label for="lock-beats">Unlock Stop after (beats)</label>
+                      <input
+                        id="lock-beats"
+                        name="lock-beats"
+                        type="number"
+                        inputmode="numeric"
+                        min="1"
+                        step="1"
+                        value="10"
+                        aria-describedby="lock-beats-error"
+                      />
+                      <p id="lock-beats-error" class="field-error"></p>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </fieldset>
@@ -205,55 +253,65 @@
           <fieldset>
             <legend>Breaks</legend>
 
-            <div class="radio-grid">
-              <label class="radio-label" for="breaks-none">
-                <input id="breaks-none" name="breaks" type="radio" value="none" />
-                <span>None</span>
-              </label>
-              <label class="radio-label" for="breaks-unlimited">
-                <input id="breaks-unlimited" name="breaks" type="radio" value="unlimited" checked />
-                <span>Unlimited</span>
-              </label>
-              <label class="radio-label" for="breaks-limited">
-                <input id="breaks-limited" name="breaks" type="radio" value="limited" />
-                <span>Limited</span>
-              </label>
+            <div class="radio-option-list">
+              <div id="breaks-none-option" class="radio-option-card">
+                <label class="radio-label" for="breaks-none">
+                  <input id="breaks-none" name="breaks" type="radio" value="none" />
+                  <span>None</span>
+                </label>
+                <p class="option-help">The Pause control is not available during execution.</p>
+              </div>
+
+              <div id="breaks-unlimited-option" class="radio-option-card">
+                <label class="radio-label" for="breaks-unlimited">
+                  <input id="breaks-unlimited" name="breaks" type="radio" value="unlimited" checked />
+                  <span>Unlimited</span>
+                </label>
+                <p class="option-help">Pause as often as needed; each break ends manually.</p>
+              </div>
+
+              <div id="breaks-limited-option" class="radio-option-card">
+                <label class="radio-label" for="breaks-limited">
+                  <input id="breaks-limited" name="breaks" type="radio" value="limited" />
+                  <span>Limited</span>
+                </label>
+
+                <div id="limited-break-options" class="option-details">
+                  <div class="field">
+                    <label for="break-count">Count (blank for unlimited)</label>
+                    <input
+                      id="break-count"
+                      name="break-count"
+                      type="number"
+                      inputmode="numeric"
+                      min="1"
+                      step="1"
+                      placeholder="Optional"
+                      aria-describedby="break-count-error"
+                    />
+                    <p id="break-count-error" class="field-error"></p>
+                  </div>
+
+                  <div class="field">
+                    <label for="break-seconds">Seconds or BPM expression (blank for manual)</label>
+                    <input
+                      id="break-seconds"
+                      name="break-seconds"
+                      type="text"
+                      inputmode="text"
+                      autocomplete="off"
+                      placeholder="e.g. 30 or BPM/2"
+                      aria-describedby="break-seconds-error break-seconds-help"
+                    />
+                    <p id="break-seconds-help" class="field-help">
+                      Use a positive integer or BPM followed by +, -, *, or / and a positive number.
+                    </p>
+                    <p id="break-seconds-error" class="field-error"></p>
+                  </div>
+                </div>
+              </div>
             </div>
             <p id="breaks-error" class="field-error"></p>
-
-            <div id="limited-break-options" class="nested-options">
-              <div class="field">
-                <label for="break-count">Count (blank for unlimited)</label>
-                <input
-                  id="break-count"
-                  name="break-count"
-                  type="number"
-                  inputmode="numeric"
-                  min="1"
-                  step="1"
-                  placeholder="Optional"
-                  aria-describedby="break-count-error"
-                />
-                <p id="break-count-error" class="field-error"></p>
-              </div>
-
-              <div class="field">
-                <label for="break-seconds">Seconds or BPM expression (blank for manual)</label>
-                <input
-                  id="break-seconds"
-                  name="break-seconds"
-                  type="text"
-                  inputmode="text"
-                  autocomplete="off"
-                  placeholder="e.g. 30 or BPM/2"
-                  aria-describedby="break-seconds-error break-seconds-help"
-                />
-                <p id="break-seconds-help" class="field-help">
-                  Use a positive integer or BPM followed by +, -, *, or / and a positive number.
-                </p>
-                <p id="break-seconds-error" class="field-error"></p>
-              </div>
-            </div>
           </fieldset>
 
           <button id="start-button" class="primary-button" type="submit">Start</button>
@@ -301,6 +359,8 @@
           <p class="eyebrow">Report</p>
           <h2 id="report-title" tabindex="-1">Run report</h2>
         </header>
+
+        <p id="report-status" class="status" role="status" aria-live="polite"></p>
 
         <div class="report-card">
           <h3>Summary</h3>
@@ -356,7 +416,19 @@
           </div>
         </div>
 
-        <button id="back-button" class="primary-button" type="button">Back to settings</button>
+        <div class="button-row report-actions">
+          <button id="copy-report-button" class="secondary-button" type="button">
+            Copy to clipboard
+          </button>
+          <button id="back-button" class="primary-button" type="button">Back to settings</button>
+        </div>
+        <textarea
+          id="clipboard-buffer"
+          class="visually-hidden"
+          aria-hidden="true"
+          tabindex="-1"
+          readonly
+        ></textarea>
       </section>
     </main>
 

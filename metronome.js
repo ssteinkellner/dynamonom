@@ -38,22 +38,30 @@ const dom = {
   settingsStatus: document.getElementById("settings-status"),
   bpm: document.getElementById("bpm"),
   accentuate: document.getElementById("accentuate"),
+  accentOptionCard: document.getElementById("accent-option-card"),
   accentOptions: document.getElementById("accent-options"),
   accentRepeat: document.getElementById("accent-repeat"),
   increaseTempo: document.getElementById("increase-tempo"),
+  increaseOptionCard: document.getElementById("increase-option-card"),
   increaseOptions: document.getElementById("increase-options"),
   increaseBy: document.getElementById("increase-by"),
   increaseAfter: document.getElementById("increase-after"),
   maximumOptions: document.getElementById("maximum-options"),
-  maximumLimitOption: document.getElementById("maximum-limit-option"),
-  maximumLimit: document.getElementById("maximum-limit"),
-  reverseOptions: document.getElementById("reverse-options"),
-  decreaseBy: document.getElementById("decrease-by"),
-  decreaseAfter: document.getElementById("decrease-after"),
+  maximumNoneOption: document.getElementById("maximum-none-option"),
+  maximumStickOption: document.getElementById("maximum-stick-option"),
+  maximumResetOption: document.getElementById("maximum-reset-option"),
+  maximumReverseOption: document.getElementById("maximum-reverse-option"),
+  maximumLimitStick: document.getElementById("maximum-limit-stick"),
+  maximumLimitReset: document.getElementById("maximum-limit-reset"),
+  maximumLimitReverse: document.getElementById("maximum-limit-reverse"),
+  decreaseByReverse: document.getElementById("decrease-by-reverse"),
+  decreaseAfterReverse: document.getElementById("decrease-after-reverse"),
   lockSettings: document.getElementById("lock-settings"),
-  lockBeatsOption: document.getElementById("lock-beats-option"),
+  lockOptionCard: document.getElementById("lock-option-card"),
   lockBeats: document.getElementById("lock-beats"),
-  limitedBreakOptions: document.getElementById("limited-break-options"),
+  breaksNoneOption: document.getElementById("breaks-none-option"),
+  breaksUnlimitedOption: document.getElementById("breaks-unlimited-option"),
+  breaksLimitedOption: document.getElementById("breaks-limited-option"),
   breakCount: document.getElementById("break-count"),
   breakSeconds: document.getElementById("break-seconds"),
   executionTitle: document.getElementById("execution-title"),
@@ -70,6 +78,7 @@ const dom = {
   pauseButton: document.getElementById("pause-button"),
   stopButton: document.getElementById("stop-button"),
   reportTitle: document.getElementById("report-title"),
+  reportStatus: document.getElementById("report-status"),
   reportTotalBeats: document.getElementById("report-total-beats"),
   reportStartBpm: document.getElementById("report-start-bpm"),
   reportAccent: document.getElementById("report-accent"),
@@ -81,6 +90,8 @@ const dom = {
   breakTableWrapper: document.getElementById("break-table-wrapper"),
   breakTableBody: document.getElementById("break-table-body"),
   breakRowTemplate: document.getElementById("break-row-template"),
+  copyReportButton: document.getElementById("copy-report-button"),
+  clipboardBuffer: document.getElementById("clipboard-buffer"),
   backButton: document.getElementById("back-button"),
 };
 
@@ -106,6 +117,7 @@ const state = {
 };
 
 let audioContext = null;
+let copyFeedbackTimer = null;
 
 function init() {
   if (Object.values(dom).some((element) => element === null)) {
@@ -126,6 +138,7 @@ function bindEvents() {
   dom.lockSettings.addEventListener("change", syncSettingsVisibility);
   dom.pauseButton.addEventListener("click", handlePause);
   dom.stopButton.addEventListener("click", handleStop);
+  dom.copyReportButton.addEventListener("click", handleCopyReport);
   dom.backButton.addEventListener("click", handleBackToSettings);
 
   document.querySelectorAll('input[name="maximum"]').forEach((input) => {
@@ -152,13 +165,36 @@ function syncSettingsVisibility() {
   const maximum = getSelectedValue("maximum");
   const breaks = getSelectedValue("breaks");
 
-  setHidden(dom.accentOptions, !accentEnabled);
-  setHidden(dom.increaseOptions, !increaseEnabled);
-  setHidden(dom.maximumOptions, !increaseEnabled);
-  setHidden(dom.maximumLimitOption, !increaseEnabled || maximum === "none");
-  setHidden(dom.reverseOptions, !increaseEnabled || maximum !== "reverse");
-  setHidden(dom.lockBeatsOption, !lockEnabled);
-  setHidden(dom.limitedBreakOptions, breaks !== "limited");
+  setOptionCardState(dom.accentOptionCard, accentEnabled);
+  setOptionCardState(dom.increaseOptionCard, increaseEnabled);
+  setControlDisabled(dom.accentRepeat, !accentEnabled);
+  setControlDisabled(dom.increaseBy, !increaseEnabled);
+  setControlDisabled(dom.increaseAfter, !increaseEnabled);
+
+  const maximumInputs = document.querySelectorAll('input[name="maximum"]');
+  maximumInputs.forEach((input) => {
+    setControlDisabled(input, !increaseEnabled);
+  });
+  setOptionCardState(dom.maximumNoneOption, increaseEnabled && maximum === "none");
+  setOptionCardState(dom.maximumStickOption, increaseEnabled && maximum === "stick");
+  setOptionCardState(dom.maximumResetOption, increaseEnabled && maximum === "reset");
+  setOptionCardState(dom.maximumReverseOption, increaseEnabled && maximum === "reverse");
+  setControlDisabled(dom.maximumLimitStick, !increaseEnabled || maximum !== "stick");
+  setControlDisabled(dom.maximumLimitReset, !increaseEnabled || maximum !== "reset");
+  setControlDisabled(dom.maximumLimitReverse, !increaseEnabled || maximum !== "reverse");
+  setControlDisabled(dom.decreaseByReverse, !increaseEnabled || maximum !== "reverse");
+  setControlDisabled(dom.decreaseAfterReverse, !increaseEnabled || maximum !== "reverse");
+  dom.maximumOptions.setAttribute("aria-disabled", String(!increaseEnabled));
+
+  setOptionCardState(dom.lockOptionCard, increaseEnabled);
+  setControlDisabled(dom.lockSettings, !increaseEnabled);
+  setControlDisabled(dom.lockBeats, !lockEnabled);
+
+  setOptionCardState(dom.breaksNoneOption, breaks === "none");
+  setOptionCardState(dom.breaksUnlimitedOption, breaks === "unlimited");
+  setOptionCardState(dom.breaksLimitedOption, breaks === "limited");
+  setControlDisabled(dom.breakCount, breaks !== "limited");
+  setControlDisabled(dom.breakSeconds, breaks !== "limited");
 }
 
 async function handleStart(event) {
@@ -233,25 +269,38 @@ function validateSettings() {
     }
 
     if (maximum !== "none") {
-      maximumLimit = parseIntegerField(dom.maximumLimit.value, 60, 400);
+      const maximumControls = getMaximumControls(maximum);
+      maximumLimit = parseIntegerField(maximumControls.limit.value, 60, 400);
       if (maximumLimit === null) {
-        markInvalid("maximum-limit", "Enter a whole-number limit from 60 to 400.");
+        markInvalid(
+          maximumControls.limit.id,
+          "Enter a whole-number limit from 60 to 400.",
+        );
       } else if (bpm !== null && maximumLimit <= bpm) {
-        markInvalid("maximum-limit", "The limit must be greater than the starting BPM.");
+        markInvalid(
+          maximumControls.limit.id,
+          "The limit must be greater than the starting BPM.",
+        );
       }
 
       if (maximum === "reverse") {
-        decreaseBy = parseIntegerField(dom.decreaseBy.value, 1, 50);
+        decreaseBy = parseIntegerField(maximumControls.decreaseBy.value, 1, 50);
         if (decreaseBy === null) {
-          markInvalid("decrease-by", "Enter a whole number from 1 to 50.");
+          markInvalid(
+            maximumControls.decreaseBy.id,
+            "Enter a whole number from 1 to 50.",
+          );
         }
 
         decreaseAfter = parsePositiveInteger(
-          dom.decreaseAfter.value,
+          maximumControls.decreaseAfter.value,
           Number.POSITIVE_INFINITY,
         );
         if (decreaseAfter === null) {
-          markInvalid("decrease-after", "Enter a positive whole number.");
+          markInvalid(
+            maximumControls.decreaseAfter.id,
+            "Enter a positive whole number.",
+          );
         }
       }
     }
@@ -693,6 +742,60 @@ function finalizeRun() {
   showView("report", true);
 }
 
+async function handleCopyReport() {
+  if (!state.report) {
+    return;
+  }
+
+  const text = buildReportText(state.report);
+
+  try {
+    await copyText(text);
+    dom.reportStatus.classList.remove("error-status");
+    dom.reportStatus.textContent = "Report copied to clipboard.";
+    dom.copyReportButton.textContent = "Copied!";
+
+    if (copyFeedbackTimer !== null) {
+      window.clearTimeout(copyFeedbackTimer);
+    }
+    copyFeedbackTimer = window.setTimeout(() => {
+      dom.copyReportButton.textContent = "Copy to clipboard";
+      copyFeedbackTimer = null;
+    }, 2000);
+  } catch (error) {
+    dom.reportStatus.classList.add("error-status");
+    dom.reportStatus.textContent = getErrorMessage(
+      error,
+      "The report could not be copied to the clipboard.",
+    );
+  }
+}
+
+async function copyText(text) {
+  const clipboard = typeof navigator !== "undefined" ? navigator.clipboard : null;
+  if (clipboard && typeof clipboard.writeText === "function") {
+    try {
+      await clipboard.writeText(text);
+      return;
+    } catch {
+      // Continue with the local fallback when the Clipboard API is unavailable or denied.
+    }
+  }
+
+  const buffer = dom.clipboardBuffer;
+  buffer.value = text;
+  buffer.focus();
+  buffer.select();
+  const copied =
+    typeof document.execCommand === "function" && document.execCommand("copy");
+  buffer.setSelectionRange(0, 0);
+  dom.copyReportButton.focus();
+
+  if (!copied) {
+    throw new Error("The browser did not allow clipboard access.");
+  }
+}
+
 function handleBackToSettings() {
   cancelTimers();
   state.token += 1;
@@ -702,6 +805,13 @@ function handleBackToSettings() {
   state.report = null;
   dom.settingsStatus.textContent = "";
   dom.executionMessage.textContent = "";
+  dom.reportStatus.textContent = "";
+  dom.reportStatus.classList.remove("error-status");
+  dom.copyReportButton.textContent = "Copy to clipboard";
+  if (copyFeedbackTimer !== null) {
+    window.clearTimeout(copyFeedbackTimer);
+    copyFeedbackTimer = null;
+  }
   showView("settings", true);
   dom.bpm.focus();
 }
@@ -826,6 +936,9 @@ function renderReport() {
   const report = state.report;
   const settings = report.settings;
 
+  dom.reportStatus.textContent = "";
+  dom.reportStatus.classList.remove("error-status");
+  dom.copyReportButton.textContent = "Copy to clipboard";
   dom.reportTotalBeats.textContent = String(report.beatCount);
   dom.reportStartBpm.textContent = `${settings.initialBpm} BPM`;
   dom.reportAccent.textContent = settings.accentuate
@@ -857,6 +970,44 @@ function renderReport() {
     row.querySelector('[data-cell="ended"]').textContent = record.ended;
     dom.breakTableBody.append(row);
   });
+}
+
+function buildReportText(report) {
+  const settings = report.settings;
+  const lines = [
+    "Metronome report",
+    `Total beats: ${report.beatCount}`,
+    `Starting BPM: ${settings.initialBpm} BPM`,
+    `Accent: ${
+      settings.accentuate ? `Enabled every ${settings.accentRepeat} beats` : "Disabled"
+    }`,
+    `Tempo progression: ${
+      settings.increaseTempo
+        ? `+${settings.increaseBy} BPM every ${settings.increaseAfter} beats`
+        : "Disabled"
+    }`,
+    `Maximum: ${formatMaximum(settings)}`,
+    `Breaks: ${formatBreaks(settings)}`,
+    `Settings lock: ${
+      settings.lockSettings ? `Enabled after ${settings.lockBeats} beats` : "Disabled"
+    }`,
+    "",
+    "Breaks used:",
+  ];
+
+  if (report.breakRecords.length === 0) {
+    lines.push("No breaks used.");
+  } else {
+    report.breakRecords.forEach((record) => {
+      lines.push(
+        `${record.number}. Beat: ${record.beat}; BPM: ${record.bpm}; ` +
+          `Allowance: ${record.overLimit ? "Over limit" : "Within allowance"}; ` +
+          `Ended: ${record.ended}`,
+      );
+    });
+  }
+
+  return lines.join("\n");
 }
 
 function formatMaximum(settings) {
@@ -958,12 +1109,34 @@ function showView(name, moveFocus) {
   heading.focus();
 }
 
-function setHidden(element, hidden) {
-  element.hidden = hidden;
+function setOptionCardState(card, active) {
+  card.classList.toggle("is-disabled", !active);
+}
+
+function setControlDisabled(control, disabled) {
+  control.disabled = disabled;
 }
 
 function getSelectedValue(name) {
   return document.querySelector(`input[name="${name}"]:checked`)?.value || null;
+}
+
+function getMaximumControls(maximum) {
+  if (maximum === "stick") {
+    return {
+      limit: dom.maximumLimitStick,
+    };
+  }
+  if (maximum === "reset") {
+    return {
+      limit: dom.maximumLimitReset,
+    };
+  }
+  return {
+    limit: dom.maximumLimitReverse,
+    decreaseBy: dom.decreaseByReverse,
+    decreaseAfter: dom.decreaseAfterReverse,
+  };
 }
 
 function setFieldError(fieldId, message) {

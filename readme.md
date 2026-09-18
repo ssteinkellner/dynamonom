@@ -1,101 +1,128 @@
 # Metronome
-This metronome is a single page application, consisting of multiple views
-It allows for dynamically increasing bpm counts.  
-Only one Page is visible at a time.  
-For further informations see the sections below. 
 
-## Page "Settings"
-Allows setting up the application, by using the following settings:
+This metronome is a single-page application with three views:
+
+- Settings
+- Execution
+- Report
+
+Only one view is visible at a time. The application is implemented with plain
+JavaScript, with all markup in `index.html` and all behavior in
+`metronome.js`.
+
+## View "Settings"
+
+The settings view configures the run. Dependent settings are kept visible in
+bordered option cards. When a parent checkbox or radio option is inactive, its
+dependent inputs remain visible but are disabled. Values are preserved when
+switching options.
 
 ### BPM (beats per minute)
-Number input  
-Default: 120
 
-###  accentuate first beat
-Checkbox  
-Default: checked  
-When checked, the following settings appear:
+Whole-number input.
 
-#### repeat after every x beat
-Number input  
-Default: 10
+- Default: 120
+- Allowed starting range: 20-300
 
-### increase tempo
-Checkbox  
-Default: checked  
-when checked, the following settings appear:
+### Accentuate first beat
 
-#### increase by
-Number input  
-Updating the beats per minute automatically on the second page by a specified amount
+Checkbox, enabled by default. When enabled, the first beat and every configured
+interval are accented.
 
-#### increase after
-Number input  
-To define after how many beats the bpm should be increased
+#### Repeat accent every N beats
+
+Whole-number input inside the Accentuate option card.
+
+- Default: 10
+- Minimum: 1
+
+### Increase tempo
+
+Checkbox, enabled by default. Its dependent settings remain visible inside the
+Increase tempo option card and are disabled when the checkbox is unchecked.
+
+#### Increase by
+
+Whole-number BPM increment.
+
+- Default: 1
+- Allowed range: 1-20
+
+#### Increase after
+
+Whole-number beat interval.
+
+- Default: 10
+- Minimum: 1
 
 #### Maximum
-A checkbox group To define, how the app should behave, when a specific value is reached
-Available values:  
-- "None"  
-  Tempo increases without limit
-- "Stick when met"  
-  Once the BPM matches, it is no longer increased
-- "Reset when met"  
-  Contains an additional number field "Limit" to configure the limit. once the current BPM matches or is greater, it gets reset to the initial value from Field 1
-- "Reverse when met"  
-  Contains an additional number field "Limit", to configure the limit.  
-  once the current BPM matches or is greater, it starts decreasing following the increase logic but with 2 additional fields "Decrease By", "Decrease After" to override the increasing values
 
-#### Breaks
-Checkbox group   
-Values:
-- "None"
-- "Unlimited" (default)
-- "Limited"  
-  when checked, the following settings appear:
-  - nullable Number input "Count"
-  - text input "Seconds"  
-    allowing following input filtered by regex:  
-    either just a number  
-    or  
-    the text "BPM" followed by [+-*/] and a number > 0
+Radio options. Each option has its own bordered card and preserves its own
+values.
 
-#### Lock Settings
-Checkbox  
-only visible, when "increase tempo" is checked
-when checked, another input "beats" gets visibile and navigating back from view "execution" to "settings" is only possible, once this amount of beats was executed.
+- **None**: tempo increases without a configured limit.
+- **Stick when met**: the tempo holds at the configured limit.
+- **Reset when met**: the next beat uses the initial BPM after the limit is
+  reached.
+- **Reverse when met**: the tempo reaches the limit, then decreases using its
+  own Decrease By and Decrease After values before cycling again.
 
-#### Start
-Button  
-the application navigates to view "execution"
+Limit inputs accept whole numbers from 60-400 and must be greater than the
+starting BPM. Reverse values use the following defaults:
+
+- Decrease By: 1 BPM, allowed range 1-50
+- Decrease After: 10 beats, minimum 1
+
+#### Lock settings during execution
+
+Checkbox inside the Increase tempo option card. Its beat threshold is always
+visible and becomes active when the checkbox is selected.
+
+- Default: unchecked
+- Default threshold: 10 beats
+
+### Breaks
+
+Radio options. Each option is displayed in its own bordered card.
+
+- **None**: the Pause control is unavailable during execution.
+- **Unlimited**: pauses are allowed without a count limit.
+- **Limited**: Count and Seconds remain visible in the Limited card and are
+  active when Limited is selected.
+
+Count accepts a blank value or a positive whole number. Seconds accepts a
+positive whole number, or an expression such as `BPM/2`, `BPM+5`, `BPM-2`, or
+`BPM*1.5`.
+
+### Start
+
+The Start button validates the active settings and navigates to the Execution
+view.
 
 ## View "Execution"
-Starts by displaying a count down from 3 and playing 3 tones seperated by 1 second, to inform the user about the upcoming start.
-once started, the BPM are executed as configured.  
-Following elements are displayed during execution
 
-### BPM
-displays the current BPM
+The view starts with a visible 3, 2, 1 countdown and three tones separated by
+one second. It then executes the configured tempo.
 
-### {Next BPM} in
-only visible when increasing was set  
-displays the number of beats until next increase
+The view displays:
 
-### Pause
-Only visible, when Settings "Breaks" is not "None"  
-When clicked, the metronome is paused. Once clicked, the following scenarios are possible: 
-- When a Count limit was configured, the button contains a text "x left". when no break is left, the button color changes to read. it can still be clicked, but the amount of exceeding clicks is counted and displayed in the button.  
-- When a time limit was configured, the button shows the remaining time limit. the user can end the break manually, but when the time limit is reached, the break ends automatically
-- When no count or time limit was set, the user has to manually end the break
-
-### Stop
-navigates to view "Report".  
-when "lock settings" was set, the button is disabled and contains a text "x beats left", telling the user when the button will be available.  
+- Current BPM
+- The next BPM change and its beat countdown when tempo progression is active
+- Completed beat count
+- Pause and Stop controls
 
 ## View "Report"
-this view shows:
-- a summary of the settings in text form
-- how many beats were executed in total
-- at which beats a break was used (and which bpm was active a that time)
 
-it contains a button "Back to settings" to go back to the first view
+The report displays:
+
+- A summary of the effective settings
+- Total completed beats
+- Each break's beat number, active BPM, allowance status, and end reason
+
+The **Copy to clipboard** button copies all report information as labeled plain
+text. Each item is separated by a newline, with a separate newline-delimited
+section for break records. The button announces success or failure and returns
+to its normal label after a successful copy.
+
+The **Back to settings** button returns to the Settings view while preserving
+the form values for another run.

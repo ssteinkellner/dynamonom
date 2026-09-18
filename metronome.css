@@ -122,7 +122,6 @@ fieldset {
 }
 
 fieldset + fieldset,
-fieldset .nested-options,
 .report-card + .report-card {
   margin-top: 1rem;
 }
@@ -201,12 +200,48 @@ label {
 
 .field-grid {
   display: grid;
+  align-items: start;
   gap: 1rem;
 }
 
-.nested-options {
-  border-left: 0.2rem solid var(--surface-muted);
-  padding-left: 1rem;
+.field-grid > .field {
+  margin-top: 0;
+}
+
+.field-grid > .field > label {
+  display: flex;
+  align-items: flex-end;
+  min-height: 3rem;
+}
+
+.option-card,
+.radio-option-card {
+  border: 0.1rem solid var(--border);
+  border-radius: 0.7rem;
+  padding: 0.85rem;
+  background: var(--surface);
+}
+
+.option-card + .option-card,
+.radio-option-card + .radio-option-card {
+  margin-top: 0.85rem;
+}
+
+.option-details {
+  margin-top: 0.85rem;
+  border-top: 0.1rem solid var(--surface-muted);
+  padding-top: 0.85rem;
+}
+
+.option-help {
+  margin: 0.45rem 0 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.option-card.is-disabled,
+.radio-option-card.is-disabled {
+  opacity: 0.68;
 }
 
 .checkbox-label,
@@ -233,6 +268,10 @@ label {
   margin-top: 1.25rem;
   color: #ffffff;
   background: var(--primary);
+}
+
+.button-row .primary-button {
+  margin-top: 0;
 }
 
 .primary-button:hover:not(:disabled) {
