@@ -28,6 +28,8 @@ const TONE = Object.freeze({
   peakGain: 0.18,
 });
 
+const REPORT_BREAKS_HEADING = "gebrauchte Pausen";
+
 const views = {
   settings: document.getElementById("settings-view"),
   execution: document.getElementById("execution-view"),
@@ -302,7 +304,7 @@ function updateProgressButtonLabels() {
 function formatProgressSummary(amount, interval) {
   const amountText = String(amount).trim() || "?";
   const intervalText = String(interval).trim() || "?";
-  return `by ${amountText} BPM every ${intervalText} beats`;
+  return `um ${amountText} BPM alle ${intervalText} Beats`;
 }
 
 function openProgressDialog(mode, trigger) {
@@ -321,8 +323,8 @@ function openProgressDialog(mode, trigger) {
 
   const isIncrease = mode === "increase";
   dom.tempoProgressDialogTitle.textContent = isIncrease
-    ? "Set tempo increase"
-    : "Set reverse decrease";
+    ? "Tempodynamik erhöhen"
+    : "Umkehr-Tempodynamik festlegen";
   dom.increaseProgressFields.hidden = !isIncrease;
   dom.reverseProgressFields.hidden = isIncrease;
   clearProgressDialogErrors();
@@ -351,14 +353,14 @@ function validateProgressDialog(mode) {
       ? {
           amount: dom.increaseBy,
           interval: dom.increaseAfter,
-          amountMessage: "Enter a whole number from 1 to 20.",
-          intervalMessage: "Enter a positive whole number.",
+          amountMessage: "Ganze Zahl von 1 bis 20 eingeben.",
+          intervalMessage: "Positive ganze Zahl eingeben.",
         }
       : {
           amount: dom.decreaseByReverse,
           interval: dom.decreaseAfterReverse,
-          amountMessage: "Enter a whole number from 1 to 50.",
-          intervalMessage: "Enter a positive whole number.",
+          amountMessage: "Ganze Zahl von 1 bis 50 eingeben.",
+          intervalMessage: "Positive ganze Zahl eingeben.",
         };
   let firstInvalid = null;
   let valid = true;
@@ -421,7 +423,7 @@ function renderPresets() {
   const presets = window.METRONOME_PRESETS;
   if (!presets || typeof presets !== "object") {
     console.error("Metronome presets are unavailable.");
-    dom.settingsStatus.textContent = "Presets could not be loaded.";
+    dom.settingsStatus.textContent = "Voreinstellungen konnten nicht geladen werden.";
     return;
   }
 
@@ -446,7 +448,7 @@ function renderPresets() {
 
   if (!addedPreset) {
     console.error("No valid metronome presets are configured.");
-    dom.settingsStatus.textContent = "No valid presets are available.";
+    dom.settingsStatus.textContent = "Keine gültigen Voreinstellungen verfügbar.";
   }
 }
 
@@ -488,13 +490,14 @@ function handleExportSettings() {
   copyText(parameterList, dom.exportButton)
     .then(() => {
       dom.settingsStatus.classList.remove("error-status");
-      dom.settingsStatus.textContent = "Settings exported and copied to the clipboard.";
+      dom.settingsStatus.textContent =
+        "Einstellungen exportiert und in die Zwischenablage kopiert.";
     })
     .catch((error) => {
       dom.settingsStatus.classList.add("error-status");
       dom.settingsStatus.textContent = getErrorMessage(
         error,
-        "The settings could not be copied to the clipboard.",
+        "Die Einstellungen konnten nicht in die Zwischenablage kopiert werden.",
       );
     });
 }
@@ -688,7 +691,7 @@ function applyPreset(values) {
 async function startConfiguredSession() {
   const validation = validateSettings();
   if (!validation.valid) {
-    dom.settingsStatus.textContent = "Please correct the highlighted settings.";
+    dom.settingsStatus.textContent = "Bitte markierte Einstellungen korrigieren.";
     validation.firstInvalid?.focus();
     return;
   }
@@ -698,7 +701,7 @@ async function startConfiguredSession() {
   } catch (error) {
     dom.settingsStatus.textContent = getErrorMessage(
       error,
-      "Audio could not be initialized. Check the browser audio permission and try again.",
+      "Audio konnte nicht initialisiert werden. Audio-Berechtigung des Browsers prüfen und erneut versuchen.",
     );
     return;
   }
@@ -722,14 +725,14 @@ function validateSettings() {
 
   const bpm = parseIntegerField(dom.bpm.value, 20, 300);
   if (bpm === null) {
-    markInvalid("bpm", "Enter a whole-number BPM from 20 to 300.");
+    markInvalid("bpm", "Ganze BPM-Zahl von 20 bis 300 eingeben.");
   }
 
   let accentRepeat = DEFAULTS.accentRepeat;
   if (dom.accentuate.checked) {
     accentRepeat = parsePositiveInteger(dom.accentRepeat.value, Number.POSITIVE_INFINITY);
     if (accentRepeat === null) {
-      markInvalid("accent-repeat", "Enter a positive whole number.");
+      markInvalid("accent-repeat", "Positive ganze Zahl eingeben.");
     }
   }
 
@@ -746,12 +749,12 @@ function validateSettings() {
   if (increaseTempo) {
     increaseBy = parseIntegerField(dom.increaseBy.value, 1, 20);
     if (increaseBy === null) {
-      markInvalid("increase-by", "Enter a whole number from 1 to 20.");
+      markInvalid("increase-by", "Ganze Zahl von 1 bis 20 eingeben.");
     }
 
     increaseAfter = parsePositiveInteger(dom.increaseAfter.value, Number.POSITIVE_INFINITY);
     if (increaseAfter === null) {
-      markInvalid("increase-after", "Enter a positive whole number.");
+      markInvalid("increase-after", "Positive ganze Zahl eingeben.");
     }
 
     if (maximum !== "none") {
@@ -760,12 +763,12 @@ function validateSettings() {
       if (maximumLimit === null) {
         markInvalid(
           maximumControls.limit.id,
-          "Enter a whole-number limit from 60 to 400.",
+          "Ganzzahliges Limit von 60 bis 400 eingeben.",
         );
       } else if (bpm !== null && maximumLimit <= bpm) {
         markInvalid(
           maximumControls.limit.id,
-          "The limit must be greater than the starting BPM.",
+          "Das Limit muss über dem Startwert liegen.",
         );
       }
 
@@ -774,7 +777,7 @@ function validateSettings() {
         if (decreaseBy === null) {
           markInvalid(
             maximumControls.decreaseBy.id,
-            "Enter a whole number from 1 to 50.",
+            "Ganze Zahl von 1 bis 50 eingeben.",
           );
         }
 
@@ -785,7 +788,7 @@ function validateSettings() {
         if (decreaseAfter === null) {
           markInvalid(
             maximumControls.decreaseAfter.id,
-            "Enter a positive whole number.",
+            "Positive ganze Zahl eingeben.",
           );
         }
       }
@@ -798,7 +801,7 @@ function validateSettings() {
   if (lockSettings) {
     lockBeats = parsePositiveInteger(dom.lockBeats.value, Number.POSITIVE_INFINITY);
     if (lockBeats === null) {
-      markInvalid("lock-beats", "Enter a positive whole number.");
+      markInvalid("lock-beats", "Positive ganze Zahl eingeben.");
     }
   }
 
@@ -811,7 +814,7 @@ function validateSettings() {
     if (breakCountRaw !== "") {
       breakCount = parsePositiveInteger(breakCountRaw, Number.POSITIVE_INFINITY);
       if (breakCount === null) {
-        markInvalid("break-count", "Enter a positive whole number or leave this blank.");
+        markInvalid("break-count", "Positive ganze Zahl eingeben oder leer lassen.");
       }
     }
 
@@ -823,7 +826,7 @@ function validateSettings() {
       } else if (bpm !== null && !isBreakInputSafe(parsedBreakSeconds, bpm)) {
         markInvalid(
           "break-seconds",
-          "This expression can become zero or negative at a reachable BPM.",
+          "Dieser Ausdruck kann bei einem erreichbaren BPM-Wert null oder negativ werden.",
         );
       } else {
         breakSeconds = parsedBreakSeconds;
@@ -839,7 +842,7 @@ function validateSettings() {
       Number.POSITIVE_INFINITY,
     );
     if (sessionEndBeats === null) {
-      markInvalid("session-end-beats", "Enter a positive whole number.");
+      markInvalid("session-end-beats", "Positive ganze Zahl eingeben.");
     }
   }
 
@@ -852,7 +855,7 @@ function validateSettings() {
   ) {
     markInvalid(
       "lock-beats",
-      "Lock cannot exceed the automatic session end threshold.",
+      "Die Sperre darf den automatischen Session-Ende-Schwellenwert nicht überschreiten.",
     );
   }
 
@@ -913,20 +916,20 @@ function parseBreakInput(rawValue) {
     if (Number.isSafeInteger(seconds) && seconds > 0) {
       return { valid: true, type: "seconds", seconds };
     }
-    return { valid: false, error: "Enter a positive whole number of seconds." };
+    return { valid: false, error: "Positive ganze Zahl für Sekunden eingeben." };
   }
 
   const expression = /^BPM\s*([+\-*\/])\s*(\d+(?:\.\d+)?)$/i.exec(raw);
   if (!expression) {
     return {
       valid: false,
-      error: "Use a positive integer or an expression such as BPM/2.",
+      error: "Positive ganze Zahl oder Ausdruck wie BPM/2 verwenden.",
     };
   }
 
   const operand = Number(expression[2]);
   if (!Number.isFinite(operand) || operand <= 0) {
-    return { valid: false, error: "The expression number must be greater than zero." };
+    return { valid: false, error: "Die Zahl im Ausdruck muss größer als null sein." };
   }
 
   return {
@@ -951,7 +954,7 @@ function isBreakInputSafe(parsedInput, initialBpm) {
 async function ensureAudioReady() {
   const AudioContextConstructor = window.AudioContext || window.webkitAudioContext;
   if (!AudioContextConstructor) {
-    throw new Error("This browser does not support the Web Audio API.");
+    throw new Error("Dieser Browser unterstützt die Web-Audio-API nicht.");
   }
 
   if (!audioContext || audioContext.state === "closed") {
@@ -963,7 +966,7 @@ async function ensureAudioReady() {
   }
 
   if (audioContext.state !== "running") {
-    throw new Error("The browser kept the audio context suspended.");
+    throw new Error("Der Browser hat den Audio-Kontext nicht aktiviert.");
   }
 }
 
@@ -1185,7 +1188,7 @@ function startBreak() {
       state.breakRecords.pop();
       state.breakSessions -= 1;
       showExecutionError(
-        "This break expression is not positive at the current BPM, so the break was not started.",
+        "Dieser Pausenausdruck ist beim aktuellen BPM nicht positiv; die Pause wurde nicht gestartet.",
       );
       updateExecutionUi();
       return;
@@ -1311,10 +1314,10 @@ function resumeFromBreak(reason) {
     state.activeBreak.durationSeconds ?? elapsedSeconds;
   state.activeBreak.record.ended =
     reason === "timer"
-      ? `Auto-resumed after ${state.activeBreak.durationSeconds} seconds`
+      ? `Automatisch fortgesetzt nach ${state.activeBreak.durationSeconds} Sekunden`
       : reason === "stopped"
-        ? `Stopped after ${elapsedSeconds} seconds`
-        : `Manually resumed after ${elapsedSeconds} seconds`;
+        ? `Gestoppt nach ${elapsedSeconds} Sekunden`
+        : `Manuell fortgesetzt nach ${elapsedSeconds} Sekunden`;
   state.activeBreak = null;
   state.resumeCountdownValue = 0;
   dom.executionMessage.textContent = "";
@@ -1368,8 +1371,8 @@ async function handleCopyReport() {
   await handleCopyReportText(
     buildReportText(state.report),
     dom.copyReportButton,
-    "Copy to clipboard",
-    "Report copied to clipboard.",
+    "In Zwischenablage kopieren",
+    "Bericht in die Zwischenablage kopiert.",
   );
 }
 
@@ -1381,8 +1384,8 @@ async function handleCopyShortReport() {
   await handleCopyReportText(
     buildShortReportText(state.report),
     dom.copyShortReportButton,
-    "Copy short to Clipboard",
-    "Short report copied to clipboard.",
+    "Kurzbericht in Zwischenablage kopieren",
+    "Kurzbericht in die Zwischenablage kopiert.",
   );
 }
 
@@ -1391,7 +1394,7 @@ async function handleCopyReportText(text, button, defaultLabel, successMessage) 
     await copyText(text, button);
     dom.reportStatus.classList.remove("error-status");
     dom.reportStatus.textContent = successMessage;
-    button.textContent = "Copied!";
+    button.textContent = "Kopiert!";
 
     const existingTimer = copyFeedbackTimers.get(button);
     if (existingTimer !== undefined) {
@@ -1408,15 +1411,15 @@ async function handleCopyReportText(text, button, defaultLabel, successMessage) 
     dom.reportStatus.classList.add("error-status");
     dom.reportStatus.textContent = getErrorMessage(
       error,
-      "The report could not be copied to the clipboard.",
+      "Der Bericht konnte nicht in die Zwischenablage kopiert werden.",
     );
   }
 }
 
 function resetReportCopyFeedback() {
   [
-    [dom.copyReportButton, "Copy to clipboard"],
-    [dom.copyShortReportButton, "Copy short to Clipboard"],
+    [dom.copyReportButton, "In Zwischenablage kopieren"],
+    [dom.copyShortReportButton, "Kurzbericht in Zwischenablage kopieren"],
   ].forEach(([button, defaultLabel]) => {
     const timer = copyFeedbackTimers.get(button);
     if (timer !== undefined) {
@@ -1448,7 +1451,7 @@ async function copyText(text, focusTarget = dom.copyReportButton) {
   focusTarget?.focus();
 
   if (!copied) {
-    throw new Error("The browser did not allow clipboard access.");
+    throw new Error("Der Browser hat den Zugriff auf die Zwischenablage nicht erlaubt.");
   }
 }
 
@@ -1480,17 +1483,17 @@ function updateExecutionUi() {
   const isBreakActive = isPaused || isResumeCountdown;
 
   dom.executionPhase.textContent = isCountdown
-    ? "Starting"
+    ? "Start"
     : isResumeCountdown
-      ? "Resuming"
+      ? "Fortsetzen"
       : isPaused
-      ? "Break active"
-      : "Running";
-  dom.currentBpmLabel.textContent = isCountdown ? "Starting in" : "Current BPM";
+      ? "Pause aktiv"
+      : "Läuft";
+  dom.currentBpmLabel.textContent = isCountdown ? "Start in" : "Aktuelle BPM";
   dom.currentBpm.textContent = isCountdown
     ? String(state.countdownValue)
     : String(state.currentBpm);
-  dom.beatCount.textContent = `Beats completed: ${state.beatCount}`;
+  dom.beatCount.textContent = `Abgeschlossene Beats: ${state.beatCount}`;
 
   dom.executionActions.classList.toggle(
     "single-action",
@@ -1508,28 +1511,28 @@ function updateExecutionUi() {
   if (isBreakActive) {
     const remaining = getBreakSecondsRemaining();
     dom.pauseButton.textContent =
-      remaining === null ? "Resume" : `Resume (${remaining}s)`;
+      remaining === null ? "Fortsetzen" : `Fortsetzen (${remaining}s)`;
     dom.breakStatus.textContent = isResumeCountdown
-      ? "Resume now to continue."
+      ? "Jetzt fortsetzen."
       : remaining === null
-        ? "Resume when you are ready."
-        : `${remaining}s remaining, or resume manually.`;
+        ? "Fortsetzen, sobald bereit."
+        : `${remaining}s verbleibend oder manuell fortsetzen.`;
   } else {
     dom.pauseButton.textContent = getPauseLabel();
     dom.breakStatus.textContent = "";
   }
 
   if (isCountdown) {
-    dom.nextBpmLabel.textContent = "Initial BPM";
+    dom.nextBpmLabel.textContent = "Anfangs-BPM";
     dom.nextBpmInfo.hidden = false;
     dom.nextBpm.textContent = String(state.settings.initialBpm);
-    dom.nextBpmCountdown.textContent = "at start";
+    dom.nextBpmCountdown.textContent = "zu Beginn";
   } else if (state.settings.increaseTempo) {
-    dom.nextBpmLabel.textContent = "Next BPM";
+    dom.nextBpmLabel.textContent = "Nächstes BPM";
     dom.nextBpmInfo.hidden = false;
     if (state.stuckAtMaximum) {
       dom.nextBpm.textContent = "Max";
-      dom.nextBpmCountdown.textContent = "holding at limit";
+      dom.nextBpmCountdown.textContent = "am Limit";
     } else {
       dom.nextBpm.textContent = String(getNextBpm());
       const interval =
@@ -1537,7 +1540,8 @@ function updateExecutionUi() {
           ? state.settings.increaseAfter
           : state.settings.decreaseAfter;
       const remaining = Math.max(1, interval - state.tempoCounter);
-      dom.nextBpmCountdown.textContent = `in ${remaining} beat${remaining === 1 ? "" : "s"}`;
+      dom.nextBpmCountdown.textContent =
+        `in ${remaining} ${remaining === 1 ? "Beat" : "Beats"}`;
     }
   } else {
     dom.nextBpmInfo.hidden = true;
@@ -1547,8 +1551,8 @@ function updateExecutionUi() {
     state.settings.lockSettings && state.beatCount < state.settings.lockBeats;
   dom.stopButton.disabled = stopLocked;
   dom.stopButton.textContent = stopLocked
-    ? `Stop (locked for ${state.settings.lockBeats - state.beatCount} beats)`
-    : "Stop";
+    ? `Stopp (für ${state.settings.lockBeats - state.beatCount} Beats gesperrt)`
+    : "Stopp";
 }
 
 function getPauseLabel() {
@@ -1558,12 +1562,12 @@ function getPauseLabel() {
 
   const remaining = Math.max(0, state.settings.breakCount - state.breakSessions);
   if (remaining > 0) {
-    return `Pause (${remaining} left)`;
+    return `Pause (${remaining} übrig)`;
   }
   if (state.breakSessions === state.settings.breakCount) {
-    return "Pause (0 left)";
+    return "Pause (0 übrig)";
   }
-  return `Pause (${state.breakSessions - state.settings.breakCount} over)`;
+  return `Pause (${state.breakSessions - state.settings.breakCount} über dem Limit)`;
 }
 
 function getBreakSecondsRemaining() {
@@ -1619,8 +1623,8 @@ function renderReport() {
     row.querySelector('[data-cell="beat"]').textContent = String(record.beat);
     row.querySelector('[data-cell="bpm"]').textContent = String(record.bpm);
     row.querySelector('[data-cell="allowance"]').textContent = record.overLimit
-      ? "Over limit"
-      : "Within allowance";
+      ? "Überschritten"
+      : "Eingehalten";
     row.querySelector('[data-cell="ended"]').textContent = record.ended;
     dom.breakTableBody.append(row);
   });
@@ -1629,28 +1633,28 @@ function renderReport() {
 function buildReportText(report) {
   const settings = report.settings;
   const lines = [
-    "Metronome report",
-    `Total beats: ${report.beatCount}`,
+    "Metronom-Bericht",
+    `Gesamtzahl Beats: ${report.beatCount}`,
     `BPM: ${formatBpm(settings)}`,
   ];
 
   if (settings.breaks !== "none") {
-    lines.push(`Breaks: ${formatBreaks(settings)}`);
+    lines.push(`Pausen: ${formatBreaks(settings)}`);
   }
   lines.push(
-    `Session end: ${formatSessionEnd(settings)}`,
+    `Session-Ende: ${formatSessionEnd(settings)}`,
     "",
     formatReportBreaksHeading(settings),
   );
 
   if (report.breakRecords.length === 0) {
-    lines.push("No breaks used.");
+    lines.push("Keine Pausen verwendet.");
   } else {
     report.breakRecords.forEach((record) => {
       lines.push(
         `${record.number}. Beat: ${record.beat}; BPM: ${record.bpm}; ` +
-          `Allowance: ${record.overLimit ? "Over limit" : "Within allowance"}; ` +
-          `Ended: ${record.ended}`,
+          `Limit: ${record.overLimit ? "Überschritten" : "Eingehalten"}; ` +
+          `Beendet: ${record.ended}`,
       );
     });
   }
@@ -1668,7 +1672,7 @@ function buildShortReportText(report) {
   }
   if (report.breakRecords.length > 0) {
     parts.push(
-      `breaks at: ${report.breakRecords
+      `Pausen bei: ${report.breakRecords
         .map((record) => `${record.beat} (${record.durationSeconds}s)`)
         .join(", ")}`,
     );
@@ -1698,16 +1702,16 @@ function formatShortProgression(settings) {
 
 function formatReportBreaksHeading(settings) {
   if (settings.breaks !== "limited" || !settings.breakSecondsRaw) {
-    return "Breaks used:";
+    return `${REPORT_BREAKS_HEADING}:`;
   }
-  return `Breaks used (max ${settings.breakSecondsRaw}s):`;
+  return `${REPORT_BREAKS_HEADING} (max ${settings.breakSecondsRaw}s):`;
 }
 
 function formatReportBreaksTitle(settings) {
   if (settings.breaks !== "limited" || !settings.breakSecondsRaw) {
-    return "Breaks used";
+    return REPORT_BREAKS_HEADING;
   }
-  return `Breaks used (max ${settings.breakSecondsRaw}s)`;
+  return `${REPORT_BREAKS_HEADING} (max ${settings.breakSecondsRaw}s)`;
 }
 
 function formatBpm(settings) {
@@ -1720,9 +1724,9 @@ function formatBpm(settings) {
       ? `${settings.initialBpm} BPM`
       : `${settings.initialBpm} - ${settings.maximumLimit} BPM`;
   let formatted = value;
-  formatted += `; +${settings.increaseBy} BPM every ${settings.increaseAfter} beats`;
+  formatted += `; +${settings.increaseBy} BPM alle ${settings.increaseAfter} Beats`;
   if (settings.maximum === "reverse") {
-    formatted += `; -${settings.decreaseBy} BPM every ${settings.decreaseAfter} beats`;
+    formatted += `; -${settings.decreaseBy} BPM alle ${settings.decreaseAfter} Beats`;
   }
 
   return formatted;
@@ -1730,32 +1734,33 @@ function formatBpm(settings) {
 
 function formatBreaks(settings) {
   if (settings.breaks === "none") {
-    return "None";
+    return "Keine";
   }
   if (settings.breaks === "unlimited") {
-    return "Unlimited";
+    return "Unbegrenzt";
   }
 
-  const count = settings.breakCount === null ? "unlimited count" : `${settings.breakCount} sessions`;
+  const count =
+    settings.breakCount === null ? "unbegrenzte Anzahl" : settings.breakCount;
   const duration = settings.breakSecondsRaw
-    ? `duration ${settings.breakSecondsRaw}`
-    : "manual duration";
-  return `Limited: ${count}; ${duration}`;
+    ? `Dauer ${settings.breakSecondsRaw}s`
+    : "manuelle Dauer";
+  return `Begrenzt: ${count}; ${duration}`;
 }
 
 function formatSessionEnd(settings) {
   const sessionEnd = settings.sessionEndEnabled
-    ? `After ${settings.sessionEndBeats} beats`
-    : "Manual stop";
+    ? `Nach ${settings.sessionEndBeats} Beats`
+    : "Manueller Stopp";
   if (!settings.lockSettings) {
     return sessionEnd;
   }
-  return `${sessionEnd}; Locked until ${settings.lockBeats} beats are passed`;
+  return `${sessionEnd}; Einstellungen gesperrt, bis ${settings.lockBeats} Beats vergangen sind`;
 }
 
 function playTone(frequency) {
   if (!audioContext || audioContext.state !== "running") {
-    handleAudioFailure(new Error("The audio context is not running."));
+    handleAudioFailure(new Error("Der Audio-Kontext läuft nicht."));
     return false;
   }
 
@@ -1789,7 +1794,7 @@ function handleAudioFailure(error) {
   state.activeBreak = null;
   dom.executionMessage.textContent = getErrorMessage(
     error,
-    "Audio stopped unexpectedly. Return to settings and try again.",
+    "Audio wurde unerwartet beendet. Zu den Einstellungen zurückkehren und erneut versuchen.",
   );
   dom.settingsStatus.textContent = dom.executionMessage.textContent;
   showView("settings", true);

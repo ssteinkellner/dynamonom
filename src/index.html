@@ -1,14 +1,14 @@
 <!doctype html>
-<html lang="en">
+<html lang="de">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#f4f6f8" />
-    <meta name="application-name" content="Metronome" />
+    <meta name="application-name" content="Metronom" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <meta name="apple-mobile-web-app-title" content="Metronome" />
-    <title>Metronome</title>
+    <meta name="apple-mobile-web-app-title" content="Metronom" />
+    <title>Metronom</title>
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="apple-touch-icon" sizes="192x192" href="./icons/metronome-192.png" />
     <link rel="stylesheet" href="./metronome.css" />
@@ -20,7 +20,7 @@
     <main id="app">
       <section id="settings-view" class="view" aria-labelledby="settings-title">
         <header class="view-header">
-          <h1 id="settings-title" tabindex="-1">Metronome Settings</h1>
+          <h1 id="settings-title" tabindex="-1">Metronom-Einstellungen</h1>
         </header>
 
         <p
@@ -32,13 +32,13 @@
 
         <form id="settings-form" novalidate>
           <fieldset>
-            <legend>Presets</legend>
+            <legend>Voreinstellungen</legend>
 
             <div
               id="preset-list"
               class="preset-row"
               role="group"
-              aria-label="Preset import and available presets"
+              aria-label="Voreinstellungen importieren und verfügbare Voreinstellungen"
             >
               <input
                 id="settings-import"
@@ -47,8 +47,8 @@
                 inputmode="url"
                 autocomplete="off"
                 spellcheck="false"
-                placeholder="Import"
-                aria-label="Import settings"
+                placeholder="Importieren"
+                aria-label="Einstellungen importieren"
               />
             </div>
           </fieldset>
@@ -58,7 +58,7 @@
 
             <div class="field">
               <div class="input-wrapper">
-                <label for="bpm">Beats per minute (BPM)</label>
+                <label for="bpm">Beats pro Minute (BPM)</label>
                 <input
                   id="bpm"
                   name="bpm"
@@ -78,11 +78,11 @@
               <div class="inline-option-row">
                 <label class="checkbox-label" for="accentuate">
                   <input id="accentuate" name="accentuate" type="checkbox" checked />
-                  <span>Accentuate every</span>
+                  <span>Betone jeden</span>
                 </label>
 
                 <div class="inline-input-wrapper">
-                  <label class="visually-hidden" for="accent-repeat">Accent interval in beats</label>
+                  <label class="visually-hidden" for="accent-repeat">Betonungsintervall in Beats</label>
                   <input
                     id="accent-repeat"
                     name="accent-repeat"
@@ -96,7 +96,7 @@
                   <span id="accent-repeat-error" class="field-error"></span>
                 </div>
 
-                <span class="inline-option-text">beat</span>
+                <span class="inline-option-text">Beat</span>
               </div>
             </div>
 
@@ -107,7 +107,7 @@
               <div class="increase-primary-row">
                 <label class="checkbox-label" for="increase-tempo">
                   <input id="increase-tempo" name="increase-tempo" type="checkbox" checked />
-                  <span>Increase tempo</span>
+                  <span>Tempo erhöhen</span>
                 </label>
 
                 <button
@@ -117,7 +117,7 @@
                   aria-haspopup="dialog"
                   aria-controls="tempo-progress-dialog"
                 >
-                  by 1 BPM every 10 beats
+                  um 1 BPM alle 10 Beats
                 </button>
               </div>
 
@@ -129,21 +129,21 @@
                     <div id="maximum-none-option" class="radio-option-card">
                       <label class="radio-label" for="maximum-none">
                         <input id="maximum-none" name="maximum" type="radio" value="none" checked />
-                        <span>None</span>
+                        <span>Unbegrenzt</span>
                       </label>
-                      <p class="option-help">Tempo increases without a configured limit.</p>
+                      <p class="option-help">Das Tempo steigt ohne konfiguriertes Limit.</p>
                     </div>
 
                     <div id="maximum-stick-option" class="radio-option-card">
                       <div class="maximum-option-row">
                         <label class="radio-label" for="maximum-stick">
                           <input id="maximum-stick" name="maximum" type="radio" value="stick" />
-                          <span>Limit at</span>
+                          <span>Begrenzen auf</span>
                         </label>
 
                         <div class="inline-input-wrapper">
                           <label class="visually-hidden" for="maximum-limit-stick">
-                            Maximum limit in BPM
+                            Maximales Limit in BPM
                           </label>
                           <input
                             id="maximum-limit-stick"
@@ -165,12 +165,12 @@
                       <div class="maximum-option-row">
                         <label class="radio-label" for="maximum-reset">
                           <input id="maximum-reset" name="maximum" type="radio" value="reset" />
-                          <span>Reset at</span>
+                          <span>Zurücksetzen bei</span>
                         </label>
 
                         <div class="inline-input-wrapper">
                           <label class="visually-hidden" for="maximum-limit-reset">
-                            Reset limit in BPM
+                            Zurücksetzlimit in BPM
                           </label>
                           <input
                             id="maximum-limit-reset"
@@ -192,12 +192,12 @@
                       <div class="maximum-option-row">
                         <label class="radio-label" for="maximum-reverse">
                           <input id="maximum-reverse" name="maximum" type="radio" value="reverse" />
-                          <span>Reverse at</span>
+                          <span>Umkehren bei</span>
                         </label>
 
                         <div class="inline-input-wrapper">
                           <label class="visually-hidden" for="maximum-limit-reverse">
-                            Reverse limit in BPM
+                            Umkehrlimit in BPM
                           </label>
                           <input
                             id="maximum-limit-reverse"
@@ -220,7 +220,7 @@
                           aria-haspopup="dialog"
                           aria-controls="tempo-progress-dialog"
                         >
-                          by 1 BPM every 10 beats
+                          um 1 BPM alle 10 Beats
                         </button>
                       </div>
                     </div>
@@ -232,35 +232,35 @@
           </fieldset>
 
           <fieldset>
-            <legend>Breaks</legend>
+            <legend>Pausen</legend>
 
             <div class="radio-option-list">
               <div id="breaks-none-option" class="radio-option-card">
                 <label class="radio-label" for="breaks-none">
                   <input id="breaks-none" name="breaks" type="radio" value="none" />
-                  <span>None</span>
+                  <span>Keine</span>
                 </label>
-                <p class="option-help">The Pause control is not available during execution.</p>
+                <p class="option-help">Die Pause-Schaltfläche ist während der Ausführung nicht verfügbar.</p>
               </div>
 
               <div id="breaks-unlimited-option" class="radio-option-card">
                 <label class="radio-label" for="breaks-unlimited">
                   <input id="breaks-unlimited" name="breaks" type="radio" value="unlimited" checked />
-                  <span>Unlimited</span>
+                  <span>Unbegrenzt</span>
                 </label>
-                <p class="option-help">Pause as often as needed; each break ends manually.</p>
+                <p class="option-help">Beliebig viele Pausen; jede Pause endet manuell.</p>
               </div>
 
               <div id="breaks-limited-option" class="radio-option-card">
                 <label class="radio-label" for="breaks-limited">
                   <input id="breaks-limited" name="breaks" type="radio" value="limited" />
-                  <span>Limited</span>
+                  <span>Begrenzt</span>
                 </label>
 
                 <div id="limited-break-options" class="option-details">
                   <div class="field">
                     <div class="input-wrapper">
-                      <label for="break-count">Count (blank for unlimited)</label>
+                      <label for="break-count">Anzahl (leer = unbegrenzt)</label>
                       <input
                         id="break-count"
                         name="break-count"
@@ -277,18 +277,18 @@
 
                   <div class="field">
                     <div class="input-wrapper">
-                      <label for="break-seconds">Seconds or BPM expression (blank for manual)</label>
+                      <label for="break-seconds">Sekunden oder BPM-Ausdruck (leer = manuell)</label>
                       <input
                         id="break-seconds"
                         name="break-seconds"
                         type="text"
                         inputmode="text"
                         autocomplete="off"
-                        placeholder="e.g. 30 or BPM/2"
+                        placeholder="z. B. 30 oder BPM/2"
                         aria-describedby="break-seconds-error break-seconds-help"
                       />
                       <p id="break-seconds-help" class="field-help">
-                        Use a positive integer or BPM followed by +, -, *, or / and a positive number.
+                        Positive ganze Zahl oder BPM gefolgt von +, -, * oder / und einer positiven Zahl eingeben.
                       </p>
                       <p id="break-seconds-error" class="field-error"></p>
                     </div>
@@ -300,7 +300,7 @@
           </fieldset>
 
           <fieldset>
-            <legend>Session end</legend>
+            <legend>Session-Ende</legend>
 
             <div
               id="session-end-option-card"
@@ -309,12 +309,12 @@
               <div class="inline-option-row">
                 <label class="checkbox-label" for="session-end-enabled">
                   <input id="session-end-enabled" name="session-end-enabled" type="checkbox" />
-                  <span>End session automatically after</span>
+                  <span>Session automatisch beenden nach</span>
                 </label>
 
                 <div class="inline-input-wrapper">
                   <label class="visually-hidden" for="session-end-beats">
-                    Automatic session end after beats
+                    Automatisches Session-Ende nach Beats
                   </label>
                   <input
                     id="session-end-beats"
@@ -329,7 +329,7 @@
                   <span id="session-end-beats-error" class="field-error"></span>
                 </div>
 
-                <span class="inline-option-text">beats</span>
+                <span class="inline-option-text">Beats</span>
               </div>
             </div>
 
@@ -337,12 +337,12 @@
               <div class="inline-option-row">
                 <label class="checkbox-label" for="lock-settings">
                   <input id="lock-settings" name="lock-settings" type="checkbox" />
-                  <span>Locked until</span>
+                  <span>Sperren bis</span>
                 </label>
 
                 <div class="inline-input-wrapper">
                   <label class="visually-hidden" for="lock-beats">
-                    Locked until beats
+                    Sperren bis Beats
                   </label>
                   <input
                     id="lock-beats"
@@ -357,14 +357,14 @@
                   <span id="lock-beats-error" class="field-error"></span>
                 </div>
 
-                <span class="inline-option-text">beats</span>
+                <span class="inline-option-text">Beats</span>
               </div>
             </div>
           </fieldset>
 
           <div class="button-row settings-actions">
             <button id="export-button" class="secondary-button" type="button">
-              Export settings
+              Einstellungen exportieren
             </button>
             <button id="start-button" class="primary-button" type="submit">Start</button>
           </div>
@@ -376,12 +376,12 @@
           aria-labelledby="tempo-progress-dialog-title"
         >
           <div class="progress-dialog-content">
-            <h3 id="tempo-progress-dialog-title">Set tempo progression</h3>
+            <h3 id="tempo-progress-dialog-title">Tempodynamik festlegen</h3>
 
             <div id="increase-progress-fields" class="progress-dialog-fields">
               <div class="field">
                 <div class="input-wrapper">
-                  <label for="increase-by">Increase by (BPM)</label>
+                  <label for="increase-by">Erhöhen um (BPM)</label>
                   <input
                     id="increase-by"
                     name="increase-by"
@@ -399,7 +399,7 @@
 
               <div class="field">
                 <div class="input-wrapper">
-                  <label for="increase-after">Increase every (beats)</label>
+                  <label for="increase-after">Erhöhen alle (Beats)</label>
                   <input
                     id="increase-after"
                     name="increase-after"
@@ -418,7 +418,7 @@
             <div id="reverse-progress-fields" class="progress-dialog-fields" hidden>
               <div class="field">
                 <div class="input-wrapper">
-                  <label for="decrease-by-reverse">Decrease by (BPM)</label>
+                  <label for="decrease-by-reverse">Verringern um (BPM)</label>
                   <input
                     id="decrease-by-reverse"
                     name="decrease-by-reverse"
@@ -436,7 +436,7 @@
 
               <div class="field">
                 <div class="input-wrapper">
-                  <label for="decrease-after-reverse">Decrease every (beats)</label>
+                  <label for="decrease-after-reverse">Verringern alle (Beats)</label>
                   <input
                     id="decrease-after-reverse"
                     name="decrease-after-reverse"
@@ -454,9 +454,9 @@
 
             <div class="button-row progress-dialog-actions">
               <button id="progress-dialog-cancel" class="secondary-button" type="button">
-                Cancel
+                Abbrechen
               </button>
-              <button id="progress-dialog-save" class="primary-button" type="button">Save</button>
+              <button id="progress-dialog-save" class="primary-button" type="button">Speichern</button>
             </div>
           </div>
         </dialog>
@@ -464,40 +464,40 @@
 
       <section id="execution-view" class="view" aria-labelledby="execution-title" hidden>
         <header class="view-header">
-          <h2 id="execution-title" tabindex="-1">Metronome</h2>
+          <h2 id="execution-title" tabindex="-1">Metronom</h2>
         </header>
 
         <div class="execution-card">
-          <p id="execution-phase" class="eyebrow">Starting</p>
+          <p id="execution-phase" class="eyebrow">Start</p>
 
           <div class="metric-grid">
             <div class="metric">
-              <span id="current-bpm-label" class="metric-label">Current BPM</span>
+              <span id="current-bpm-label" class="metric-label">Aktuelles BPM</span>
               <strong id="current-bpm" class="metric-value" aria-live="polite">120</strong>
             </div>
             <div id="next-bpm-info" class="metric" aria-live="polite">
-              <span id="next-bpm-label" class="metric-label">Next BPM</span>
+              <span id="next-bpm-label" class="metric-label">Nächstes BPM</span>
               <strong id="next-bpm" class="metric-value">121</strong>
-              <span id="next-bpm-countdown" class="metric-detail">in 10 beats</span>
+              <span id="next-bpm-countdown" class="metric-detail">in 10 Beats</span>
             </div>
           </div>
 
-          <p id="beat-count" class="beat-count">Beats completed: 0</p>
+          <p id="beat-count" class="beat-count">Abgeschlossene Beats: 0</p>
         </div>
 
         <p id="break-status" class="status" role="status" aria-live="polite"></p>
         <p id="execution-message" class="status error-status" role="alert"></p>
 
         <div id="execution-actions" class="button-row">
-          <button id="abort-button" class="secondary-button" type="button" hidden>Abort</button>
+          <button id="abort-button" class="secondary-button" type="button" hidden>Abbrechen</button>
           <button id="pause-button" class="secondary-button" type="button">Pause</button>
-          <button id="stop-button" class="danger-button" type="button">Stop</button>
+          <button id="stop-button" class="danger-button" type="button">Stopp</button>
         </div>
       </section>
 
       <section id="report-view" class="view" aria-labelledby="report-title" hidden>
         <header class="view-header">
-          <h2 id="report-title" tabindex="-1">Metronome Report</h2>
+          <h2 id="report-title" tabindex="-1">Metronom-Bericht</h2>
         </header>
 
         <p
@@ -508,10 +508,10 @@
         ></p>
 
         <div class="report-card">
-          <h3>Summary</h3>
+          <h3>Zusammenfassung</h3>
           <dl class="report-list">
             <div>
-              <dt>Total beats</dt>
+              <dt>Gesamtzahl Beats</dt>
               <dd id="report-total-beats">0</dd>
             </div>
             <div>
@@ -519,29 +519,29 @@
               <dd id="report-bpm">-</dd>
             </div>
             <div id="report-breaks-row">
-              <dt>Breaks</dt>
+              <dt>Pausen</dt>
               <dd id="report-breaks">-</dd>
             </div>
             <div>
-              <dt>Session end</dt>
+              <dt>Session-Ende</dt>
               <dd id="report-session-end">-</dd>
             </div>
           </dl>
         </div>
 
         <div class="report-card">
-          <h3 id="report-breaks-title">Breaks used</h3>
-          <p id="report-no-breaks" class="status">No breaks used.</p>
+          <h3 id="report-breaks-title">gebrauchte Pausen</h3>
+          <p id="report-no-breaks" class="status">Keine Pausen verwendet.</p>
           <div id="break-table-wrapper" class="table-wrapper" hidden>
             <table>
-              <caption class="visually-hidden">Breaks used during the run</caption>
+              <caption class="visually-hidden">Während der Ausführung verwendete Pausen</caption>
               <thead>
                 <tr>
                   <th scope="col">#</th>
                   <th scope="col">Beat</th>
                   <th scope="col">BPM</th>
-                  <th scope="col">Allowance</th>
-                  <th scope="col">Ended</th>
+                  <th scope="col">Limit</th>
+                  <th scope="col">Beendet</th>
                 </tr>
               </thead>
               <tbody id="break-table-body"></tbody>
@@ -551,12 +551,12 @@
 
         <div class="button-row report-actions">
           <button id="copy-report-button" class="secondary-button" type="button">
-            Copy to clipboard
+            In Zwischenablage kopieren
           </button>
           <button id="copy-short-report-button" class="secondary-button" type="button">
-            Copy short to Clipboard
+            Kurzbericht in Zwischenablage kopieren
           </button>
-          <button id="back-button" class="primary-button" type="button">Back to settings</button>
+          <button id="back-button" class="primary-button" type="button">Zurück zu den Einstellungen</button>
         </div>
         <textarea
           id="clipboard-buffer"

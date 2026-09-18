@@ -1,7 +1,8 @@
 {
-  "name": "Metronome",
-  "short_name": "Metronome",
-  "description": "A mobile-first metronome.",
+  "name": "Metronom",
+  "short_name": "Metronom",
+  "description": "Ein Metronom, dessen Tempo über verschiedene Einstellungen dynamisch angepasst werden kann.",
+  "lang": "de",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
