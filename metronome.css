@@ -373,6 +373,10 @@ label {
   margin-top: 1rem;
 }
 
+.button-row.single-action {
+  grid-template-columns: 1fr;
+}
+
 .report-card h3 {
   margin: 0 0 1rem;
   font-size: 1.2rem;

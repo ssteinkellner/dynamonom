@@ -16,6 +16,8 @@ const DEFAULTS = Object.freeze({
   breakSeconds: null,
   lockSettings: false,
   lockBeats: 10,
+  sessionEndEnabled: false,
+  sessionEndBeats: 100,
 });
 
 const TONE = Object.freeze({
@@ -64,6 +66,9 @@ const dom = {
   breaksLimitedOption: document.getElementById("breaks-limited-option"),
   breakCount: document.getElementById("break-count"),
   breakSeconds: document.getElementById("break-seconds"),
+  sessionEndOptionCard: document.getElementById("session-end-option-card"),
+  sessionEndEnabled: document.getElementById("session-end-enabled"),
+  sessionEndBeats: document.getElementById("session-end-beats"),
   executionTitle: document.getElementById("execution-title"),
   executionStatus: document.getElementById("execution-status"),
   executionPhase: document.getElementById("execution-phase"),
@@ -75,6 +80,8 @@ const dom = {
   beatCount: document.getElementById("beat-count"),
   breakStatus: document.getElementById("break-status"),
   executionMessage: document.getElementById("execution-message"),
+  executionActions: document.getElementById("execution-actions"),
+  abortButton: document.getElementById("abort-button"),
   pauseButton: document.getElementById("pause-button"),
   stopButton: document.getElementById("stop-button"),
   reportTitle: document.getElementById("report-title"),
@@ -86,6 +93,7 @@ const dom = {
   reportMaximum: document.getElementById("report-maximum"),
   reportBreaks: document.getElementById("report-breaks"),
   reportLock: document.getElementById("report-lock"),
+  reportSessionEnd: document.getElementById("report-session-end"),
   reportNoBreaks: document.getElementById("report-no-breaks"),
   breakTableWrapper: document.getElementById("break-table-wrapper"),
   breakTableBody: document.getElementById("break-table-body"),
@@ -106,6 +114,8 @@ const state = {
   stuckAtMaximum: false,
   countdownValue: 3,
   countdownTimer: null,
+  resumeCountdownValue: 0,
+  resumeCountdownTimer: null,
   beatTimer: null,
   breakTimer: null,
   breakDisplayTimer: null,
@@ -136,7 +146,9 @@ function bindEvents() {
   dom.accentuate.addEventListener("change", syncSettingsVisibility);
   dom.increaseTempo.addEventListener("change", syncSettingsVisibility);
   dom.lockSettings.addEventListener("change", syncSettingsVisibility);
+  dom.sessionEndEnabled.addEventListener("change", syncSettingsVisibility);
   dom.pauseButton.addEventListener("click", handlePause);
+  dom.abortButton.addEventListener("click", handleAbort);
   dom.stopButton.addEventListener("click", handleStop);
   dom.copyReportButton.addEventListener("click", handleCopyReport);
   dom.backButton.addEventListener("click", handleBackToSettings);
@@ -195,6 +207,10 @@ function syncSettingsVisibility() {
   setOptionCardState(dom.breaksLimitedOption, breaks === "limited");
   setControlDisabled(dom.breakCount, breaks !== "limited");
   setControlDisabled(dom.breakSeconds, breaks !== "limited");
+
+  const sessionEndEnabled = dom.sessionEndEnabled.checked;
+  setOptionCardState(dom.sessionEndOptionCard, sessionEndEnabled);
+  setControlDisabled(dom.sessionEndBeats, !sessionEndEnabled);
 }
 
 async function handleStart(event) {
@@ -345,6 +361,18 @@ function validateSettings() {
     }
   }
 
+  const sessionEndEnabled = dom.sessionEndEnabled.checked;
+  let sessionEndBeats = DEFAULTS.sessionEndBeats;
+  if (sessionEndEnabled) {
+    sessionEndBeats = parsePositiveInteger(
+      dom.sessionEndBeats.value,
+      Number.POSITIVE_INFINITY,
+    );
+    if (sessionEndBeats === null) {
+      markInvalid("session-end-beats", "Enter a positive whole number.");
+    }
+  }
+
   if (!valid) {
     return { valid: false, firstInvalid };
   }
@@ -368,6 +396,8 @@ function validateSettings() {
       breakSecondsRaw: dom.breakSeconds.value.trim(),
       lockSettings,
       lockBeats,
+      sessionEndEnabled,
+      sessionEndBeats,
     },
   };
 }
@@ -465,6 +495,7 @@ function startRun(settings) {
   state.tempoCounter = 0;
   state.stuckAtMaximum = false;
   state.countdownValue = 3;
+  state.resumeCountdownValue = 0;
   state.breakSessions = 0;
   state.breakRecords = [];
   state.activeBreak = null;
@@ -533,6 +564,14 @@ function executeBeat() {
     return;
   }
   state.beatCount += 1;
+  if (
+    state.settings.sessionEndEnabled &&
+    state.beatCount >= state.settings.sessionEndBeats
+  ) {
+    updateExecutionUi();
+    finalizeRun();
+    return;
+  }
   applyTempoProgression();
   updateExecutionUi();
   scheduleNextBeat();
@@ -611,7 +650,7 @@ function handlePause() {
     return;
   }
 
-  if (state.phase === "paused") {
+  if (state.phase === "paused" || state.phase === "resume-countdown") {
     resumeFromBreak("manual");
     return;
   }
@@ -621,6 +660,23 @@ function handlePause() {
   }
 
   startBreak();
+}
+
+function handleAbort() {
+  if (state.phase !== "countdown") {
+    return;
+  }
+
+  cancelTimers();
+  state.token += 1;
+  state.phase = "idle";
+  state.settings = null;
+  state.activeBreak = null;
+  state.report = null;
+  dom.settingsStatus.textContent = "";
+  dom.executionMessage.textContent = "";
+  showView("settings", true);
+  dom.bpm.focus();
 }
 
 function startBreak() {
@@ -655,20 +711,78 @@ function startBreak() {
   dom.executionMessage.textContent = "";
   clearTimer("beatTimer");
   state.phase = "paused";
+  const startedAt = performance.now();
   state.activeBreak = {
     record,
     durationSeconds,
-    deadline: durationSeconds === null ? null : performance.now() + durationSeconds * 1000,
+    startedAt,
+    deadline: durationSeconds === null ? null : startedAt + durationSeconds * 1000,
   };
 
   if (durationSeconds !== null) {
     state.breakTimer = window.setTimeout(() => {
-      resumeFromBreak("timer");
-    }, durationSeconds * 1000);
+      beginAutoResumeCountdown();
+    }, Math.max(0, durationSeconds - Math.min(3, durationSeconds)) * 1000);
     state.breakDisplayTimer = window.setInterval(updateExecutionUi, 250);
   }
 
   updateExecutionUi();
+}
+
+function beginAutoResumeCountdown() {
+  if (state.phase !== "paused" || !state.activeBreak) {
+    return;
+  }
+
+  state.breakTimer = null;
+  if (
+    state.activeBreak.deadline === null ||
+    performance.now() >= state.activeBreak.deadline
+  ) {
+    resumeFromBreak("timer");
+    return;
+  }
+
+  state.phase = "resume-countdown";
+  state.resumeCountdownValue = Math.min(3, state.activeBreak.durationSeconds);
+  playTone(TONE.countdownFrequency);
+  if (state.phase !== "resume-countdown" || !state.settings) {
+    return;
+  }
+  updateExecutionUi();
+  scheduleAutoResumeCountdownStep();
+}
+
+function scheduleAutoResumeCountdownStep() {
+  const token = state.token;
+  state.resumeCountdownTimer = window.setTimeout(() => {
+    if (token !== state.token || state.phase !== "resume-countdown") {
+      return;
+    }
+
+    state.resumeCountdownTimer = null;
+    if (
+      !state.activeBreak ||
+      state.activeBreak.deadline === null ||
+      performance.now() >= state.activeBreak.deadline
+    ) {
+      resumeFromBreak("timer");
+      return;
+    }
+
+    if (state.resumeCountdownValue > 1) {
+      state.resumeCountdownValue -= 1;
+      playTone(TONE.countdownFrequency);
+      if (state.phase !== "resume-countdown" || !state.settings) {
+        return;
+      }
+      updateExecutionUi();
+      scheduleAutoResumeCountdownStep();
+      return;
+    }
+
+    resumeFromBreak("timer");
+  }, 1000);
 }
 
 function evaluateBreakDuration(parsedInput, bpm) {
@@ -694,15 +808,28 @@ function evaluateBreakDuration(parsedInput, bpm) {
 }
 
 function resumeFromBreak(reason) {
-  if (state.phase !== "paused" || !state.activeBreak) {
+  if (
+    (state.phase !== "paused" && state.phase !== "resume-countdown") ||
+    !state.activeBreak
+  ) {
     return;
   }
 
   clearTimer("breakTimer");
+  clearTimer("resumeCountdownTimer");
   clearTimer("breakDisplayTimer");
+  const elapsedSeconds = Math.max(
+    0,
+    Math.round((performance.now() - state.activeBreak.startedAt) / 1000),
+  );
   state.activeBreak.record.ended =
-    reason === "timer" ? "Time limit" : reason === "stopped" ? "Run stopped" : "Manual";
+    reason === "timer"
+      ? `Auto-resumed after ${state.activeBreak.durationSeconds} seconds`
+      : reason === "stopped"
+        ? `Stopped after ${elapsedSeconds} seconds`
+        : `Manually resumed after ${elapsedSeconds} seconds`;
   state.activeBreak = null;
+  state.resumeCountdownValue = 0;
   dom.executionMessage.textContent = "";
 
   if (reason === "stopped") {
@@ -719,11 +846,15 @@ function handleStop() {
     return;
   }
 
+  if (state.phase === "countdown") {
+    return;
+  }
+
   if (state.settings.lockSettings && state.beatCount < state.settings.lockBeats) {
     return;
   }
 
-  if (state.phase === "paused") {
+  if (state.phase === "paused" || state.phase === "resume-countdown") {
     resumeFromBreak("stopped");
   }
 
@@ -822,32 +953,42 @@ function updateExecutionUi() {
   }
 
   const isCountdown = state.phase === "countdown";
+  const isResumeCountdown = state.phase === "resume-countdown";
   const isPaused = state.phase === "paused";
   const isRunning = state.phase === "running";
+  const isBreakActive = isPaused || isResumeCountdown;
 
   dom.executionPhase.textContent = isCountdown
     ? "Starting"
-    : isPaused
+    : isResumeCountdown
+      ? "Resuming"
+      : isPaused
       ? "Break active"
       : "Running";
-  dom.countdownDisplay.hidden = !isCountdown;
-  dom.countdownDisplay.textContent = String(state.countdownValue);
+  dom.countdownDisplay.hidden = !isCountdown && !isResumeCountdown;
+  dom.countdownDisplay.textContent = isResumeCountdown
+    ? String(state.resumeCountdownValue)
+    : String(state.countdownValue);
   dom.currentBpm.textContent = String(state.currentBpm);
   dom.beatCount.textContent = `Beats completed: ${state.beatCount}`;
 
-  dom.pauseButton.hidden = state.settings.breaks === "none";
-  dom.pauseButton.disabled = !isRunning && !isPaused;
+  dom.executionActions.classList.toggle("single-action", isCountdown);
+  dom.abortButton.hidden = !isCountdown;
+  dom.pauseButton.hidden = state.settings.breaks === "none" || isCountdown;
+  dom.stopButton.hidden = isCountdown;
+  dom.pauseButton.disabled = !isRunning && !isBreakActive;
   dom.pauseButton.classList.toggle(
     "over-limit",
     state.settings.breakCount !== null && state.breakSessions >= state.settings.breakCount,
   );
 
-  if (isPaused) {
+  if (isBreakActive) {
     const remaining = getBreakSecondsRemaining();
     dom.pauseButton.textContent =
       remaining === null ? "Resume" : `Resume (${remaining}s)`;
-    dom.breakStatus.textContent =
-      remaining === null
+    dom.breakStatus.textContent = isResumeCountdown
+      ? `Resuming in ${remaining}s. Resume now to continue.`
+      : remaining === null
         ? "Break paused. Resume when you are ready."
         : `Break active. ${remaining}s remaining, or resume manually.`;
   } else {
@@ -882,6 +1023,8 @@ function updateExecutionUi() {
 
   if (isCountdown) {
     dom.executionStatus.textContent = `Starting in ${state.countdownValue}...`;
+  } else if (isResumeCountdown) {
+    dom.executionStatus.textContent = `Resuming in ${state.resumeCountdownValue}...`;
   } else if (isPaused) {
     dom.executionStatus.textContent = "Metronome paused.";
   } else if (isRunning) {
@@ -952,8 +1095,9 @@ function renderReport() {
   dom.reportMaximum.textContent = formatMaximum(settings);
   dom.reportBreaks.textContent = formatBreaks(settings);
   dom.reportLock.textContent = settings.lockSettings
-    ? `Enabled after ${settings.lockBeats} beats`
-    : "Disabled";
+    ? `until ${settings.lockBeats} beats are passed`
+    : "No";
+  dom.reportSessionEnd.textContent = formatSessionEnd(settings);
 
   dom.breakTableBody.replaceChildren();
   dom.reportNoBreaks.hidden = report.breakRecords.length > 0;
@@ -988,9 +1132,12 @@ function buildReportText(report) {
     }`,
     `Maximum: ${formatMaximum(settings)}`,
     `Breaks: ${formatBreaks(settings)}`,
-    `Settings lock: ${
-      settings.lockSettings ? `Enabled after ${settings.lockBeats} beats` : "Disabled"
+    `Settings locked: ${
+      settings.lockSettings
+        ? `until ${settings.lockBeats} beats are passed`
+        : "No"
     }`,
+    `Session end: ${formatSessionEnd(settings)}`,
     "",
     "Breaks used:",
   ];
@@ -1040,6 +1187,12 @@ function formatBreaks(settings) {
     ? `duration ${settings.breakSecondsRaw}`
     : "manual duration";
   return `Limited: ${count}; ${duration}`;
+}
+
+function formatSessionEnd(settings) {
+  return settings.sessionEndEnabled
+    ? `After ${settings.sessionEndBeats} beats`
+    : "Manual stop";
 }
 
 function playTone(frequency) {
@@ -1199,6 +1352,7 @@ function clearTimer(timerName) {
 
 function cancelTimers() {
   clearTimer("countdownTimer");
+  clearTimer("resumeCountdownTimer");
   clearTimer("beatTimer");
   clearTimer("breakTimer");
   clearTimer("breakDisplayTimer");

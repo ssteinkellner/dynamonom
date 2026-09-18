@@ -314,6 +314,34 @@
             <p id="breaks-error" class="field-error"></p>
           </fieldset>
 
+          <fieldset>
+            <legend>Session end</legend>
+
+            <div id="session-end-option-card" class="option-card">
+              <label class="checkbox-label" for="session-end-enabled">
+                <input id="session-end-enabled" name="session-end-enabled" type="checkbox" />
+                <span>End session automatically</span>
+              </label>
+
+              <div class="option-details">
+                <div class="field">
+                  <label for="session-end-beats">End after (beats)</label>
+                  <input
+                    id="session-end-beats"
+                    name="session-end-beats"
+                    type="number"
+                    inputmode="numeric"
+                    min="1"
+                    step="1"
+                    value="100"
+                    aria-describedby="session-end-beats-error"
+                  />
+                  <p id="session-end-beats-error" class="field-error"></p>
+                </div>
+              </div>
+            </div>
+          </fieldset>
+
           <button id="start-button" class="primary-button" type="submit">Start</button>
         </form>
       </section>
@@ -348,7 +376,8 @@
         <p id="break-status" class="status" role="status" aria-live="polite"></p>
         <p id="execution-message" class="status error-status" role="alert"></p>
 
-        <div class="button-row">
+        <div id="execution-actions" class="button-row">
+          <button id="abort-button" class="secondary-button" type="button" hidden>Abort</button>
           <button id="pause-button" class="secondary-button" type="button">Pause</button>
           <button id="stop-button" class="danger-button" type="button">Stop</button>
         </div>
@@ -390,8 +419,12 @@
               <dd id="report-breaks">-</dd>
             </div>
             <div>
-              <dt>Settings lock</dt>
+              <dt>Settings locked</dt>
               <dd id="report-lock">-</dd>
+            </div>
+            <div>
+              <dt>Session end</dt>
+              <dd id="report-session-end">-</dd>
             </div>
           </dl>
         </div>

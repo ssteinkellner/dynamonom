@@ -94,6 +94,18 @@ Count accepts a blank value or a positive whole number. Seconds accepts a
 positive whole number, or an expression such as `BPM/2`, `BPM+5`, `BPM-2`, or
 `BPM*1.5`.
 
+### Session end
+
+The **End session automatically** checkbox is unchecked by default. Its
+dependent **End after (beats)** input remains visible and is disabled until
+the checkbox is selected.
+
+- Default value: 100 beats
+- Minimum: 1 beat
+- Counts completed audible metronome beats only
+- The session ends immediately after the configured beat, even when the
+  manual Stop button is still locked
+
 ### Start
 
 The Start button validates the active settings and navigates to the Execution
@@ -104,12 +116,21 @@ view.
 The view starts with a visible 3, 2, 1 countdown and three tones separated by
 one second. It then executes the configured tempo.
 
+During the initial countdown, **Abort** cancels the run immediately and returns
+to Settings without creating a report. Form values are preserved. Stop is
+available after the first beat starts.
+
 The view displays:
 
 - Current BPM
 - The next BPM change and its beat countdown when tempo progression is active
 - Completed beat count
 - Pause and Stop controls
+
+For a timed break, the final available seconds are announced with the same
+countdown tone used at startup. A 3-second-or-longer break announces 3, 2, 1;
+shorter breaks announce every available second without extending the break.
+The user can still resume manually during this countdown.
 
 ## View "Report"
 
@@ -118,6 +139,14 @@ The report displays:
 - A summary of the effective settings
 - Total completed beats
 - Each break's beat number, active BPM, allowance status, and end reason
+
+The settings summary uses **Settings locked** with the value
+`until N beats are passed` when locking is enabled. It also reports whether
+the session ended manually or automatically after a configured number of
+beats.
+
+The Ended column records durations for breaks, such as
+`Auto-resumed after 30 seconds` or `Manually resumed after 5 seconds`.
 
 The **Copy to clipboard** button copies all report information as labeled plain
 text. Each item is separated by a newline, with a separate newline-delimited
