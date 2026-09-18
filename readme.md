@@ -55,9 +55,11 @@ first beat and every configured interval are accented.
 
 ### Increase tempo
 
-Inline checkbox and values in the form **Increase tempo by N BPM every N
-beats**, enabled by default. Its values remain visible and are disabled when
-the checkbox is unchecked.
+Inline checkbox and a summary button phrased **by N BPM every N beats**,
+enabled by default. Activating the button opens a shared dialog for the two
+values. Save validates and applies the values; Cancel restores the previous
+values. The button remains visible but disabled when its parent option is
+unchecked.
 
 - Increase by: default 1 BPM, allowed range 1-20
 - Increase after: default 10 beats, minimum 1
@@ -66,14 +68,15 @@ the checkbox is unchecked.
 
 Radio options. Each option has its own bordered card and preserves its own
 values. The options are phrased inline as **Limit at N**, **Reset at N**, and
-**Reverse at N by N BPM every N beats**.
+**Reverse at N**, followed by a summary button for the decrease values.
 
 - **None**: tempo increases without a configured limit.
 - **Limit at N**: the tempo holds at the configured limit.
 - **Reset at N**: the next beat uses the initial BPM after the limit is
   reached.
-- **Reverse at N by N BPM every N beats**: the tempo reaches the limit, then
-  decreases before cycling again.
+- **Reverse at N**: the tempo reaches the limit, then decreases before
+  cycling again. Its summary button opens the same two-value dialog for the
+  decrease amount and interval.
 
 Limit inputs accept whole numbers from 60-400 and must be greater than the
 starting BPM. Reverse values use the following defaults:

@@ -49,6 +49,7 @@ const dom = {
   increaseOptionCard: document.getElementById("increase-option-card"),
   increaseBy: document.getElementById("increase-by"),
   increaseAfter: document.getElementById("increase-after"),
+  increaseProgressButton: document.getElementById("increase-progress-button"),
   maximumOptions: document.getElementById("maximum-options"),
   maximumNoneOption: document.getElementById("maximum-none-option"),
   maximumStickOption: document.getElementById("maximum-stick-option"),
@@ -59,6 +60,13 @@ const dom = {
   maximumLimitReverse: document.getElementById("maximum-limit-reverse"),
   decreaseByReverse: document.getElementById("decrease-by-reverse"),
   decreaseAfterReverse: document.getElementById("decrease-after-reverse"),
+  reverseProgressButton: document.getElementById("reverse-progress-button"),
+  tempoProgressDialog: document.getElementById("tempo-progress-dialog"),
+  tempoProgressDialogTitle: document.getElementById("tempo-progress-dialog-title"),
+  increaseProgressFields: document.getElementById("increase-progress-fields"),
+  reverseProgressFields: document.getElementById("reverse-progress-fields"),
+  progressDialogCancel: document.getElementById("progress-dialog-cancel"),
+  progressDialogSave: document.getElementById("progress-dialog-save"),
   lockSettings: document.getElementById("lock-settings"),
   lockOptionCard: document.getElementById("lock-option-card"),
   lockBeats: document.getElementById("lock-beats"),
@@ -126,6 +134,9 @@ const state = {
 
 let audioContext = null;
 let copyFeedbackTimer = null;
+let progressDialogMode = null;
+let progressDialogTrigger = null;
+let progressDialogSnapshot = null;
 
 const TEXT_SETTING_CONTROLS = Object.freeze({
   bpm: dom.bpm,
@@ -179,6 +190,26 @@ function bindEvents() {
     handleSettingsImport(dom.settingsImport.value);
   });
   dom.exportButton.addEventListener("click", handleExportSettings);
+  dom.increaseProgressButton.addEventListener("click", () => {
+    openProgressDialog("increase", dom.increaseProgressButton);
+  });
+  dom.reverseProgressButton.addEventListener("click", () => {
+    openProgressDialog("reverse", dom.reverseProgressButton);
+  });
+  dom.progressDialogCancel.addEventListener("click", () => {
+    closeProgressDialog(false);
+  });
+  dom.progressDialogSave.addEventListener("click", handleProgressDialogSave);
+  dom.tempoProgressDialog.addEventListener("cancel", (event) => {
+    event.preventDefault();
+    closeProgressDialog(false);
+  });
+  dom.tempoProgressDialog.addEventListener("input", (event) => {
+    const control = event.target;
+    if (control instanceof HTMLInputElement) {
+      clearFieldError(control.id);
+    }
+  });
   dom.accentuate.addEventListener("change", syncSettingsVisibility);
   dom.increaseTempo.addEventListener("change", syncSettingsVisibility);
   dom.lockSettings.addEventListener("change", syncSettingsVisibility);
@@ -249,6 +280,138 @@ function syncSettingsVisibility() {
   const sessionEndEnabled = dom.sessionEndEnabled.checked;
   setOptionCardState(dom.sessionEndOptionCard, sessionEndEnabled);
   setControlDisabled(dom.sessionEndBeats, !sessionEndEnabled);
+  setControlDisabled(dom.increaseProgressButton, !increaseEnabled);
+  setControlDisabled(dom.reverseProgressButton, !increaseEnabled || maximum !== "reverse");
+  updateProgressButtonLabels();
+}
+
+function updateProgressButtonLabels() {
+  dom.increaseProgressButton.textContent = formatProgressSummary(
+    dom.increaseBy.value,
+    dom.increaseAfter.value,
+  );
+  dom.reverseProgressButton.textContent = formatProgressSummary(
+    dom.decreaseByReverse.value,
+    dom.decreaseAfterReverse.value,
+  );
+}
+
+function formatProgressSummary(amount, interval) {
+  const amountText = String(amount).trim() || "?";
+  const intervalText = String(interval).trim() || "?";
+  return `by ${amountText} BPM every ${intervalText} beats`;
+}
+
+function openProgressDialog(mode, trigger) {
+  if (dom.tempoProgressDialog.open || typeof dom.tempoProgressDialog.showModal !== "function") {
+    return;
+  }
+
+  progressDialogMode = mode;
+  progressDialogTrigger = trigger;
+  progressDialogSnapshot = {
+    increaseBy: dom.increaseBy.value,
+    increaseAfter: dom.increaseAfter.value,
+    decreaseByReverse: dom.decreaseByReverse.value,
+    decreaseAfterReverse: dom.decreaseAfterReverse.value,
+  };
+
+  const isIncrease = mode === "increase";
+  dom.tempoProgressDialogTitle.textContent = isIncrease
+    ? "Set tempo increase"
+    : "Set reverse decrease";
+  dom.increaseProgressFields.hidden = !isIncrease;
+  dom.reverseProgressFields.hidden = isIncrease;
+  clearProgressDialogErrors();
+  dom.tempoProgressDialog.showModal();
+  (isIncrease ? dom.increaseBy : dom.decreaseByReverse).focus();
+}
+
+function handleProgressDialogSave() {
+  if (!progressDialogMode) {
+    return;
+  }
+
+  const validation = validateProgressDialog(progressDialogMode);
+  if (!validation.valid) {
+    validation.firstInvalid?.focus();
+    return;
+  }
+
+  closeProgressDialog(true);
+}
+
+function validateProgressDialog(mode) {
+  clearProgressDialogErrors();
+  const fields =
+    mode === "increase"
+      ? {
+          amount: dom.increaseBy,
+          interval: dom.increaseAfter,
+          amountMessage: "Enter a whole number from 1 to 20.",
+          intervalMessage: "Enter a positive whole number.",
+        }
+      : {
+          amount: dom.decreaseByReverse,
+          interval: dom.decreaseAfterReverse,
+          amountMessage: "Enter a whole number from 1 to 50.",
+          intervalMessage: "Enter a positive whole number.",
+        };
+  let firstInvalid = null;
+  let valid = true;
+
+  const markInvalid = (control, message) => {
+    valid = false;
+    setFieldError(control.id, message);
+    if (!firstInvalid) {
+      firstInvalid = control;
+    }
+  };
+
+  const amountValid =
+    mode === "increase"
+      ? parseIntegerField(fields.amount.value, 1, 20) !== null
+      : parseIntegerField(fields.amount.value, 1, 50) !== null;
+  if (!amountValid) {
+    markInvalid(fields.amount, fields.amountMessage);
+  }
+
+  if (parsePositiveInteger(fields.interval.value, Number.POSITIVE_INFINITY) === null) {
+    markInvalid(fields.interval, fields.intervalMessage);
+  }
+
+  return { valid, firstInvalid };
+}
+
+function clearProgressDialogErrors() {
+  [
+    dom.increaseBy,
+    dom.increaseAfter,
+    dom.decreaseByReverse,
+    dom.decreaseAfterReverse,
+  ].forEach((control) => clearFieldError(control.id));
+}
+
+function closeProgressDialog(saveChanges) {
+  if (!progressDialogMode) {
+    return;
+  }
+
+  if (!saveChanges && progressDialogSnapshot) {
+    dom.increaseBy.value = progressDialogSnapshot.increaseBy;
+    dom.increaseAfter.value = progressDialogSnapshot.increaseAfter;
+    dom.decreaseByReverse.value = progressDialogSnapshot.decreaseByReverse;
+    dom.decreaseAfterReverse.value = progressDialogSnapshot.decreaseAfterReverse;
+  }
+
+  clearProgressDialogErrors();
+  dom.tempoProgressDialog.close();
+  const trigger = progressDialogTrigger;
+  progressDialogMode = null;
+  progressDialogTrigger = null;
+  progressDialogSnapshot = null;
+  updateProgressButtonLabels();
+  trigger?.focus();
 }
 
 function renderPresets() {

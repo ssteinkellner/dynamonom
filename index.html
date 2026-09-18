@@ -102,42 +102,15 @@
                   <span>Increase tempo</span>
                 </label>
 
-                <span class="inline-option-text">by</span>
-
-                <div class="inline-input-wrapper">
-                  <label class="visually-hidden" for="increase-by">Tempo increase in BPM</label>
-                  <input
-                    id="increase-by"
-                    name="increase-by"
-                    type="number"
-                    inputmode="numeric"
-                    min="1"
-                    max="20"
-                    step="1"
-                    value="1"
-                    aria-describedby="increase-by-error"
-                  />
-                  <span id="increase-by-error" class="field-error"></span>
-                </div>
-
-                <span class="inline-option-text">BPM every</span>
-
-                <div class="inline-input-wrapper">
-                  <label class="visually-hidden" for="increase-after">Tempo increase interval in beats</label>
-                  <input
-                    id="increase-after"
-                    name="increase-after"
-                    type="number"
-                    inputmode="numeric"
-                    min="1"
-                    step="1"
-                    value="10"
-                    aria-describedby="increase-after-error"
-                  />
-                  <span id="increase-after-error" class="field-error"></span>
-                </div>
-
-                <span class="inline-option-text">beats</span>
+                <button
+                  id="increase-progress-button"
+                  class="secondary-button progress-summary-button"
+                  type="button"
+                  aria-haspopup="dialog"
+                  aria-controls="tempo-progress-dialog"
+                >
+                  by 1 BPM every 10 beats
+                </button>
               </div>
 
               <div id="increase-options" class="option-details">
@@ -232,46 +205,15 @@
                           <span id="maximum-limit-reverse-error" class="field-error"></span>
                         </div>
 
-                        <span class="inline-option-text">by</span>
-
-                        <div class="inline-input-wrapper">
-                          <label class="visually-hidden" for="decrease-by-reverse">
-                            Reverse decrease in BPM
-                          </label>
-                          <input
-                            id="decrease-by-reverse"
-                            name="decrease-by-reverse"
-                            type="number"
-                            inputmode="numeric"
-                            min="1"
-                            max="50"
-                            step="1"
-                            value="1"
-                            aria-describedby="decrease-by-reverse-error"
-                          />
-                          <span id="decrease-by-reverse-error" class="field-error"></span>
-                        </div>
-
-                        <span class="inline-option-text">BPM every</span>
-
-                        <div class="inline-input-wrapper">
-                          <label class="visually-hidden" for="decrease-after-reverse">
-                            Reverse decrease interval in beats
-                          </label>
-                          <input
-                            id="decrease-after-reverse"
-                            name="decrease-after-reverse"
-                            type="number"
-                            inputmode="numeric"
-                            min="1"
-                            step="1"
-                            value="10"
-                            aria-describedby="decrease-after-reverse-error"
-                          />
-                          <span id="decrease-after-reverse-error" class="field-error"></span>
-                        </div>
-
-                        <span class="inline-option-text">beats</span>
+                        <button
+                          id="reverse-progress-button"
+                          class="secondary-button progress-summary-button"
+                          type="button"
+                          aria-haspopup="dialog"
+                          aria-controls="tempo-progress-dialog"
+                        >
+                          by 1 BPM every 10 beats
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -308,41 +250,39 @@
                 </label>
 
                 <div id="limited-break-options" class="option-details">
-                  <div class="input-row">
-                    <div class="field">
-                      <div class="input-wrapper">
-                        <label for="break-count">Count (blank for unlimited)</label>
-                        <input
-                          id="break-count"
-                          name="break-count"
-                          type="number"
-                          inputmode="numeric"
-                          min="1"
-                          step="1"
-                          placeholder="Optional"
-                          aria-describedby="break-count-error"
-                        />
-                        <p id="break-count-error" class="field-error"></p>
-                      </div>
+                  <div class="field">
+                    <div class="input-wrapper">
+                      <label for="break-count">Count (blank for unlimited)</label>
+                      <input
+                        id="break-count"
+                        name="break-count"
+                        type="number"
+                        inputmode="numeric"
+                        min="1"
+                        step="1"
+                        placeholder="Optional"
+                        aria-describedby="break-count-error"
+                      />
+                      <p id="break-count-error" class="field-error"></p>
                     </div>
+                  </div>
 
-                    <div class="field">
-                      <div class="input-wrapper">
-                        <label for="break-seconds">Seconds or BPM expression (blank for manual)</label>
-                        <input
-                          id="break-seconds"
-                          name="break-seconds"
-                          type="text"
-                          inputmode="text"
-                          autocomplete="off"
-                          placeholder="e.g. 30 or BPM/2"
-                          aria-describedby="break-seconds-error break-seconds-help"
-                        />
-                        <p id="break-seconds-help" class="field-help">
-                          Use a positive integer or BPM followed by +, -, *, or / and a positive number.
-                        </p>
-                        <p id="break-seconds-error" class="field-error"></p>
-                      </div>
+                  <div class="field">
+                    <div class="input-wrapper">
+                      <label for="break-seconds">Seconds or BPM expression (blank for manual)</label>
+                      <input
+                        id="break-seconds"
+                        name="break-seconds"
+                        type="text"
+                        inputmode="text"
+                        autocomplete="off"
+                        placeholder="e.g. 30 or BPM/2"
+                        aria-describedby="break-seconds-error break-seconds-help"
+                      />
+                      <p id="break-seconds-help" class="field-help">
+                        Use a positive integer or BPM followed by +, -, *, or / and a positive number.
+                      </p>
+                      <p id="break-seconds-error" class="field-error"></p>
                     </div>
                   </div>
                 </div>
@@ -389,12 +329,12 @@
               <div class="inline-option-row">
                 <label class="checkbox-label" for="lock-settings">
                   <input id="lock-settings" name="lock-settings" type="checkbox" />
-                  <span>Lock Stop until</span>
+                  <span>Locked until</span>
                 </label>
 
                 <div class="inline-input-wrapper">
                   <label class="visually-hidden" for="lock-beats">
-                    Lock Stop until beats
+                    Locked until beats
                   </label>
                   <input
                     id="lock-beats"
@@ -421,6 +361,97 @@
             <button id="start-button" class="primary-button" type="submit">Start</button>
           </div>
         </form>
+
+        <dialog
+          id="tempo-progress-dialog"
+          class="progress-dialog"
+          aria-labelledby="tempo-progress-dialog-title"
+        >
+          <div class="progress-dialog-content">
+            <h3 id="tempo-progress-dialog-title">Set tempo progression</h3>
+
+            <div id="increase-progress-fields" class="progress-dialog-fields">
+              <div class="field">
+                <div class="input-wrapper">
+                  <label for="increase-by">Increase by (BPM)</label>
+                  <input
+                    id="increase-by"
+                    name="increase-by"
+                    type="number"
+                    inputmode="numeric"
+                    min="1"
+                    max="20"
+                    step="1"
+                    value="1"
+                    aria-describedby="increase-by-error"
+                  />
+                  <p id="increase-by-error" class="field-error"></p>
+                </div>
+              </div>
+
+              <div class="field">
+                <div class="input-wrapper">
+                  <label for="increase-after">Increase every (beats)</label>
+                  <input
+                    id="increase-after"
+                    name="increase-after"
+                    type="number"
+                    inputmode="numeric"
+                    min="1"
+                    step="1"
+                    value="10"
+                    aria-describedby="increase-after-error"
+                  />
+                  <p id="increase-after-error" class="field-error"></p>
+                </div>
+              </div>
+            </div>
+
+            <div id="reverse-progress-fields" class="progress-dialog-fields" hidden>
+              <div class="field">
+                <div class="input-wrapper">
+                  <label for="decrease-by-reverse">Decrease by (BPM)</label>
+                  <input
+                    id="decrease-by-reverse"
+                    name="decrease-by-reverse"
+                    type="number"
+                    inputmode="numeric"
+                    min="1"
+                    max="50"
+                    step="1"
+                    value="1"
+                    aria-describedby="decrease-by-reverse-error"
+                  />
+                  <p id="decrease-by-reverse-error" class="field-error"></p>
+                </div>
+              </div>
+
+              <div class="field">
+                <div class="input-wrapper">
+                  <label for="decrease-after-reverse">Decrease every (beats)</label>
+                  <input
+                    id="decrease-after-reverse"
+                    name="decrease-after-reverse"
+                    type="number"
+                    inputmode="numeric"
+                    min="1"
+                    step="1"
+                    value="10"
+                    aria-describedby="decrease-after-reverse-error"
+                  />
+                  <p id="decrease-after-reverse-error" class="field-error"></p>
+                </div>
+              </div>
+            </div>
+
+            <div class="button-row progress-dialog-actions">
+              <button id="progress-dialog-cancel" class="secondary-button" type="button">
+                Cancel
+              </button>
+              <button id="progress-dialog-save" class="primary-button" type="button">Save</button>
+            </div>
+          </div>
+        </dialog>
       </section>
 
       <section id="execution-view" class="view" aria-labelledby="execution-title" hidden>
