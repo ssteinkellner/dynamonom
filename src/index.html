@@ -34,7 +34,12 @@
           <fieldset>
             <legend>Presets</legend>
 
-            <div class="preset-row">
+            <div
+              id="preset-list"
+              class="preset-row"
+              role="group"
+              aria-label="Preset import and available presets"
+            >
               <input
                 id="settings-import"
                 class="settings-import-input"
@@ -45,9 +50,6 @@
                 placeholder="Import"
                 aria-label="Import settings"
               />
-
-              <div id="preset-list" class="preset-buttons" role="group" aria-label="Available presets">
-              </div>
             </div>
           </fieldset>
 

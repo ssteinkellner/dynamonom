@@ -422,7 +422,7 @@ function renderPresets() {
     return;
   }
 
-  dom.presetList.replaceChildren();
+  dom.presetList.replaceChildren(dom.settingsImport);
   let addedPreset = false;
 
   Object.entries(presets).forEach(([presetId, preset]) => {
