@@ -1,3 +1,10 @@
+# TODOs
+copilot please ignore this section.
+- extract view "presets"
+- add "Lock abort" for exports
+- add "pre-phases"
+
+
 # Metronome
 
 This metronome is a single-page application with three views:
