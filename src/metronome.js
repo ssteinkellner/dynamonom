@@ -1,3 +1,21 @@
+import {
+  PRE_TIMER_ROUNDING,
+  PRE_TIMER_TYPES,
+  clonePreTimers,
+  createDefaultPreTimer,
+  deserializePreTimerPayload,
+  evaluatePreTimerFormula,
+  formatPreTimerDuration,
+  getPreTimerDefaultName,
+  getPreTimerFormulaVariables,
+  getPreTimerOptionsSummary,
+  getPreTimerRoundingLabel,
+  getPreTimerTypeLabel,
+  normalizePreTimerDefinition,
+  serializePreTimerPayload,
+  validatePreTimerRows,
+} from "./pre-timer-model.js";
+
 "use strict";
 
 const DEFAULTS = Object.freeze({
@@ -32,6 +50,7 @@ const REPORT_BREAKS_HEADING = "gebrauchte Pausen";
 
 const views = {
   settings: document.getElementById("settings-view"),
+  preTimers: document.getElementById("pre-timers-view"),
   execution: document.getElementById("execution-view"),
   report: document.getElementById("report-view"),
 };
@@ -44,6 +63,54 @@ const dom = {
   settingsImportWrapper: document.getElementById("settings-import-wrapper"),
   settingsImport: document.getElementById("settings-import"),
   settingsImportError: document.getElementById("settings-import-error"),
+  preTimersFieldset: document.getElementById("pre-timers-fieldset"),
+  preTimersTable: document.getElementById("pre-timers-table"),
+  preTimersTableBody: document.getElementById("pre-timers-table-body"),
+  preTimersEmptyMessage: document.getElementById("pre-timers-empty-message"),
+  preTimersError: document.getElementById("pre-timers-error"),
+  preTimerAddButton: document.getElementById("pre-timer-add-button"),
+  preTimerDialog: document.getElementById("pre-timer-dialog"),
+  preTimerDialogTitle: document.getElementById("pre-timer-dialog-title"),
+  preTimerForm: document.getElementById("pre-timer-form"),
+  preTimerName: document.getElementById("pre-timer-name"),
+  preTimerType: document.getElementById("pre-timer-type"),
+  preTimerTypeError: document.getElementById("pre-timer-type-error"),
+  preTimerSecondsFields: document.getElementById("pre-timer-seconds-fields"),
+  preTimerSeconds: document.getElementById("pre-timer-seconds"),
+  preTimerSecondsError: document.getElementById("pre-timer-seconds-error"),
+  preTimerStopwatchFields: document.getElementById("pre-timer-stopwatch-fields"),
+  preTimerFormula: document.getElementById("pre-timer-formula"),
+  preTimerFormulaError: document.getElementById("pre-timer-formula-error"),
+  preTimerRounding: document.getElementById("pre-timer-rounding"),
+  preTimerRoundingError: document.getElementById("pre-timer-rounding-error"),
+  preTimerRoundingThresholdField: document.getElementById(
+    "pre-timer-rounding-threshold-field",
+  ),
+  preTimerRoundingThreshold: document.getElementById("pre-timer-rounding-threshold"),
+  preTimerRoundingThresholdError: document.getElementById(
+    "pre-timer-rounding-threshold-error",
+  ),
+  preTimerManualFields: document.getElementById("pre-timer-manual-fields"),
+  preTimerLimitSeconds: document.getElementById("pre-timer-limit-seconds"),
+  preTimerLimitSecondsError: document.getElementById(
+    "pre-timer-limit-seconds-error",
+  ),
+  preTimerDialogCancel: document.getElementById("pre-timer-dialog-cancel"),
+  preTimerDeleteDialog: document.getElementById("pre-timer-delete-dialog"),
+  preTimerDeleteDialogMessage: document.getElementById(
+    "pre-timer-delete-dialog-message",
+  ),
+  preTimerDeleteCancel: document.getElementById("pre-timer-delete-cancel"),
+  preTimerDeleteConfirm: document.getElementById("pre-timer-delete-confirm"),
+  preTimerAbortDialog: document.getElementById("pre-timer-abort-dialog"),
+  preTimerAbortCancel: document.getElementById("pre-timer-abort-cancel"),
+  preTimerAbortConfirm: document.getElementById("pre-timer-abort-confirm"),
+  preTimerEarlyDialog: document.getElementById("pre-timer-early-dialog"),
+  preTimerEarlyDialogMessage: document.getElementById(
+    "pre-timer-early-dialog-message",
+  ),
+  preTimerEarlyCancel: document.getElementById("pre-timer-early-cancel"),
+  preTimerEarlyConfirm: document.getElementById("pre-timer-early-confirm"),
   exportAutoStart: document.getElementById("export-auto-start"),
   exportSettingsButton: document.getElementById("export-settings-button"),
   exportUrlButton: document.getElementById("export-url-button"),
@@ -84,6 +151,16 @@ const dom = {
   sessionEndOptionCard: document.getElementById("session-end-option-card"),
   sessionEndEnabled: document.getElementById("session-end-enabled"),
   sessionEndBeats: document.getElementById("session-end-beats"),
+  preTimersTitle: document.getElementById("pre-timers-title"),
+  preTimersProgress: document.getElementById("pre-timers-progress"),
+  preTimerCard: document.getElementById("pre-timer-card"),
+  preTimerCardType: document.getElementById("pre-timer-card-type"),
+  preTimerCardName: document.getElementById("pre-timer-card-name"),
+  preTimerCardOptions: document.getElementById("pre-timer-card-options"),
+  preTimerClock: document.getElementById("pre-timer-clock"),
+  preTimerStatus: document.getElementById("pre-timer-status"),
+  preTimerAbortButton: document.getElementById("pre-timer-abort-button"),
+  preTimerContinueButton: document.getElementById("pre-timer-continue-button"),
   executionTitle: document.getElementById("execution-title"),
   executionPhase: document.getElementById("execution-phase"),
   currentBpmLabel: document.getElementById("current-bpm-label"),
@@ -106,6 +183,8 @@ const dom = {
   reportBreaks: document.getElementById("report-breaks"),
   reportBreaksRow: document.getElementById("report-breaks-row"),
   reportSessionEnd: document.getElementById("report-session-end"),
+  reportPreTimersCard: document.getElementById("report-pre-timers-card"),
+  reportPreTimersList: document.getElementById("report-pre-timers-list"),
   reportBreaksTitle: document.getElementById("report-breaks-title"),
   reportNoBreaks: document.getElementById("report-no-breaks"),
   breakTableWrapper: document.getElementById("break-table-wrapper"),
@@ -137,6 +216,13 @@ const state = {
   breakSessions: 0,
   breakRecords: [],
   activeBreak: null,
+  preTimerRecords: [],
+  preTimerIndex: -1,
+  preTimerStartedAt: null,
+  preTimerTimer: null,
+  preTimerDisplayTimer: null,
+  preTimerReport: null,
+  preTimerEarlyDialogOpen: false,
   report: null,
 };
 
@@ -147,6 +233,16 @@ let progressDialogTrigger = null;
 let progressDialogSnapshot = null;
 let autoStartImportInProgress = false;
 let lastAutoStartImportText = null;
+let preTimerDefinitions = [];
+let preTimerDialogMode = null;
+let preTimerDialogEditingId = null;
+let preTimerDialogTrigger = null;
+let preTimerDialogNameGenerated = false;
+let preTimerDeleteId = null;
+let preTimerDeleteTrigger = null;
+let preTimerAbortDialogTrigger = null;
+let preTimerEarlyDialogTrigger = null;
+let preTimerDragState = null;
 
 const TEXT_SETTING_CONTROLS = Object.freeze({
   bpm: dom.bpm,
@@ -184,6 +280,7 @@ function init() {
   }
 
   renderPresets();
+  renderPreTimerTable();
   const initialParameters = getInitialParameterText();
   if (initialParameters) {
     dom.settingsImport.value = initialParameters;
@@ -212,6 +309,48 @@ function bindEvents() {
   dom.exportUrlButton.addEventListener("click", () => {
     void handleExportSettings("url", dom.exportUrlButton, "Ganze URL kopieren");
   });
+  dom.preTimerAddButton.addEventListener("click", () => {
+    openPreTimerDialog();
+  });
+  dom.preTimerForm.addEventListener("submit", handlePreTimerDialogSave);
+  dom.preTimerType.addEventListener("change", handlePreTimerTypeChange);
+  dom.preTimerRounding.addEventListener("change", syncPreTimerDialogFields);
+  dom.preTimerForm.addEventListener("input", (event) => {
+    const control = event.target;
+    if (control === dom.preTimerName) {
+      preTimerDialogNameGenerated = false;
+    }
+    if (control instanceof HTMLInputElement || control instanceof HTMLSelectElement) {
+      clearFieldError(control.id);
+    }
+  });
+  dom.preTimerDialogCancel.addEventListener("click", () => {
+    closePreTimerDialog(false);
+  });
+  dom.preTimerDialog.addEventListener("cancel", (event) => {
+    event.preventDefault();
+    closePreTimerDialog(false);
+  });
+  dom.preTimerDeleteCancel.addEventListener("click", () => {
+    closePreTimerDeleteDialog(false);
+  });
+  dom.preTimerDeleteConfirm.addEventListener("click", () => {
+    confirmPreTimerDelete();
+  });
+  dom.preTimerDeleteDialog.addEventListener("cancel", (event) => {
+    event.preventDefault();
+    closePreTimerDeleteDialog(false);
+  });
+  dom.preTimersTableBody.addEventListener("click", handlePreTimerTableClick);
+  dom.preTimersTableBody.addEventListener("keydown", handlePreTimerTableKeydown);
+  dom.preTimersTableBody.addEventListener("pointerdown", handlePreTimerPointerDown);
+  dom.preTimersTableBody.addEventListener("pointermove", handlePreTimerPointerMove);
+  dom.preTimersTableBody.addEventListener("pointerup", handlePreTimerPointerUp);
+  dom.preTimersTableBody.addEventListener("pointercancel", handlePreTimerPointerCancel);
+  dom.preTimersTableBody.addEventListener("dragstart", handlePreTimerDragStart);
+  dom.preTimersTableBody.addEventListener("dragover", handlePreTimerDragOver);
+  dom.preTimersTableBody.addEventListener("drop", handlePreTimerDrop);
+  dom.preTimersTableBody.addEventListener("dragend", handlePreTimerDragEnd);
   dom.increaseProgressButton.addEventListener("click", () => {
     openProgressDialog("increase", dom.increaseProgressButton);
   });
@@ -239,6 +378,28 @@ function bindEvents() {
   dom.pauseButton.addEventListener("click", handlePause);
   dom.abortButton.addEventListener("click", handleAbort);
   dom.stopButton.addEventListener("click", handleStop);
+  dom.preTimerContinueButton.addEventListener("click", handlePreTimerContinue);
+  dom.preTimerAbortButton.addEventListener("click", handlePreTimerAbortRequest);
+  dom.preTimerAbortCancel.addEventListener("click", () => {
+    closePreTimerAbortDialog(false);
+  });
+  dom.preTimerAbortConfirm.addEventListener("click", () => {
+    abortPreTimerRun();
+  });
+  dom.preTimerAbortDialog.addEventListener("cancel", (event) => {
+    event.preventDefault();
+    closePreTimerAbortDialog(false);
+  });
+  dom.preTimerEarlyCancel.addEventListener("click", () => {
+    closePreTimerEarlyDialog(false);
+  });
+  dom.preTimerEarlyConfirm.addEventListener("click", () => {
+    finishPreTimer("manual");
+  });
+  dom.preTimerEarlyDialog.addEventListener("cancel", (event) => {
+    event.preventDefault();
+    closePreTimerEarlyDialog(false);
+  });
   dom.copyReportButton.addEventListener("click", handleCopyReport);
   dom.copyShortReportButton.addEventListener("click", handleCopyShortReport);
   dom.backButton.addEventListener("click", handleBackToSettings);
@@ -270,6 +431,9 @@ function syncSettingsVisibility() {
   const lockEnabled = dom.lockSettings.checked;
   const maximum = getSelectedValue("maximum");
   const breaks = getSelectedValue("breaks");
+  const hasStopwatch = preTimerDefinitions.some(
+    (preTimer) => preTimer.type === PRE_TIMER_TYPES.STOPWATCH,
+  );
 
   setOptionCardState(dom.accentOptionCard, accentEnabled);
   setOptionCardState(dom.increaseOptionCard, increaseEnabled);
@@ -292,8 +456,9 @@ function syncSettingsVisibility() {
   setControlDisabled(dom.decreaseAfterReverse, !increaseEnabled || maximum !== "reverse");
   dom.maximumOptions.setAttribute("aria-disabled", String(!increaseEnabled));
 
-  setOptionCardState(dom.lockOptionCard, lockEnabled);
-  setControlDisabled(dom.lockBeats, !lockEnabled);
+  setOptionCardState(dom.lockOptionCard, lockEnabled && !hasStopwatch);
+  setControlDisabled(dom.lockSettings, hasStopwatch);
+  setControlDisabled(dom.lockBeats, hasStopwatch || !lockEnabled);
 
   setOptionCardState(dom.breaksNoneOption, breaks === "none");
   setOptionCardState(dom.breaksUnlimitedOption, breaks === "unlimited");
@@ -302,11 +467,526 @@ function syncSettingsVisibility() {
   setControlDisabled(dom.breakSeconds, breaks !== "limited");
 
   const sessionEndEnabled = dom.sessionEndEnabled.checked;
-  setOptionCardState(dom.sessionEndOptionCard, sessionEndEnabled);
-  setControlDisabled(dom.sessionEndBeats, !sessionEndEnabled);
+  setOptionCardState(dom.sessionEndOptionCard, sessionEndEnabled && !hasStopwatch);
+  setControlDisabled(dom.sessionEndEnabled, hasStopwatch);
+  setControlDisabled(dom.sessionEndBeats, hasStopwatch || !sessionEndEnabled);
+  if (hasStopwatch) {
+    dom.sessionEndOptionCard.setAttribute("aria-disabled", "true");
+    dom.lockOptionCard.setAttribute("aria-disabled", "true");
+  } else {
+    dom.sessionEndOptionCard.removeAttribute("aria-disabled");
+    dom.lockOptionCard.removeAttribute("aria-disabled");
+  }
   setControlDisabled(dom.increaseProgressButton, !increaseEnabled);
   setControlDisabled(dom.reverseProgressButton, !increaseEnabled || maximum !== "reverse");
   updateProgressButtonLabels();
+}
+
+function renderPreTimerTable() {
+  dom.preTimersTableBody.replaceChildren();
+  const hasRows = preTimerDefinitions.length > 0;
+  dom.preTimersEmptyMessage.hidden = hasRows;
+
+  if (!hasRows) {
+    return;
+  }
+
+  preTimerDefinitions.forEach((preTimer) => {
+    const row = document.createElement("tr");
+    row.className = "pre-timer-row";
+    row.dataset.preTimerId = preTimer.id;
+
+    const typeCell = document.createElement("td");
+    typeCell.className = "pre-timer-type-cell";
+    const dragHandle = document.createElement("button");
+    dragHandle.className = "pre-timer-drag-handle";
+    dragHandle.type = "button";
+    dragHandle.draggable = true;
+    dragHandle.dataset.action = "drag";
+    dragHandle.dataset.preTimerId = preTimer.id;
+    dragHandle.setAttribute(
+      "aria-label",
+      `"${preTimer.name}" in der Reihenfolge verschieben`,
+    );
+    dragHandle.title = "Vorlaufzeit verschieben";
+    dragHandle.textContent = "⠿";
+    const typeText = document.createElement("span");
+    typeText.textContent = getPreTimerTypeLabel(preTimer.type);
+    typeCell.append(dragHandle, typeText);
+
+    const nameCell = document.createElement("td");
+    nameCell.textContent = preTimer.name;
+
+    const optionsCell = document.createElement("td");
+    optionsCell.textContent = getPreTimerOptionsSummary(preTimer);
+
+    const actionsCell = document.createElement("td");
+    const editButton = createPreTimerIconButton(
+      "edit",
+      preTimer.id,
+      "Vorlaufzeit bearbeiten",
+      "✎",
+    );
+    const deleteButton = createPreTimerIconButton(
+      "delete",
+      preTimer.id,
+      "Vorlaufzeit löschen",
+      "×",
+    );
+    actionsCell.append(editButton, deleteButton);
+
+    row.append(typeCell, nameCell, optionsCell, actionsCell);
+    dom.preTimersTableBody.append(row);
+  });
+}
+
+function createPreTimerIconButton(action, preTimerId, label, icon) {
+  const button = document.createElement("button");
+  button.className = "secondary-button icon-button";
+  button.type = "button";
+  button.dataset.action = action;
+  button.dataset.preTimerId = preTimerId;
+  button.setAttribute("aria-label", `${label}: ${getPreTimerById(preTimerId)?.name || ""}`);
+  button.title = label;
+  button.textContent = icon;
+  return button;
+}
+
+function getPreTimerById(preTimerId) {
+  return preTimerDefinitions.find((preTimer) => preTimer.id === preTimerId) || null;
+}
+
+function openPreTimerDialog(preTimerId = null, trigger = dom.preTimerAddButton) {
+  if (
+    dom.preTimerDialog.open ||
+    typeof dom.preTimerDialog.showModal !== "function"
+  ) {
+    return;
+  }
+
+  const existing = preTimerId ? getPreTimerById(preTimerId) : null;
+  const draft = existing ? clonePreTimers([existing])[0] : createDefaultPreTimer();
+  preTimerDialogMode = existing ? "edit" : "add";
+  preTimerDialogEditingId = existing?.id || null;
+  preTimerDialogTrigger = trigger;
+  preTimerDialogNameGenerated =
+    draft.name === getPreTimerDefaultName(draft.type);
+  dom.preTimerDialogTitle.textContent = existing
+    ? "Vorlaufzeit bearbeiten"
+    : "Vorlaufzeit hinzufügen";
+  dom.preTimerName.value = draft.name;
+  dom.preTimerType.value = draft.type;
+  dom.preTimerSeconds.value =
+    draft.type === PRE_TIMER_TYPES.SECONDS ? String(draft.seconds) : "10";
+  dom.preTimerFormula.value =
+    draft.type === PRE_TIMER_TYPES.STOPWATCH ? draft.formula : "sekunden";
+  dom.preTimerRounding.value =
+    draft.type === PRE_TIMER_TYPES.STOPWATCH
+      ? draft.rounding
+      : PRE_TIMER_ROUNDING.FLOOR;
+  dom.preTimerRoundingThreshold.value =
+    draft.type === PRE_TIMER_TYPES.STOPWATCH &&
+    draft.roundingThreshold !== null
+      ? String(draft.roundingThreshold)
+      : "";
+  dom.preTimerLimitSeconds.value =
+    draft.type === PRE_TIMER_TYPES.MANUAL && draft.limitSeconds !== null
+      ? String(draft.limitSeconds)
+      : "";
+  clearPreTimerDialogErrors();
+  syncPreTimerDialogFields();
+  dom.preTimerDialog.showModal();
+  dom.preTimerName.focus();
+}
+
+function handlePreTimerTypeChange() {
+  if (preTimerDialogNameGenerated) {
+    dom.preTimerName.value = getPreTimerDefaultName(dom.preTimerType.value);
+  }
+  syncPreTimerDialogFields();
+}
+
+function syncPreTimerDialogFields() {
+  const type = dom.preTimerType.value;
+  const isSeconds = type === PRE_TIMER_TYPES.SECONDS;
+  const isStopwatch = type === PRE_TIMER_TYPES.STOPWATCH;
+  const isManual = type === PRE_TIMER_TYPES.MANUAL;
+  const isRound = dom.preTimerRounding.value === PRE_TIMER_ROUNDING.ROUND;
+
+  dom.preTimerSecondsFields.hidden = !isSeconds;
+  dom.preTimerStopwatchFields.hidden = !isStopwatch;
+  dom.preTimerManualFields.hidden = !isManual;
+  dom.preTimerRoundingThresholdField.hidden = !isStopwatch || !isRound;
+  dom.preTimerSeconds.disabled = !isSeconds;
+  dom.preTimerFormula.disabled = !isStopwatch;
+  dom.preTimerRounding.disabled = !isStopwatch;
+  dom.preTimerRoundingThreshold.disabled = !isStopwatch || !isRound;
+  dom.preTimerLimitSeconds.disabled = !isManual;
+}
+
+function handlePreTimerDialogSave(event) {
+  event.preventDefault();
+  const validation = validatePreTimerDialog();
+  if (!validation.valid) {
+    validation.firstInvalid?.focus();
+    return;
+  }
+
+  if (preTimerDialogMode === "edit") {
+    const index = preTimerDefinitions.findIndex(
+      (preTimer) => preTimer.id === preTimerDialogEditingId,
+    );
+    if (index >= 0) {
+      preTimerDefinitions[index] = validation.value;
+    }
+  } else {
+    preTimerDefinitions.push(validation.value);
+  }
+
+  renderPreTimerTable();
+  syncSettingsVisibility();
+  clearFieldError("pre-timers");
+  closePreTimerDialog(true);
+}
+
+function validatePreTimerDialog() {
+  clearPreTimerDialogErrors();
+  const type = dom.preTimerType.value;
+  const rawValue = {
+    id: preTimerDialogEditingId || undefined,
+    type,
+    name: dom.preTimerName.value,
+    seconds: dom.preTimerSeconds.value,
+    formula: dom.preTimerFormula.value,
+    rounding: dom.preTimerRounding.value,
+    roundingThreshold: dom.preTimerRoundingThreshold.value,
+    limitSeconds: dom.preTimerLimitSeconds.value,
+  };
+  const normalized = normalizePreTimerDefinition(rawValue);
+  let firstInvalid = null;
+
+  Object.entries(normalized.errors).forEach(([field, message]) => {
+    const fieldId = getPreTimerDialogFieldId(field);
+    setFieldError(fieldId, message);
+    if (!firstInvalid) {
+      firstInvalid = document.getElementById(fieldId);
+    }
+  });
+
+  if (normalized.valid) {
+    const normalizedName = normalized.value.name.toLocaleLowerCase();
+    const duplicate = preTimerDefinitions.find(
+      (preTimer) =>
+        preTimer.id !== preTimerDialogEditingId &&
+        preTimer.name.toLocaleLowerCase() === normalizedName,
+    );
+    if (duplicate) {
+      setFieldError(
+        "pre-timer-name",
+        `Der Name "${duplicate.name}" ist bereits vergeben.`,
+      );
+      firstInvalid = firstInvalid || dom.preTimerName;
+      normalized.valid = false;
+    }
+  }
+
+  return {
+    valid: normalized.valid,
+    value: normalized.value,
+    firstInvalid,
+  };
+}
+
+function getPreTimerDialogFieldId(field) {
+  const ids = {
+    type: "pre-timer-type",
+    name: "pre-timer-name",
+    seconds: "pre-timer-seconds",
+    formula: "pre-timer-formula",
+    rounding: "pre-timer-rounding",
+    roundingThreshold: "pre-timer-rounding-threshold",
+    limitSeconds: "pre-timer-limit-seconds",
+  };
+  return ids[field] || "pre-timer-name";
+}
+
+function clearPreTimerDialogErrors() {
+  [
+    "pre-timer-name",
+    "pre-timer-type",
+    "pre-timer-seconds",
+    "pre-timer-formula",
+    "pre-timer-rounding",
+    "pre-timer-rounding-threshold",
+    "pre-timer-limit-seconds",
+  ].forEach((fieldId) => clearFieldError(fieldId));
+}
+
+function closePreTimerDialog(saveChanges) {
+  if (!preTimerDialogMode) {
+    return;
+  }
+  dom.preTimerDialog.close();
+  const trigger = preTimerDialogTrigger;
+  preTimerDialogMode = null;
+  preTimerDialogEditingId = null;
+  preTimerDialogTrigger = null;
+  preTimerDialogNameGenerated = false;
+  if (!saveChanges) {
+    trigger?.focus();
+  } else {
+    dom.preTimerAddButton.focus();
+  }
+}
+
+function handlePreTimerTableClick(event) {
+  const button = event.target.closest("button[data-action]");
+  if (!button) {
+    return;
+  }
+  const preTimerId = button.dataset.preTimerId;
+  if (!preTimerId) {
+    return;
+  }
+  if (button.dataset.action === "edit") {
+    openPreTimerDialog(preTimerId, button);
+  } else if (button.dataset.action === "delete") {
+    openPreTimerDeleteDialog(preTimerId, button);
+  }
+}
+
+function handlePreTimerTableKeydown(event) {
+  const handle = event.target.closest(".pre-timer-drag-handle");
+  if (!handle || !event.altKey) {
+    return;
+  }
+  if (event.key !== "ArrowUp" && event.key !== "ArrowDown") {
+    return;
+  }
+
+  const preTimerId = handle.dataset.preTimerId;
+  const index = preTimerDefinitions.findIndex(
+    (preTimer) => preTimer.id === preTimerId,
+  );
+  const targetIndex = event.key === "ArrowUp" ? index - 1 : index + 1;
+  if (index < 0 || targetIndex < 0 || targetIndex >= preTimerDefinitions.length) {
+    return;
+  }
+
+  event.preventDefault();
+  const [moved] = preTimerDefinitions.splice(index, 1);
+  preTimerDefinitions.splice(targetIndex, 0, moved);
+  renderPreTimerTable();
+  Array.from(
+    dom.preTimersTableBody.querySelectorAll(".pre-timer-drag-handle"),
+  )
+    .find((candidate) => candidate.dataset.preTimerId === preTimerId)
+    ?.focus();
+}
+
+function handlePreTimerPointerDown(event) {
+  const handle = event.target.closest(".pre-timer-drag-handle");
+  if (!handle) {
+    return;
+  }
+  const row = handle.closest("tr[data-pre-timer-id]");
+  if (!row) {
+    return;
+  }
+  preTimerDragState = {
+    id: row.dataset.preTimerId,
+    pointerId: event.pointerId,
+    startY: event.clientY,
+    dragging: false,
+  };
+  handle.setPointerCapture?.(event.pointerId);
+}
+
+function handlePreTimerPointerMove(event) {
+  if (
+    !preTimerDragState ||
+    preTimerDragState.pointerId !== event.pointerId
+  ) {
+    return;
+  }
+  if (!preTimerDragState.dragging) {
+    if (Math.abs(event.clientY - preTimerDragState.startY) < 8) {
+      return;
+    }
+    preTimerDragState.dragging = true;
+    getPreTimerRowElement(preTimerDragState.id)?.classList.add("is-dragging");
+  }
+  event.preventDefault();
+  updatePreTimerDropTarget(event.clientX, event.clientY);
+}
+
+function handlePreTimerPointerUp(event) {
+  if (
+    !preTimerDragState ||
+    preTimerDragState.pointerId !== event.pointerId
+  ) {
+    return;
+  }
+  if (preTimerDragState.dragging) {
+    const target = getPreTimerDropTarget(event.clientX, event.clientY);
+    movePreTimerDefinitionByDrop(preTimerDragState.id, target);
+  }
+  clearPreTimerDragState();
+}
+
+function handlePreTimerPointerCancel(event) {
+  if (preTimerDragState?.pointerId === event.pointerId) {
+    clearPreTimerDragState();
+  }
+}
+
+function handlePreTimerDragStart(event) {
+  const handle = event.target.closest(".pre-timer-drag-handle");
+  const row = handle?.closest("tr[data-pre-timer-id]");
+  if (!row) {
+    return;
+  }
+  preTimerDragState = {
+    id: row.dataset.preTimerId,
+    pointerId: null,
+    startY: event.clientY,
+    dragging: true,
+  };
+  row.classList.add("is-dragging");
+  event.dataTransfer.effectAllowed = "move";
+  event.dataTransfer.setData("text/plain", row.dataset.preTimerId);
+}
+
+function handlePreTimerDragOver(event) {
+  if (!preTimerDragState?.dragging) {
+    return;
+  }
+  const row = event.target.closest("tr[data-pre-timer-id]");
+  if (!row) {
+    return;
+  }
+  event.preventDefault();
+  updatePreTimerDropTarget(event.clientX, event.clientY);
+}
+
+function handlePreTimerDrop(event) {
+  if (!preTimerDragState?.dragging) {
+    return;
+  }
+  event.preventDefault();
+  const target = getPreTimerDropTarget(event.clientX, event.clientY);
+  movePreTimerDefinitionByDrop(preTimerDragState.id, target);
+  clearPreTimerDragState();
+}
+
+function handlePreTimerDragEnd() {
+  clearPreTimerDragState();
+}
+
+function updatePreTimerDropTarget(clientX, clientY) {
+  document.querySelectorAll(".pre-timer-row.is-drop-target").forEach((row) => {
+    row.classList.remove("is-drop-target");
+  });
+  const target = getPreTimerDropTarget(clientX, clientY);
+  if (target?.row) {
+    target.row.classList.add("is-drop-target");
+  }
+}
+
+function getPreTimerDropTarget(clientX, clientY) {
+  const element = document.elementFromPoint(clientX, clientY);
+  const row = element?.closest?.("tr[data-pre-timer-id]");
+  if (!row) {
+    return null;
+  }
+  const bounds = row.getBoundingClientRect();
+  return {
+    row,
+    id: row.dataset.preTimerId,
+    before: clientY < bounds.top + bounds.height / 2,
+  };
+}
+
+function movePreTimerDefinitionByDrop(preTimerId, target) {
+  if (!target || preTimerId === target.id) {
+    return;
+  }
+  const sourceIndex = preTimerDefinitions.findIndex(
+    (preTimer) => preTimer.id === preTimerId,
+  );
+  const targetIndex = preTimerDefinitions.findIndex(
+    (preTimer) => preTimer.id === target.id,
+  );
+  if (sourceIndex < 0 || targetIndex < 0) {
+    return;
+  }
+
+  const [moved] = preTimerDefinitions.splice(sourceIndex, 1);
+  let insertionIndex = targetIndex;
+  if (sourceIndex < targetIndex) {
+    insertionIndex -= 1;
+  }
+  if (!target.before) {
+    insertionIndex += 1;
+  }
+  preTimerDefinitions.splice(Math.max(0, insertionIndex), 0, moved);
+  renderPreTimerTable();
+}
+
+function clearPreTimerDragState() {
+  document.querySelectorAll(".pre-timer-row.is-dragging, .pre-timer-row.is-drop-target").forEach(
+    (row) => {
+      row.classList.remove("is-dragging", "is-drop-target");
+    },
+  );
+  preTimerDragState = null;
+}
+
+function openPreTimerDeleteDialog(preTimerId, trigger) {
+  if (
+    dom.preTimerDeleteDialog.open ||
+    typeof dom.preTimerDeleteDialog.showModal !== "function"
+  ) {
+    return;
+  }
+  const preTimer = getPreTimerById(preTimerId);
+  if (!preTimer) {
+    return;
+  }
+  preTimerDeleteId = preTimerId;
+  preTimerDeleteTrigger = trigger;
+  dom.preTimerDeleteDialogMessage.textContent =
+    `"${preTimer.name}" (${getPreTimerTypeLabel(preTimer.type)}) wirklich löschen?`;
+  dom.preTimerDeleteDialog.showModal();
+  dom.preTimerDeleteConfirm.focus();
+}
+
+function confirmPreTimerDelete() {
+  if (!preTimerDeleteId) {
+    return;
+  }
+  preTimerDefinitions = preTimerDefinitions.filter(
+    (preTimer) => preTimer.id !== preTimerDeleteId,
+  );
+  renderPreTimerTable();
+  syncSettingsVisibility();
+  clearFieldError("pre-timers");
+  closePreTimerDeleteDialog(true);
+}
+
+function closePreTimerDeleteDialog(saveChanges) {
+  if (!preTimerDeleteId) {
+    return;
+  }
+  dom.preTimerDeleteDialog.close();
+  const trigger = preTimerDeleteTrigger;
+  preTimerDeleteId = null;
+  preTimerDeleteTrigger = null;
+  if (!saveChanges) {
+    trigger?.focus();
+  } else {
+    dom.preTimerAddButton.focus();
+  }
 }
 
 function updateProgressButtonLabels() {
@@ -512,6 +1192,12 @@ function getPresetDefinitionError(preset) {
   ) {
     return "autoStart muss ein Boolean sein.";
   }
+  if (Object.prototype.hasOwnProperty.call(preset.values, "preTimers")) {
+    const validation = validatePreTimerRows(preset.values.preTimers);
+    if (!validation.valid) {
+      return validation.errors[0]?.message || "Vorlaufzeiten sind ungültig.";
+    }
+  }
   return null;
 }
 
@@ -543,6 +1229,9 @@ function serializeSettings(includeAutoStart) {
   parameters.set("session-end-beats", dom.sessionEndBeats.value.trim());
   parameters.set("lock-settings", String(dom.lockSettings.checked));
   parameters.set("lock-beats", dom.lockBeats.value.trim());
+  if (preTimerDefinitions.length > 0) {
+    parameters.set("pre-timers", serializePreTimerPayload(preTimerDefinitions));
+  }
   if (includeAutoStart) {
     parameters.set(AUTO_START_PARAMETER, "true");
   }
@@ -559,7 +1248,9 @@ async function handleExportSettings(format, button, defaultLabel) {
     dom.settingsStatus.classList.remove("error-status");
     dom.settingsStatus.textContent =
       format === "url"
-        ? "Ganze URL in die Zwischenablage kopiert."
+        ? text.length > 2000
+          ? "Ganze URL kopiert. Die URL ist sehr lang und kann von manchen Browsern gekürzt werden."
+          : "Ganze URL in die Zwischenablage kopiert."
         : "Einstellungen in die Zwischenablage kopiert.";
     button.textContent = "Kopiert!";
 
@@ -611,10 +1302,15 @@ async function handleSettingsImport(parameterText) {
     return;
   }
 
-  if (Object.keys(parsed.values).length > 0) {
-    applySettingsParameters(parsed.values);
-    syncSettingsVisibility();
+  if (parsed.preTimersError) {
+    lastAutoStartImportText = null;
+    showPreTimerImportError(parsed.preTimersError);
+    return;
   }
+
+  parsed.values.preTimers = parsed.preTimersProvided ? parsed.values.preTimers : [];
+  applySettingsParameters(parsed.values);
+  syncSettingsVisibility();
 
   if (!parsed.autoStartProvided || parsed.autoStart === false) {
     lastAutoStartImportText = null;
@@ -639,6 +1335,15 @@ async function handleSettingsImport(parameterText) {
     lastAutoStartImportText = null;
     showAutoStartImportError(
       "Für Auto-Start müssen gültige Einstellungen angegeben werden.",
+    );
+    dom.settingsImport.focus();
+    return;
+  }
+
+  if (!parsed.foundBpm) {
+    lastAutoStartImportText = null;
+    showAutoStartImportError(
+      "Für Auto-Start muss ein gültiger BPM-Wert angegeben werden.",
     );
     dom.settingsImport.focus();
     return;
@@ -699,6 +1404,7 @@ function parseSettingsParameters(rawText) {
   const values = {};
   const invalidSettings = [];
   let foundSettings = false;
+  const foundBpm = parameters.has("bpm");
 
   Object.keys(TEXT_SETTING_CONTROLS).forEach((name) => {
     if (parameters.has(name)) {
@@ -747,6 +1453,18 @@ function parseSettingsParameters(rawText) {
     }
   });
 
+  const preTimersProvided = parameters.has("pre-timers");
+  let preTimersError = null;
+  if (preTimersProvided) {
+    foundSettings = true;
+    const parsedPreTimers = deserializePreTimerPayload(parameters.get("pre-timers"));
+    if (parsedPreTimers.valid) {
+      values.preTimers = parsedPreTimers.rows;
+    } else {
+      preTimersError = parsedPreTimers.error;
+    }
+  }
+
   const autoStartProvided = parameters.has(AUTO_START_PARAMETER);
   const parsedAutoStart = autoStartProvided
     ? parseBooleanParameter(parameters.get(AUTO_START_PARAMETER))
@@ -758,6 +1476,9 @@ function parseSettingsParameters(rawText) {
       foundSettings,
       values,
       invalidSettings,
+      foundBpm,
+      preTimersProvided,
+      preTimersError,
       autoStartProvided: true,
       autoStart: null,
       autoStartError: "Auto-Start muss true, false, 1 oder 0 sein.",
@@ -769,6 +1490,9 @@ function parseSettingsParameters(rawText) {
     foundSettings,
     values,
     invalidSettings,
+    foundBpm,
+    preTimersProvided,
+    preTimersError,
     autoStartProvided,
     autoStart: parsedAutoStart,
   };
@@ -838,6 +1562,11 @@ function parseBooleanParameter(rawValue) {
 }
 
 function applySettingsParameters(values) {
+  if (Object.prototype.hasOwnProperty.call(values, "preTimers")) {
+    preTimerDefinitions = clonePreTimers(values.preTimers);
+    renderPreTimerTable();
+  }
+
   Object.entries(TEXT_SETTING_CONTROLS).forEach(([name, control]) => {
     if (Object.prototype.hasOwnProperty.call(values, name)) {
       control.value = values[name] ?? "";
@@ -880,6 +1609,12 @@ function showAutoStartImportError(message) {
   dom.settingsStatus.textContent = message;
 }
 
+function showPreTimerImportError(message) {
+  setFieldError("pre-timers", message);
+  dom.settingsStatus.classList.add("error-status");
+  dom.settingsStatus.textContent = message;
+}
+
 async function handleStart(event) {
   event.preventDefault();
   await startConfiguredSession();
@@ -917,6 +1652,8 @@ function applyPreset(values) {
   setSelectedValue("breaks", values.breaks);
   setInputValue(dom.breakCount, values.breakCount);
   setInputValue(dom.breakSeconds, values.breakSeconds);
+  preTimerDefinitions = clonePreTimers(values.preTimers);
+  renderPreTimerTable();
   dom.sessionEndEnabled.checked = Boolean(values.sessionEndEnabled);
   setInputValue(dom.sessionEndBeats, values.sessionEndBeats);
   dom.lockSettings.checked = Boolean(values.lockSettings);
@@ -942,7 +1679,11 @@ async function startConfiguredSession() {
   }
 
   dom.settingsStatus.textContent = "";
-  startRun(validation.settings);
+  if (validation.settings.preTimers.length > 0) {
+    startPreTimerRun(validation.settings);
+  } else {
+    startRun(validation.settings);
+  }
 }
 
 function validateSettings() {
@@ -957,6 +1698,17 @@ function validateSettings() {
       firstInvalid = getErrorTarget(fieldId);
     }
   };
+
+  const preTimerValidation = validatePreTimerRows(preTimerDefinitions);
+  if (!preTimerValidation.valid) {
+    markInvalid(
+      "pre-timers",
+      preTimerValidation.errors[0]?.message || "Vorlaufzeiten korrigieren.",
+    );
+  }
+  const hasStopwatch = preTimerDefinitions.some(
+    (preTimer) => preTimer.type === PRE_TIMER_TYPES.STOPWATCH,
+  );
 
   const bpm = parseIntegerField(dom.bpm.value, 20, 300);
   if (bpm === null) {
@@ -1032,7 +1784,7 @@ function validateSettings() {
     maximum = "none";
   }
 
-  lockSettings = dom.lockSettings.checked;
+  lockSettings = hasStopwatch ? false : dom.lockSettings.checked;
   if (lockSettings) {
     lockBeats = parsePositiveInteger(dom.lockBeats.value, Number.POSITIVE_INFINITY);
     if (lockBeats === null) {
@@ -1069,7 +1821,7 @@ function validateSettings() {
     }
   }
 
-  const sessionEndEnabled = dom.sessionEndEnabled.checked;
+  const sessionEndEnabled = hasStopwatch ? false : dom.sessionEndEnabled.checked;
   let sessionEndBeats = DEFAULTS.sessionEndBeats;
   if (sessionEndEnabled) {
     sessionEndBeats = parsePositiveInteger(
@@ -1082,6 +1834,7 @@ function validateSettings() {
   }
 
   if (
+    !hasStopwatch &&
     lockSettings &&
     sessionEndEnabled &&
     lockBeats !== null &&
@@ -1119,6 +1872,8 @@ function validateSettings() {
       lockBeats,
       sessionEndEnabled,
       sessionEndBeats,
+      preTimers: clonePreTimers(preTimerDefinitions),
+      hasStopwatch,
     },
   };
 }
@@ -1205,11 +1960,379 @@ async function ensureAudioReady() {
   }
 }
 
-function startRun(settings) {
+function startPreTimerRun(settings) {
+  cancelTimers();
+  state.token += 1;
+  state.phase = "pre-timers";
+  state.settings = settings;
+  state.preTimerRecords = settings.preTimers.map((preTimer) => ({
+    id: preTimer.id,
+    type: preTimer.type,
+    name: preTimer.name,
+    status: "not-started",
+    configuredSeconds:
+      preTimer.type === PRE_TIMER_TYPES.SECONDS ? preTimer.seconds : null,
+    limitSeconds:
+      preTimer.type === PRE_TIMER_TYPES.MANUAL ? preTimer.limitSeconds : null,
+    formula:
+      preTimer.type === PRE_TIMER_TYPES.STOPWATCH ? preTimer.formula : null,
+    rounding:
+      preTimer.type === PRE_TIMER_TYPES.STOPWATCH ? preTimer.rounding : null,
+    roundingThreshold:
+      preTimer.type === PRE_TIMER_TYPES.STOPWATCH
+        ? preTimer.roundingThreshold
+        : null,
+    elapsedSeconds: null,
+    completedBy: null,
+    variables: null,
+    substitution: null,
+    result: null,
+    resultValid: null,
+    invalidReason: null,
+  }));
+  state.preTimerIndex = 0;
+  state.preTimerStartedAt = null;
+  state.preTimerReport = null;
+  state.preTimerEarlyDialogOpen = false;
+  state.report = null;
+  dom.executionMessage.textContent = "";
+  showView("preTimers", true);
+  startNextPreTimer();
+}
+
+function startNextPreTimer() {
+  if (state.phase !== "pre-timers" || !state.settings) {
+    return;
+  }
+  if (state.preTimerIndex >= state.settings.preTimers.length) {
+    completePreTimerRun();
+    return;
+  }
+
+  clearTimer("preTimerTimer");
+  clearTimer("preTimerDisplayTimer");
+  const preTimer = state.settings.preTimers[state.preTimerIndex];
+  const record = state.preTimerRecords[state.preTimerIndex];
+  record.status = "active";
+  state.preTimerStartedAt = performance.now();
+  const token = state.token;
+
+  updatePreTimerUi();
+  state.preTimerDisplayTimer = window.setInterval(updatePreTimerUi, 250);
+  if (preTimer.type === PRE_TIMER_TYPES.SECONDS) {
+    state.preTimerTimer = window.setTimeout(() => {
+      if (token !== state.token || state.phase !== "pre-timers") {
+        return;
+      }
+      finishPreTimer("auto");
+    }, preTimer.seconds * 1000);
+  }
+}
+
+function handlePreTimerContinue() {
+  if (
+    state.phase !== "pre-timers" ||
+    state.preTimerIndex < 0 ||
+    !state.settings
+  ) {
+    return;
+  }
+
+  const preTimer = state.settings.preTimers[state.preTimerIndex];
+  if (preTimer.type === PRE_TIMER_TYPES.SECONDS) {
+    const remaining = getActivePreTimerRemainingSeconds();
+    if (remaining > 10) {
+      openPreTimerEarlyDialog(remaining);
+      return;
+    }
+  }
+  finishPreTimer("manual");
+}
+
+function openPreTimerEarlyDialog(remainingSeconds) {
+  if (
+    dom.preTimerEarlyDialog.open ||
+    typeof dom.preTimerEarlyDialog.showModal !== "function"
+  ) {
+    return;
+  }
+  preTimerEarlyDialogTrigger = dom.preTimerContinueButton;
+  state.preTimerEarlyDialogOpen = true;
+  dom.preTimerEarlyDialogMessage.textContent =
+    `Es sind noch ${remainingSeconds} Sekunden übrig. Wirklich vorzeitig fortsetzen?`;
+  dom.preTimerEarlyDialog.showModal();
+  dom.preTimerEarlyConfirm.focus();
+}
+
+function closePreTimerEarlyDialog(saveChanges) {
+  if (!state.preTimerEarlyDialogOpen) {
+    return;
+  }
+  dom.preTimerEarlyDialog.close();
+  const trigger = preTimerEarlyDialogTrigger;
+  preTimerEarlyDialogTrigger = null;
+  state.preTimerEarlyDialogOpen = false;
+  if (!saveChanges) {
+    trigger?.focus();
+  }
+}
+
+function handlePreTimerAbortRequest() {
+  if (
+    state.phase !== "pre-timers" ||
+    dom.preTimerAbortDialog.open ||
+    typeof dom.preTimerAbortDialog.showModal !== "function"
+  ) {
+    return;
+  }
+  preTimerAbortDialogTrigger = dom.preTimerAbortButton;
+  dom.preTimerAbortDialog.showModal();
+  dom.preTimerAbortConfirm.focus();
+}
+
+function closePreTimerAbortDialog(saveChanges) {
+  if (!dom.preTimerAbortDialog.open) {
+    return;
+  }
+  dom.preTimerAbortDialog.close();
+  const trigger = preTimerAbortDialogTrigger;
+  preTimerAbortDialogTrigger = null;
+  if (!saveChanges) {
+    trigger?.focus();
+  }
+}
+
+function abortPreTimerRun() {
+  if (state.phase !== "pre-timers" || !state.settings) {
+    return;
+  }
+
+  finalizeActivePreTimer("aborted");
+  clearTimer("preTimerTimer");
+  clearTimer("preTimerDisplayTimer");
+  closePreTimerAbortDialog(true);
+  closePreTimerEarlyDialog(true);
+  state.token += 1;
+  state.phase = "finished";
+  state.preTimerReport = buildPreTimerReport();
+  state.report = {
+    settings: state.settings,
+    beatCount: 0,
+    breakRecords: [],
+    preTimerReport: state.preTimerReport,
+    abortedBeforeExecution: true,
+  };
+  renderReport();
+  showView("report", true);
+}
+
+function finishPreTimer(reason) {
+  if (
+    state.phase !== "pre-timers" ||
+    state.preTimerIndex < 0 ||
+    !state.preTimerRecords[state.preTimerIndex]
+  ) {
+    return;
+  }
+
+  closePreTimerAbortDialog(true);
+  finalizeActivePreTimer(reason);
+  clearTimer("preTimerTimer");
+  clearTimer("preTimerDisplayTimer");
+  closePreTimerEarlyDialog(true);
+  state.preTimerStartedAt = null;
+  state.preTimerIndex += 1;
+  startNextPreTimer();
+}
+
+function finalizeActivePreTimer(status) {
+  const record = state.preTimerRecords[state.preTimerIndex];
+  if (!record || !state.preTimerStartedAt) {
+    return;
+  }
+  record.status = status === "aborted" ? "active-aborted" : "completed";
+  record.completedBy = status;
+  record.elapsedSeconds = Math.max(
+    0,
+    Math.round((performance.now() - state.preTimerStartedAt) / 1000),
+  );
+}
+
+function completePreTimerRun() {
+  clearTimer("preTimerTimer");
+  clearTimer("preTimerDisplayTimer");
+  closePreTimerAbortDialog(true);
+  state.preTimerReport = buildPreTimerReport();
+  const derivedSettings = {
+    ...state.settings,
+    sessionEndEnabled: state.settings.sessionEndEnabled,
+    sessionEndBeats: state.settings.sessionEndBeats,
+    lockSettings: state.settings.lockSettings,
+    lockBeats: state.settings.lockBeats,
+    preTimerDerivedTotal: null,
+    preTimerNoValidResults: false,
+  };
+
+  if (state.settings.hasStopwatch) {
+    if (state.preTimerReport.validFormulaCount > 0) {
+      derivedSettings.sessionEndEnabled = true;
+      derivedSettings.sessionEndBeats = state.preTimerReport.validFormulaTotal;
+      derivedSettings.lockSettings = true;
+      derivedSettings.lockBeats = state.preTimerReport.validFormulaTotal;
+      derivedSettings.preTimerDerivedTotal = state.preTimerReport.validFormulaTotal;
+    } else {
+      derivedSettings.sessionEndEnabled = false;
+      derivedSettings.lockSettings = false;
+      derivedSettings.preTimerNoValidResults = true;
+    }
+  }
+
+  startRun(derivedSettings, state.preTimerReport);
+}
+
+function buildPreTimerReport() {
+  const records = state.preTimerRecords.map((record) => ({ ...record }));
+  let validFormulaTotal = 0;
+  let validFormulaCount = 0;
+  let invalidFormulaCount = 0;
+
+  records.forEach((record, index) => {
+    if (
+      record.type !== PRE_TIMER_TYPES.STOPWATCH ||
+      record.status !== "completed"
+    ) {
+      return;
+    }
+
+    const variables = getPreTimerFormulaVariables(
+      record.elapsedSeconds,
+      record.rounding,
+      record.roundingThreshold,
+    );
+    const evaluation = evaluatePreTimerFormula(record.formula, variables);
+    record.variables = variables;
+    record.substitution = evaluation.substitution || null;
+    record.resultValid = evaluation.valid;
+    if (evaluation.valid) {
+      record.result = evaluation.result;
+      validFormulaTotal += evaluation.result;
+      validFormulaCount += 1;
+    } else {
+      record.invalidReason = evaluation.error;
+      invalidFormulaCount += 1;
+    }
+    records[index] = record;
+  });
+
+  return {
+    records,
+    validFormulaTotal,
+    validFormulaCount,
+    invalidFormulaCount,
+  };
+}
+
+function getPreTimerExecutionWarning(settings, preTimerReport) {
+  if (!preTimerReport || !settings.hasStopwatch) {
+    return "";
+  }
+  if (preTimerReport.invalidFormulaCount > 0 && preTimerReport.validFormulaCount > 0) {
+    return `Aus Vorlauf: ${preTimerReport.invalidFormulaCount} Formel(n) wurden ignoriert; gültige Ergebnisse ergeben ${preTimerReport.validFormulaTotal} Beats.`;
+  }
+  if (preTimerReport.validFormulaCount === 0) {
+    return "Aus Vorlauf: Kein gültiges Formelergebnis; Session-Ende nicht automatisch und Stopp nicht gesperrt.";
+  }
+  return "";
+}
+
+function updatePreTimerUi() {
+  if (
+    state.phase !== "pre-timers" ||
+    !state.settings ||
+    state.preTimerIndex < 0 ||
+    state.preTimerIndex >= state.settings.preTimers.length
+  ) {
+    return;
+  }
+
+  const preTimer = state.settings.preTimers[state.preTimerIndex];
+  const elapsedSeconds = getActivePreTimerElapsedSeconds();
+  const remainingSeconds = getActivePreTimerRemainingSeconds();
+  dom.preTimersProgress.textContent =
+    `Vorlaufzeit ${state.preTimerIndex + 1} von ${state.settings.preTimers.length}`;
+  dom.preTimerCardType.textContent = getPreTimerTypeLabel(preTimer.type);
+  dom.preTimerCardName.textContent = preTimer.name;
+  dom.preTimerCardOptions.textContent = getPreTimerOptionsSummary(preTimer);
+
+  if (preTimer.type === PRE_TIMER_TYPES.SECONDS) {
+    dom.preTimerClock.textContent = `${remainingSeconds}s`;
+    dom.preTimerStatus.textContent =
+      remainingSeconds > 0
+        ? `Automatischer Wechsel in ${remainingSeconds} Sekunden möglich.`
+        : "Weiter auswählen.";
+    dom.preTimerContinueButton.textContent = "Weiter";
+    return;
+  }
+
+  dom.preTimerClock.textContent = formatPreTimerDuration(elapsedSeconds);
+  if (preTimer.type === PRE_TIMER_TYPES.MANUAL && preTimer.limitSeconds !== null) {
+    const limitRemaining = Math.max(0, preTimer.limitSeconds - elapsedSeconds);
+    dom.preTimerContinueButton.textContent =
+      limitRemaining > 0
+        ? `Weiter (${limitRemaining}s)`
+        : "Weiter (Limit erreicht)";
+    dom.preTimerStatus.textContent =
+      limitRemaining > 0
+        ? `${limitRemaining} Sekunden bis zum konfigurierten Limit.`
+        : "Limit erreicht; Weiter bleibt manuell.";
+  } else {
+    dom.preTimerContinueButton.textContent = "Weiter";
+    dom.preTimerStatus.textContent =
+      preTimer.type === PRE_TIMER_TYPES.STOPWATCH
+        ? "Weiter auswählen, sobald die Stoppuhr beendet ist."
+        : "Weiter auswählen, sobald bereit.";
+  }
+}
+
+function getActivePreTimerElapsedSeconds() {
+  if (!state.preTimerStartedAt) {
+    return 0;
+  }
+  return Math.max(
+    0,
+    Math.round((performance.now() - state.preTimerStartedAt) / 1000),
+  );
+}
+
+function getActivePreTimerRemainingSeconds() {
+  if (
+    !state.settings ||
+    state.preTimerIndex < 0 ||
+    state.preTimerIndex >= state.settings.preTimers.length
+  ) {
+    return 0;
+  }
+  const preTimer = state.settings.preTimers[state.preTimerIndex];
+  if (preTimer.type !== PRE_TIMER_TYPES.SECONDS || !state.preTimerStartedAt) {
+    return 0;
+  }
+  return Math.max(
+    0,
+    Math.ceil(
+      (state.preTimerStartedAt + preTimer.seconds * 1000 - performance.now()) /
+        1000,
+    ),
+  );
+}
+
+function startRun(settings, preTimerReport = null) {
   cancelTimers();
   state.token += 1;
   state.phase = "countdown";
   state.settings = settings;
+  state.preTimerReport = preTimerReport;
+  state.preTimerIndex = -1;
+  state.preTimerStartedAt = null;
   state.beatCount = 0;
   state.currentBpm = settings.initialBpm;
   state.direction = "up";
@@ -1221,6 +2344,10 @@ function startRun(settings) {
   state.breakRecords = [];
   state.activeBreak = null;
   state.report = null;
+  dom.executionMessage.textContent = getPreTimerExecutionWarning(
+    settings,
+    preTimerReport,
+  );
 
   showView("execution", true);
   playTone(TONE.countdownFrequency);
@@ -1393,6 +2520,10 @@ function handleAbort() {
   state.phase = "idle";
   state.settings = null;
   state.activeBreak = null;
+  state.preTimerRecords = [];
+  state.preTimerIndex = -1;
+  state.preTimerStartedAt = null;
+  state.preTimerReport = null;
   state.report = null;
   dom.settingsStatus.textContent = "";
   dom.executionMessage.textContent = "";
@@ -1590,6 +2721,8 @@ function finalizeRun() {
     settings: state.settings,
     beatCount: state.beatCount,
     breakRecords: state.breakRecords.map((record) => ({ ...record })),
+    preTimerReport: state.preTimerReport,
+    abortedBeforeExecution: false,
   };
   renderReport();
   showView("report", true);
@@ -1693,6 +2826,10 @@ function handleBackToSettings() {
   state.phase = "idle";
   state.settings = null;
   state.activeBreak = null;
+  state.preTimerRecords = [];
+  state.preTimerIndex = -1;
+  state.preTimerStartedAt = null;
+  state.preTimerReport = null;
   state.report = null;
   dom.settingsStatus.textContent = "";
   dom.executionMessage.textContent = "";
@@ -1856,8 +2993,29 @@ function renderReport() {
 
   dom.reportBreaks.textContent = formatBreaks(settings);
   dom.reportBreaksRow.hidden = settings.breaks === "none";
-  dom.reportSessionEnd.textContent = formatSessionEnd(settings);
+  dom.reportSessionEnd.textContent = report.abortedBeforeExecution
+    ? "Abgebrochen vor Ausführung"
+    : formatSessionEnd(settings);
   dom.reportBreaksTitle.textContent = formatReportBreaksTitle(settings);
+  dom.reportPreTimersCard.hidden = !report.preTimerReport;
+  dom.reportPreTimersList.replaceChildren();
+  if (report.preTimerReport) {
+    report.preTimerReport.records.forEach((record) => {
+      const item = document.createElement("li");
+      item.textContent = formatPreTimerLongLine(record);
+      dom.reportPreTimersList.append(item);
+    });
+    if (report.preTimerReport.invalidFormulaCount > 0) {
+      dom.reportStatus.classList.add("error-status");
+      dom.reportStatus.textContent = getPreTimerExecutionWarning(
+        settings,
+        report.preTimerReport,
+      );
+    }
+  }
+  if (report.abortedBeforeExecution) {
+    dom.reportStatus.textContent = "Vorlaufzeiten abgebrochen; Ausführung nicht gestartet.";
+  }
 
   dom.breakTableBody.replaceChildren();
   dom.reportNoBreaks.hidden = report.breakRecords.length > 0;
@@ -1888,17 +3046,31 @@ function buildReportText(report) {
     lines.push(`Pausen: ${formatBreaks(settings)}`);
   }
   lines.push(
-    `Session-Ende: ${formatSessionEnd(settings)}`,
-    "",
-    formatReportBreaksHeading(settings),
+    `Session-Ende: ${
+      report.abortedBeforeExecution
+        ? "Abgebrochen vor Ausführung"
+        : formatSessionEnd(settings)
+    }`,
   );
+
+  if (report.preTimerReport) {
+    lines.push(
+      "",
+      "Vorlaufzeiten:",
+      ...report.preTimerReport.records.map(
+        (record) => `- ${formatPreTimerLongLine(record)}`,
+      ),
+    );
+  }
+
+  lines.push("", formatReportBreaksHeading(settings));
 
   if (report.breakRecords.length === 0) {
     lines.push("Keine Pausen verwendet.");
   } else {
     report.breakRecords.forEach((record) => {
       lines.push(
-        `${record.number}. Beat: ${record.beat}; BPM: ${record.bpm}; ` +
+        `- ${record.number}. Beat: ${record.beat}; BPM: ${record.bpm}; ` +
           `Limit: ${record.overLimit ? "Überschritten" : "Eingehalten"}; ` +
           `Beendet: ${record.ended}`,
       );
@@ -1917,6 +3089,14 @@ function buildShortReportText(report) {
   if (progression) {
     lines[0] += `; ${progression}`;
   }
+  if (report.preTimerReport) {
+    lines.push(
+      "Vorlaufzeiten:",
+      ...report.preTimerReport.records.map(
+        (record) => `- ${formatPreTimerShortLine(record)}`,
+      ),
+    );
+  }
   if (report.breakRecords.length === 0) {
     lines[0] += "; Keine Pausen verwendet";
   } else {
@@ -1930,6 +3110,83 @@ function buildShortReportText(report) {
   }
 
   return lines.join("\n");
+}
+
+function formatPreTimerLongLine(record) {
+  const prefix = `${record.name} (${getPreTimerTypeLabel(record.type)})`;
+  if (record.status === "not-started") {
+    return `${prefix}: Nicht gestartet`;
+  }
+  if (record.status === "active-aborted") {
+    if (record.type === PRE_TIMER_TYPES.STOPWATCH) {
+      return `${prefix}: ${formatPreTimerDuration(
+        record.elapsedSeconds,
+      )}; Aktiv abgebrochen; Formel nicht berechnet`;
+    }
+    return `${prefix}: ${formatPreTimerDuration(
+      record.elapsedSeconds,
+    )}; Aktiv abgebrochen`;
+  }
+
+  const elapsed = formatPreTimerDuration(record.elapsedSeconds);
+  if (record.type === PRE_TIMER_TYPES.SECONDS) {
+    if (record.completedBy === "auto") {
+      return `${prefix}: ${elapsed}; automatisch fortgesetzt`;
+    }
+    return `${prefix}: ${elapsed}; konfiguriertes Minimum ${formatPreTimerDuration(
+      record.configuredSeconds,
+    )}; manuell fortgesetzt`;
+  }
+  if (record.type === PRE_TIMER_TYPES.MANUAL) {
+    const limit =
+      record.limitSeconds === null
+        ? ""
+        : `; Limit ${formatPreTimerDuration(record.limitSeconds)}`;
+    return `${prefix}: ${elapsed}${limit}; manuell fortgesetzt`;
+  }
+
+  const rounding = getPreTimerRoundingLabel(record.rounding);
+  const threshold =
+    record.rounding === PRE_TIMER_ROUNDING.ROUND
+      ? ` ab ${record.roundingThreshold ?? 30}s`
+      : "";
+  if (record.resultValid) {
+    return `${prefix}: ${elapsed}; ${record.formula} -> ${
+      record.substitution
+    }=${record.result}; Rundung: ${rounding}${threshold}`;
+  }
+  return `${prefix}: ${elapsed}; ${record.formula} -> ${
+    record.substitution || "nicht berechnet"
+  }; ignoriert: ${record.invalidReason}`;
+}
+
+function formatPreTimerShortLine(record) {
+  if (record.status === "not-started") {
+    return `${record.name}: Nicht gestartet`;
+  }
+  if (record.status === "active-aborted") {
+    return `${record.name}: Aktiv abgebrochen`;
+  }
+
+  const elapsed = formatPreTimerDuration(record.elapsedSeconds);
+  if (record.type === PRE_TIMER_TYPES.SECONDS) {
+    return record.completedBy === "auto"
+      ? `${record.name}: ${elapsed}`
+      : `${record.name}: ${elapsed} (konfiguriert ${formatPreTimerDuration(
+          record.configuredSeconds,
+        )})`;
+  }
+  if (record.type === PRE_TIMER_TYPES.MANUAL) {
+    const limit =
+      record.limitSeconds === null
+        ? ""
+        : ` (Limit ${formatPreTimerDuration(record.limitSeconds)})`;
+    return `${record.name}: ${elapsed}${limit}`;
+  }
+  if (record.resultValid) {
+    return `${record.name}: ${elapsed}; ${record.formula}=${record.result}`;
+  }
+  return `${record.name}: ${elapsed}; ${record.formula}=ungültig (ignoriert)`;
 }
 
 function formatShortBpm(settings) {
@@ -2000,6 +3257,12 @@ function formatBreaks(settings) {
 }
 
 function formatSessionEnd(settings) {
+  if (settings.preTimerDerivedTotal !== null && settings.preTimerDerivedTotal !== undefined) {
+    return `Aus Vorlauf: Nach ${settings.preTimerDerivedTotal} Beats; Aus Vorlauf: Stopp gesperrt bis ${settings.preTimerDerivedTotal} Beats`;
+  }
+  if (settings.preTimerNoValidResults) {
+    return "Aus Vorlauf: Kein automatisches Session-Ende; Stopp nicht gesperrt";
+  }
   const sessionEnd = settings.sessionEndEnabled
     ? `Nach ${settings.sessionEndBeats} Beats`
     : "Manueller Stopp";
@@ -2043,6 +3306,10 @@ function handleAudioFailure(error) {
   state.phase = "idle";
   state.settings = null;
   state.activeBreak = null;
+  state.preTimerRecords = [];
+  state.preTimerIndex = -1;
+  state.preTimerStartedAt = null;
+  state.preTimerReport = null;
   dom.executionMessage.textContent = getErrorMessage(
     error,
     "Audio wurde unerwartet beendet. Zu den Einstellungen zurückkehren und erneut versuchen.",
@@ -2070,6 +3337,8 @@ function showView(name, moveFocus) {
   const heading =
     name === "settings"
       ? dom.settingsTitle
+      : name === "preTimers"
+        ? dom.preTimersTitle
       : name === "execution"
         ? dom.executionTitle
         : dom.reportTitle;
@@ -2153,6 +3422,9 @@ function getErrorTarget(fieldId) {
   if (fieldId === "breaks") {
     return document.getElementById("breaks-none")?.closest("fieldset");
   }
+  if (fieldId === "pre-timers") {
+    return dom.preTimersFieldset;
+  }
   return null;
 }
 
@@ -2162,7 +3434,7 @@ function clearTimer(timerName) {
     return;
   }
 
-  if (timerName === "breakDisplayTimer") {
+  if (timerName === "breakDisplayTimer" || timerName === "preTimerDisplayTimer") {
     window.clearInterval(timer);
   } else {
     window.clearTimeout(timer);
@@ -2176,6 +3448,8 @@ function cancelTimers() {
   clearTimer("beatTimer");
   clearTimer("breakTimer");
   clearTimer("breakDisplayTimer");
+  clearTimer("preTimerTimer");
+  clearTimer("preTimerDisplayTimer");
 }
 
 function getErrorMessage(error, fallback) {

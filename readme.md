@@ -2,14 +2,14 @@
 copilot please ignore this section.
 - extract view "presets"
 - add "Lock abort" for exports
-- add "pre-phases"
 
 
 # Metronome
 
-This metronome is a single-page application with three views:
+This metronome is a single-page application with four views:
 
 - Settings
+- Pre-timers
 - Execution
 - Report
 
@@ -49,6 +49,34 @@ its label, input, hint, and validation message. The Increase tempo card places
 its checkbox and two primary values in one row, then stacks the Maximum groups
 below a separator. Inputs within each group remain side by side.
 
+### Pre-timers
+
+The **Vorlaufzeiten** table appears between Tempo and Pausen. Rows are ordered
+by drag and drop, and that order controls the pre-timer sequence and reports.
+Names are required and unique after trimming and case-folding. Each row can be
+edited in a dialog and deleted after confirmation. The table is included in
+presets and settings exports as a versioned `pre-timers` JSON parameter.
+
+The available types are:
+
+- **Sekunden**: whole seconds from 1-600. The row shows **Weiter** immediately;
+  clicking early requires confirmation while more than 10 seconds remain. If
+  the user does not continue early, the row advances automatically at its
+  configured time.
+- **Stoppuhr**: a required arithmetic formula using `minuten`,
+  `summe-minuten`, `sekunden`, and `rest-sekunden`. Only whole-number literals,
+  `+`, `-`, `*`, `/`, parentheses, and whitespace are accepted. Formula
+  results must be positive safe integers. Minute rounding is configured per
+  row as floor, ceil, or round; round defaults to a 30-second threshold.
+- **Manuell**: **Weiter** remains manual. An optional 1-600 second limit is
+  displayed on the button but never advances the row automatically.
+
+When at least one Stoppuhr pre-timer exists, the Session-Ende and Lock settings
+are disabled. After the pre-timer sequence, valid Stoppuhr formula results are
+summed and used as both the automatic session-end and stop-lock beat values.
+Invalid runtime results are ignored and reported; if none are valid, execution
+continues without a derived limit and with Stop unlocked.
+
 ### Presets
 
 Preset buttons are generated from the dictionary in `presets.js`. Clicking a
@@ -78,6 +106,12 @@ its path and hash preserved. When Auto-Start is checked, both formats include
 `auto-start=true`; otherwise the parameter is omitted. Export actions copy only
 to the clipboard and do not replace the Import field. Settings feedback,
 including clipboard confirmations, remains visible while scrolling.
+
+When the table is non-empty, exports include the complete ordered
+`pre-timers` payload. Missing or explicitly empty payloads clear the table on
+import. Invalid payload versions or row definitions are rejected without
+partially applying the pre-timer list. Whole URLs longer than 2000 characters
+are copied completely with a warning.
 
 ### BPM (beats per minute)
 
@@ -145,6 +179,11 @@ The unchecked-by-default option is phrased **End session automatically after N
 beats**. Its value remains visible and is disabled until the checkbox is
 selected.
 
+When a Stoppuhr pre-timer exists, the Session-Ende and Lock controls are
+disabled together. Their manually entered values are preserved and become
+available again after all Stoppuhr rows are removed. Derived values are
+reported with the **Aus Vorlauf:** prefix.
+
 - Default value: 100 beats
 - Minimum: 1 beat
 - Counts completed audible metronome beats only
@@ -167,6 +206,10 @@ The Settings export section appears before Start. Start validates the active
 settings and navigates to the Execution view.
 
 ## View "Execution"
+
+When pre-timers are configured, Execution starts after the last pre-timer and
+keeps the existing 3, 2, 1 countdown and tones. With no pre-timers, Settings
+continues directly to the same Execution countdown.
 
 The view starts with a visible 3, 2, 1 countdown and three tones separated by
 one second. It then executes the configured tempo.
@@ -194,6 +237,9 @@ The countdown value is shown inside the Resume button while it is active.
 The report displays:
 
 - A summary of the effective settings
+- An ordered **Vorlaufzeiten** list with one entry per configured pre-timer,
+  including actual elapsed times, formulas, substitutions, results, and
+  ignored-result reasons
 - A combined BPM summary with the starting BPM, progression, and maximum
   information
 - Total completed beats
@@ -210,10 +256,12 @@ When a break time limit is configured, the report's break section is labeled
 `Breaks used (max Ns):` with the configured limit.
 
 The **Copy to clipboard** button copies all report information as labeled plain
-text. Each item is separated by a newline, with a separate newline-delimited
-section for break records. The button announces success or failure and returns
-to its normal label after a successful copy. Report feedback, including the
-clipboard confirmation, remains visible while scrolling.
+text. Vorlaufzeiten and Pausen item lines are prefixed with `- `; headings and
+summary lines are not. Each item is separated by a newline, with a separate
+newline-delimited section for break records. The button announces success or
+failure and returns to its normal label after a successful copy. Report
+feedback, including the clipboard confirmation, remains visible while
+scrolling.
 
 The **Copy short to Clipboard** button copies a compact summary with the total
 beat count, BPM range, and progression tokens on the first line. When breaks
@@ -227,6 +275,8 @@ Pausen bei:
 - 45 (30s)
 - 71 (5s)
 ```
+
+The short report also includes one compact line per pre-timer in table order.
 
 The **Back to settings** button returns to the Settings view while preserving
 the form values for another run.

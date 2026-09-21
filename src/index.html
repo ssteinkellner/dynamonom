@@ -237,6 +237,38 @@
             </div>
           </fieldset>
 
+          <fieldset id="pre-timers-fieldset">
+            <legend>Vorlaufzeiten</legend>
+
+            <div class="table-wrapper pre-timers-table-wrapper">
+              <table id="pre-timers-table">
+                <caption class="visually-hidden">Konfigurierte Vorlaufzeiten</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Typ</th>
+                    <th scope="col">Name</th>
+                    <th scope="col">Optionen</th>
+                    <th scope="col" class="action-column">
+                      <span class="visually-hidden">Aktionen</span>
+                      <button
+                        id="pre-timer-add-button"
+                        class="secondary-button icon-button"
+                        type="button"
+                        aria-label="Vorlaufzeit hinzufügen"
+                        title="Vorlaufzeit hinzufügen"
+                      >
+                        +
+                      </button>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody id="pre-timers-table-body"></tbody>
+              </table>
+            </div>
+            <p id="pre-timers-empty-message" class="status">Noch keine Vorlaufzeiten konfiguriert.</p>
+            <p id="pre-timers-error" class="field-error"></p>
+          </fieldset>
+
           <fieldset>
             <legend>Pausen</legend>
 
@@ -490,6 +522,235 @@
             </div>
           </div>
         </dialog>
+
+        <dialog
+          id="pre-timer-dialog"
+          class="progress-dialog"
+          aria-labelledby="pre-timer-dialog-title"
+        >
+          <div class="progress-dialog-content">
+            <h3 id="pre-timer-dialog-title">Vorlaufzeit hinzufügen</h3>
+
+            <form id="pre-timer-form" novalidate>
+              <div class="field">
+                <div class="input-wrapper">
+                  <label for="pre-timer-name">Name</label>
+                  <input
+                    id="pre-timer-name"
+                    name="pre-timer-name"
+                    type="text"
+                    autocomplete="off"
+                    maxlength="120"
+                    aria-describedby="pre-timer-name-error"
+                  />
+                  <p id="pre-timer-name-error" class="field-error"></p>
+                </div>
+              </div>
+
+              <div class="field">
+                <div class="input-wrapper">
+                  <label for="pre-timer-type">Typ</label>
+                  <select id="pre-timer-type" name="pre-timer-type" aria-describedby="pre-timer-type-error">
+                    <option value="sekunden">Sekunden</option>
+                    <option value="stoppuhr">Stoppuhr</option>
+                    <option value="manuell">Manuell</option>
+                  </select>
+                  <p id="pre-timer-type-error" class="field-error"></p>
+                </div>
+              </div>
+
+              <div id="pre-timer-seconds-fields" class="pre-timer-dialog-fields">
+                <div class="field">
+                  <div class="input-wrapper">
+                    <label for="pre-timer-seconds">Sekunden</label>
+                    <input
+                      id="pre-timer-seconds"
+                      name="pre-timer-seconds"
+                      type="number"
+                      inputmode="numeric"
+                      min="1"
+                      max="600"
+                      step="1"
+                      value="10"
+                      aria-describedby="pre-timer-seconds-error"
+                    />
+                    <p id="pre-timer-seconds-error" class="field-error"></p>
+                  </div>
+                </div>
+              </div>
+
+              <div id="pre-timer-stopwatch-fields" class="pre-timer-dialog-fields" hidden>
+                <div class="field">
+                  <div class="input-wrapper">
+                    <label for="pre-timer-formula">Formel</label>
+                    <input
+                      id="pre-timer-formula"
+                      name="pre-timer-formula"
+                      type="text"
+                      autocomplete="off"
+                      spellcheck="false"
+                      placeholder="z. B. sekunden*3"
+                      aria-describedby="pre-timer-formula-help pre-timer-formula-error"
+                    />
+                    <p id="pre-timer-formula-help" class="field-help">
+                      Platzhalter: minuten, summe-minuten, sekunden, rest-sekunden. Erlaubt sind Zahlen,
+                      +, -, *, / und Klammern.
+                    </p>
+                    <p id="pre-timer-formula-error" class="field-error"></p>
+                  </div>
+                </div>
+
+                <div class="field">
+                  <div class="input-wrapper">
+                    <label for="pre-timer-rounding">Minutenrundung</label>
+                    <select
+                      id="pre-timer-rounding"
+                      name="pre-timer-rounding"
+                      aria-describedby="pre-timer-rounding-error"
+                    >
+                      <option value="floor">Abrunden</option>
+                      <option value="ceil">Aufrunden</option>
+                      <option value="round">Runden</option>
+                    </select>
+                    <p id="pre-timer-rounding-error" class="field-error"></p>
+                  </div>
+                </div>
+
+                <div id="pre-timer-rounding-threshold-field" class="field" hidden>
+                  <div class="input-wrapper">
+                    <label for="pre-timer-rounding-threshold">Aufrunden ab Rest-Sekunden (optional)</label>
+                    <input
+                      id="pre-timer-rounding-threshold"
+                      name="pre-timer-rounding-threshold"
+                      type="number"
+                      inputmode="numeric"
+                      min="0"
+                      max="60"
+                      step="1"
+                      placeholder="Standard: 30"
+                      aria-describedby="pre-timer-rounding-threshold-help pre-timer-rounding-threshold-error"
+                    />
+                    <p id="pre-timer-rounding-threshold-help" class="field-help">
+                      Leer bedeutet 30 Sekunden. Ein exakter Minutenwert wird nicht aufgerundet.
+                    </p>
+                    <p id="pre-timer-rounding-threshold-error" class="field-error"></p>
+                  </div>
+                </div>
+              </div>
+
+              <div id="pre-timer-manual-fields" class="pre-timer-dialog-fields" hidden>
+                <div class="field">
+                  <div class="input-wrapper">
+                    <label for="pre-timer-limit-seconds">Limit Sekunden (optional)</label>
+                    <input
+                      id="pre-timer-limit-seconds"
+                      name="pre-timer-limit-seconds"
+                      type="number"
+                      inputmode="numeric"
+                      min="1"
+                      max="600"
+                      step="1"
+                      placeholder="Optional"
+                      aria-describedby="pre-timer-limit-seconds-error"
+                    />
+                    <p id="pre-timer-limit-seconds-error" class="field-error"></p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="button-row progress-dialog-actions">
+                <button id="pre-timer-dialog-cancel" class="secondary-button" type="button">
+                  Abbrechen
+                </button>
+                <button id="pre-timer-dialog-save" class="primary-button" type="submit">
+                  Speichern
+                </button>
+              </div>
+            </form>
+          </div>
+        </dialog>
+
+        <dialog
+          id="pre-timer-delete-dialog"
+          class="progress-dialog"
+          aria-labelledby="pre-timer-delete-dialog-title"
+        >
+          <div class="progress-dialog-content">
+            <h3 id="pre-timer-delete-dialog-title">Vorlaufzeit löschen?</h3>
+            <p id="pre-timer-delete-dialog-message"></p>
+            <div class="button-row progress-dialog-actions">
+              <button id="pre-timer-delete-cancel" class="secondary-button" type="button">
+                Abbrechen
+              </button>
+              <button id="pre-timer-delete-confirm" class="danger-button" type="button">
+                Löschen
+              </button>
+            </div>
+          </div>
+        </dialog>
+      </section>
+
+      <section id="pre-timers-view" class="view" aria-labelledby="pre-timers-title" hidden>
+        <header class="view-header">
+          <h2 id="pre-timers-title" tabindex="-1">Vorlaufzeiten</h2>
+          <p id="pre-timers-progress"></p>
+        </header>
+
+        <div id="pre-timer-card" class="execution-card pre-timer-card">
+          <p id="pre-timer-card-type" class="eyebrow"></p>
+          <h3 id="pre-timer-card-name"></h3>
+          <p id="pre-timer-card-options" class="pre-timer-card-options"></p>
+          <strong id="pre-timer-clock" class="pre-timer-clock" aria-live="off">0:00</strong>
+        </div>
+
+        <p id="pre-timer-status" class="status" role="status" aria-live="off"></p>
+
+        <div class="button-row pre-timer-actions">
+          <button id="pre-timer-abort-button" class="secondary-button" type="button">
+            Abbrechen
+          </button>
+          <button id="pre-timer-continue-button" class="primary-button" type="button">
+            Weiter
+          </button>
+        </div>
+
+        <dialog
+          id="pre-timer-abort-dialog"
+          class="progress-dialog"
+          aria-labelledby="pre-timer-abort-dialog-title"
+        >
+          <div class="progress-dialog-content">
+            <h3 id="pre-timer-abort-dialog-title">Vorlaufzeiten abbrechen?</h3>
+            <p>Die laufende Vorlaufzeit wird abgebrochen und ein Teilbericht erstellt.</p>
+            <div class="button-row progress-dialog-actions">
+              <button id="pre-timer-abort-cancel" class="secondary-button" type="button">
+                Weiter
+              </button>
+              <button id="pre-timer-abort-confirm" class="danger-button" type="button">
+                Abbrechen
+              </button>
+            </div>
+          </div>
+        </dialog>
+
+        <dialog
+          id="pre-timer-early-dialog"
+          class="progress-dialog"
+          aria-labelledby="pre-timer-early-dialog-title"
+        >
+          <div class="progress-dialog-content">
+            <h3 id="pre-timer-early-dialog-title">Vorlaufzeit vorzeitig fortsetzen?</h3>
+            <p id="pre-timer-early-dialog-message"></p>
+            <div class="button-row progress-dialog-actions">
+              <button id="pre-timer-early-cancel" class="secondary-button" type="button">
+                Warten
+              </button>
+              <button id="pre-timer-early-confirm" class="primary-button" type="button">
+                Weiter
+              </button>
+            </div>
+          </div>
+        </dialog>
       </section>
 
       <section id="execution-view" class="view" aria-labelledby="execution-title" hidden>
@@ -557,6 +818,11 @@
               <dd id="report-session-end">-</dd>
             </div>
           </dl>
+        </div>
+
+        <div id="report-pre-timers-card" class="report-card" hidden>
+          <h3>Vorlaufzeiten</h3>
+          <ul id="report-pre-timers-list" class="report-pre-timer-list"></ul>
         </div>
 
         <div class="report-card">
