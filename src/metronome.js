@@ -1682,7 +1682,9 @@ function buildShortReportText(report) {
   if (progression) {
     lines[0] += `; ${progression}`;
   }
-  if (report.breakRecords.length > 0) {
+  if (report.breakRecords.length === 0) {
+    lines[0] += "; Keine Pausen verwendet";
+  } else {
     lines[0] += "; Pausen bei:";
     lines.push(
       ...report.breakRecords.map((record) => {
