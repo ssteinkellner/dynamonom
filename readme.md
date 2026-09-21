@@ -56,6 +56,11 @@ by drag and drop, and that order controls the pre-timer sequence and reports.
 Names are required and unique after trimming and case-folding. Each row can be
 edited in a dialog and deleted after confirmation. The table is included in
 presets and settings exports as a versioned `pre-timers` JSON parameter.
+The edit dialog presents **Typ** before **Name**. Stopwatch formulas show the
+supported placeholders as boxed controls below the formula field; clicking a
+placeholder or dragging it into the field inserts it at the current caret (or
+at the end when no caret is available). Scrolling over a focused number input
+first removes focus so the value is not changed by the wheel.
 
 The available types are:
 
@@ -237,9 +242,9 @@ The countdown value is shown inside the Resume button while it is active.
 The report displays:
 
 - A summary of the effective settings
-- An ordered **Vorlaufzeiten** list with one entry per configured pre-timer,
-  including actual elapsed times, formulas, substitutions, results, and
-  ignored-result reasons
+- An ordered **Vorlaufzeiten** table with columns for type, name, actual
+  duration, options, and status. Stopwatch options include the formula,
+  substitution, result, and ignored-result reason.
 - A combined BPM summary with the starting BPM, progression, and maximum
   information
 - Total completed beats

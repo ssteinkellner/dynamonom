@@ -47,6 +47,12 @@ const TONE = Object.freeze({
 });
 
 const REPORT_BREAKS_HEADING = "gebrauchte Pausen";
+const PRE_TIMER_FORMULA_PLACEHOLDERS = new Set([
+  "minuten",
+  "summe-minuten",
+  "sekunden",
+  "rest-sekunden",
+]);
 
 const views = {
   settings: document.getElementById("settings-view"),
@@ -80,6 +86,9 @@ const dom = {
   preTimerSecondsError: document.getElementById("pre-timer-seconds-error"),
   preTimerStopwatchFields: document.getElementById("pre-timer-stopwatch-fields"),
   preTimerFormula: document.getElementById("pre-timer-formula"),
+  preTimerFormulaPlaceholders: document.getElementById(
+    "pre-timer-formula-placeholders",
+  ),
   preTimerFormulaError: document.getElementById("pre-timer-formula-error"),
   preTimerRounding: document.getElementById("pre-timer-rounding"),
   preTimerRoundingError: document.getElementById("pre-timer-rounding-error"),
@@ -184,7 +193,9 @@ const dom = {
   reportBreaksRow: document.getElementById("report-breaks-row"),
   reportSessionEnd: document.getElementById("report-session-end"),
   reportPreTimersCard: document.getElementById("report-pre-timers-card"),
-  reportPreTimersList: document.getElementById("report-pre-timers-list"),
+  reportPreTimersTableBody: document.getElementById(
+    "report-pre-timers-table-body",
+  ),
   reportBreaksTitle: document.getElementById("report-breaks-title"),
   reportNoBreaks: document.getElementById("report-no-breaks"),
   breakTableWrapper: document.getElementById("break-table-wrapper"),
@@ -243,6 +254,7 @@ let preTimerDeleteTrigger = null;
 let preTimerAbortDialogTrigger = null;
 let preTimerEarlyDialogTrigger = null;
 let preTimerDragState = null;
+let preTimerFormulaSelection = null;
 
 const TEXT_SETTING_CONTROLS = Object.freeze({
   bpm: dom.bpm,
@@ -315,6 +327,19 @@ function bindEvents() {
   dom.preTimerForm.addEventListener("submit", handlePreTimerDialogSave);
   dom.preTimerType.addEventListener("change", handlePreTimerTypeChange);
   dom.preTimerRounding.addEventListener("change", syncPreTimerDialogFields);
+  dom.preTimerFormulaPlaceholders.addEventListener(
+    "click",
+    handlePreTimerPlaceholderClick,
+  );
+  dom.preTimerFormulaPlaceholders.addEventListener(
+    "dragstart",
+    handlePreTimerPlaceholderDragStart,
+  );
+  dom.preTimerFormula.addEventListener("dragover", handlePreTimerFormulaDragOver);
+  dom.preTimerFormula.addEventListener("drop", handlePreTimerFormulaDrop);
+  ["blur", "focus", "input", "keyup", "mouseup", "select"].forEach((eventName) => {
+    dom.preTimerFormula.addEventListener(eventName, rememberPreTimerFormulaSelection);
+  });
   dom.preTimerForm.addEventListener("input", (event) => {
     const control = event.target;
     if (control === dom.preTimerName) {
@@ -410,6 +435,11 @@ function bindEvents() {
 
   document.querySelectorAll('input[name="breaks"]').forEach((input) => {
     input.addEventListener("change", syncSettingsVisibility);
+  });
+
+  document.addEventListener("wheel", handleNumberInputWheel, {
+    capture: true,
+    passive: true,
   });
 
   dom.settingsForm.addEventListener("input", (event) => {
@@ -593,10 +623,14 @@ function openPreTimerDialog(preTimerId = null, trigger = dom.preTimerAddButton) 
     draft.type === PRE_TIMER_TYPES.MANUAL && draft.limitSeconds !== null
       ? String(draft.limitSeconds)
       : "";
+  preTimerFormulaSelection = {
+    start: dom.preTimerFormula.value.length,
+    end: dom.preTimerFormula.value.length,
+  };
   clearPreTimerDialogErrors();
   syncPreTimerDialogFields();
   dom.preTimerDialog.showModal();
-  dom.preTimerName.focus();
+  dom.preTimerType.focus();
 }
 
 function handlePreTimerTypeChange() {
@@ -622,6 +656,110 @@ function syncPreTimerDialogFields() {
   dom.preTimerRounding.disabled = !isStopwatch;
   dom.preTimerRoundingThreshold.disabled = !isStopwatch || !isRound;
   dom.preTimerLimitSeconds.disabled = !isManual;
+}
+
+function rememberPreTimerFormulaSelection() {
+  if (
+    typeof dom.preTimerFormula.selectionStart !== "number" ||
+    typeof dom.preTimerFormula.selectionEnd !== "number"
+  ) {
+    return;
+  }
+  preTimerFormulaSelection = {
+    start: dom.preTimerFormula.selectionStart,
+    end: dom.preTimerFormula.selectionEnd,
+  };
+}
+
+function handlePreTimerPlaceholderClick(event) {
+  const button = event.target.closest("[data-pre-timer-placeholder]");
+  if (!button) {
+    return;
+  }
+  event.preventDefault();
+  insertPreTimerFormulaPlaceholder(button.dataset.preTimerPlaceholder);
+}
+
+function handlePreTimerPlaceholderDragStart(event) {
+  const button = event.target.closest("[data-pre-timer-placeholder]");
+  const placeholder = button?.dataset.preTimerPlaceholder;
+  if (!placeholder || !PRE_TIMER_FORMULA_PLACEHOLDERS.has(placeholder)) {
+    return;
+  }
+
+  event.dataTransfer?.setData("text/plain", placeholder);
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = "copy";
+  }
+}
+
+function handlePreTimerFormulaDragOver(event) {
+  event.preventDefault();
+  if (event.dataTransfer) {
+    event.dataTransfer.dropEffect = "copy";
+  }
+}
+
+function handlePreTimerFormulaDrop(event) {
+  const placeholder = event.dataTransfer?.getData("text/plain")?.trim();
+  if (!PRE_TIMER_FORMULA_PLACEHOLDERS.has(placeholder)) {
+    return;
+  }
+
+  event.preventDefault();
+  insertPreTimerFormulaPlaceholder(placeholder, {
+    start: dom.preTimerFormula.selectionStart,
+    end: dom.preTimerFormula.selectionEnd,
+  });
+}
+
+function insertPreTimerFormulaPlaceholder(placeholder, selection = null) {
+  if (!PRE_TIMER_FORMULA_PLACEHOLDERS.has(placeholder)) {
+    return;
+  }
+
+  const currentValue = dom.preTimerFormula.value;
+  const rememberedSelection = preTimerFormulaSelection || {
+    start: currentValue.length,
+    end: currentValue.length,
+  };
+  const start = Math.max(
+    0,
+    Math.min(
+      currentValue.length,
+      Number.isInteger(selection?.start)
+        ? selection.start
+        : rememberedSelection.start,
+    ),
+  );
+  const end = Math.max(
+    start,
+    Math.min(
+      currentValue.length,
+      Number.isInteger(selection?.end) ? selection.end : rememberedSelection.end,
+    ),
+  );
+  const nextValue =
+    currentValue.slice(0, start) + placeholder + currentValue.slice(end);
+  const nextCaret = start + placeholder.length;
+
+  dom.preTimerFormula.value = nextValue;
+  dom.preTimerFormula.focus();
+  dom.preTimerFormula.setSelectionRange(nextCaret, nextCaret);
+  preTimerFormulaSelection = { start: nextCaret, end: nextCaret };
+  dom.preTimerFormula.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
+function handleNumberInputWheel(event) {
+  const input = event.target;
+  if (
+    !(input instanceof HTMLInputElement) ||
+    input.type !== "number" ||
+    document.activeElement !== input
+  ) {
+    return;
+  }
+  input.blur();
 }
 
 function handlePreTimerDialogSave(event) {
@@ -712,8 +850,8 @@ function getPreTimerDialogFieldId(field) {
 
 function clearPreTimerDialogErrors() {
   [
-    "pre-timer-name",
     "pre-timer-type",
+    "pre-timer-name",
     "pre-timer-seconds",
     "pre-timer-formula",
     "pre-timer-rounding",
@@ -2998,12 +3136,26 @@ function renderReport() {
     : formatSessionEnd(settings);
   dom.reportBreaksTitle.textContent = formatReportBreaksTitle(settings);
   dom.reportPreTimersCard.hidden = !report.preTimerReport;
-  dom.reportPreTimersList.replaceChildren();
+  dom.reportPreTimersTableBody.replaceChildren();
   if (report.preTimerReport) {
     report.preTimerReport.records.forEach((record) => {
-      const item = document.createElement("li");
-      item.textContent = formatPreTimerLongLine(record);
-      dom.reportPreTimersList.append(item);
+      const row = document.createElement("tr");
+      appendReportCell(row, getPreTimerTypeLabel(record.type));
+      appendReportCell(row, record.name);
+      appendReportCell(
+        row,
+        record.status === "not-started"
+          ? "—"
+          : formatPreTimerDuration(record.elapsedSeconds),
+        "report-pre-timer-duration",
+      );
+      appendReportCell(
+        row,
+        formatPreTimerReportOptions(record),
+        "report-pre-timer-options",
+      );
+      appendReportCell(row, formatPreTimerReportStatus(record));
+      dom.reportPreTimersTableBody.append(row);
     });
     if (report.preTimerReport.invalidFormulaCount > 0) {
       dom.reportStatus.classList.add("error-status");
@@ -3032,6 +3184,61 @@ function renderReport() {
     row.querySelector('[data-cell="ended"]').textContent = record.ended;
     dom.breakTableBody.append(row);
   });
+}
+
+function appendReportCell(row, text, className = "") {
+  const cell = document.createElement("td");
+  if (className) {
+    cell.className = className;
+  }
+  cell.textContent = text;
+  row.append(cell);
+}
+
+function formatPreTimerReportOptions(record) {
+  if (record.type === PRE_TIMER_TYPES.SECONDS) {
+    return `Dauer: ${record.configuredSeconds} Sekunden`;
+  }
+  if (record.type === PRE_TIMER_TYPES.MANUAL) {
+    return record.limitSeconds === null
+      ? "Ohne Limit"
+      : `Limit: ${record.limitSeconds} Sekunden`;
+  }
+
+  const rounding = getPreTimerRoundingLabel(record.rounding);
+  const threshold =
+    record.rounding === PRE_TIMER_ROUNDING.ROUND
+      ? `; Schwelle: ${record.roundingThreshold ?? 30}s`
+      : "";
+  const calculation =
+    record.status === "completed"
+      ? record.resultValid
+        ? `Berechnung: ${record.formula} -> ${
+            record.substitution
+          } = ${record.result}`
+        : `Berechnung: ${record.formula} -> ${
+            record.substitution || "nicht berechnet"
+          }`
+      : `Formel: ${record.formula}`;
+  return `${calculation}; Rundung: ${rounding}${threshold}`;
+}
+
+function formatPreTimerReportStatus(record) {
+  if (record.status === "not-started") {
+    return "Nicht gestartet";
+  }
+  if (record.status === "active-aborted") {
+    return "Aktiv abgebrochen";
+  }
+  if (record.type === PRE_TIMER_TYPES.STOPWATCH) {
+    return record.resultValid
+      ? `Gültig: ${record.result}`
+      : `Ignoriert: ${record.invalidReason}`;
+  }
+  if (record.type === PRE_TIMER_TYPES.SECONDS && record.completedBy === "auto") {
+    return "Automatisch fortgesetzt";
+  }
+  return "Manuell fortgesetzt";
 }
 
 function buildReportText(report) {

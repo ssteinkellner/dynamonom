@@ -243,9 +243,17 @@
             <div class="table-wrapper pre-timers-table-wrapper">
               <table id="pre-timers-table">
                 <caption class="visually-hidden">Konfigurierte Vorlaufzeiten</caption>
+                <colgroup>
+                  <col class="pre-timer-type-column" />
+                  <col class="pre-timer-name-column" />
+                  <col class="pre-timer-options-column" />
+                  <col class="pre-timer-actions-column" />
+                </colgroup>
                 <thead>
                   <tr>
-                    <th scope="col">Typ</th>
+                    <th scope="col">
+                      <span class="pre-timer-type-heading">Typ</span>
+                    </th>
                     <th scope="col">Name</th>
                     <th scope="col">Optionen</th>
                     <th scope="col" class="action-column">
@@ -534,6 +542,22 @@
             <form id="pre-timer-form" novalidate>
               <div class="field">
                 <div class="input-wrapper">
+                  <label for="pre-timer-type">Typ</label>
+                  <select
+                    id="pre-timer-type"
+                    name="pre-timer-type"
+                    aria-describedby="pre-timer-type-error"
+                  >
+                    <option value="sekunden">Sekunden</option>
+                    <option value="stoppuhr">Stoppuhr</option>
+                    <option value="manuell">Manuell</option>
+                  </select>
+                  <p id="pre-timer-type-error" class="field-error"></p>
+                </div>
+              </div>
+
+              <div class="field">
+                <div class="input-wrapper">
                   <label for="pre-timer-name">Name</label>
                   <input
                     id="pre-timer-name"
@@ -544,18 +568,6 @@
                     aria-describedby="pre-timer-name-error"
                   />
                   <p id="pre-timer-name-error" class="field-error"></p>
-                </div>
-              </div>
-
-              <div class="field">
-                <div class="input-wrapper">
-                  <label for="pre-timer-type">Typ</label>
-                  <select id="pre-timer-type" name="pre-timer-type" aria-describedby="pre-timer-type-error">
-                    <option value="sekunden">Sekunden</option>
-                    <option value="stoppuhr">Stoppuhr</option>
-                    <option value="manuell">Manuell</option>
-                  </select>
-                  <p id="pre-timer-type-error" class="field-error"></p>
                 </div>
               </div>
 
@@ -592,8 +604,47 @@
                       placeholder="z. B. sekunden*3"
                       aria-describedby="pre-timer-formula-help pre-timer-formula-error"
                     />
+                    <div
+                      id="pre-timer-formula-placeholders"
+                      class="formula-placeholder-list"
+                      role="group"
+                      aria-label="Formel-Platzhalter"
+                    >
+                      <button
+                        class="formula-placeholder"
+                        type="button"
+                        draggable="true"
+                        data-pre-timer-placeholder="minuten"
+                      >
+                        minuten
+                      </button>
+                      <button
+                        class="formula-placeholder"
+                        type="button"
+                        draggable="true"
+                        data-pre-timer-placeholder="summe-minuten"
+                      >
+                        summe-minuten
+                      </button>
+                      <button
+                        class="formula-placeholder"
+                        type="button"
+                        draggable="true"
+                        data-pre-timer-placeholder="sekunden"
+                      >
+                        sekunden
+                      </button>
+                      <button
+                        class="formula-placeholder"
+                        type="button"
+                        draggable="true"
+                        data-pre-timer-placeholder="rest-sekunden"
+                      >
+                        rest-sekunden
+                      </button>
+                    </div>
                     <p id="pre-timer-formula-help" class="field-help">
-                      Platzhalter: minuten, summe-minuten, sekunden, rest-sekunden. Erlaubt sind Zahlen,
+                      Platzhalter anklicken oder in das Eingabefeld ziehen. Erlaubt sind Zahlen,
                       +, -, *, / und Klammern.
                     </p>
                     <p id="pre-timer-formula-error" class="field-error"></p>
@@ -822,7 +873,21 @@
 
         <div id="report-pre-timers-card" class="report-card" hidden>
           <h3>Vorlaufzeiten</h3>
-          <ul id="report-pre-timers-list" class="report-pre-timer-list"></ul>
+          <div class="table-wrapper report-pre-timers-table-wrapper">
+            <table id="report-pre-timers-table" class="report-pre-timers-table">
+              <caption class="visually-hidden">Auswertung der Vorlaufzeiten</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Typ</th>
+                  <th scope="col">Name</th>
+                  <th scope="col">Dauer</th>
+                  <th scope="col">Optionen</th>
+                  <th scope="col">Status</th>
+                </tr>
+              </thead>
+              <tbody id="report-pre-timers-table-body"></tbody>
+            </table>
+          </div>
         </div>
 
         <div class="report-card">

@@ -381,6 +381,7 @@ label {
   color: var(--text);
   background: var(--surface);
   box-shadow: var(--shadow);
+  overflow: hidden;
 }
 
 .progress-dialog::backdrop {
@@ -390,6 +391,7 @@ label {
 .progress-dialog-content {
   max-height: calc(100vh - 2rem);
   overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 1.25rem;
 }
 
@@ -656,6 +658,31 @@ table {
   margin-top: 0.25rem;
 }
 
+#pre-timers-table {
+  min-width: 36rem;
+  table-layout: fixed;
+}
+
+#pre-timers-table td {
+  overflow-wrap: anywhere;
+}
+
+.pre-timer-type-column {
+  width: 25%;
+}
+
+.pre-timer-name-column {
+  width: 23%;
+}
+
+.pre-timer-options-column {
+  width: 42%;
+}
+
+.pre-timer-actions-column {
+  width: 10%;
+}
+
 th,
 td {
   border-bottom: 0.1rem solid var(--border);
@@ -689,10 +716,23 @@ th {
 }
 
 .pre-timer-type-cell {
-  display: flex;
+  display: grid;
+  grid-template-columns: 2.2rem minmax(0, 1fr);
   align-items: center;
   gap: 0.45rem;
-  min-width: 8rem;
+  min-width: 0;
+}
+
+.pre-timer-type-heading {
+  display: grid;
+  grid-template-columns: 2.2rem minmax(0, 1fr);
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.pre-timer-type-heading::before {
+  width: 2.2rem;
+  content: "";
 }
 
 .pre-timer-drag-handle {
@@ -729,6 +769,33 @@ th {
   margin-left: 0.25rem;
 }
 
+.formula-placeholder-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.35rem;
+}
+
+.formula-placeholder {
+  min-height: 2.35rem;
+  border: 0.1rem solid var(--border);
+  border-radius: 0.45rem;
+  padding: 0.35rem 0.65rem;
+  color: var(--text);
+  background: var(--surface-muted);
+  cursor: grab;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.formula-placeholder:hover {
+  border-color: var(--primary);
+}
+
+.formula-placeholder:active {
+  cursor: grabbing;
+}
+
 .pre-timer-card h3 {
   margin: 0.5rem 0 0;
   font-size: 1.7rem;
@@ -747,14 +814,16 @@ th {
   line-height: 1;
 }
 
-.report-pre-timer-list {
-  display: grid;
-  gap: 0.65rem;
-  margin: 0;
-  padding-left: 1.25rem;
+.report-pre-timers-table {
+  min-width: 46rem;
 }
 
-.report-pre-timer-list li {
+.report-pre-timer-duration {
+  white-space: nowrap;
+}
+
+.report-pre-timer-options {
+  white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 
