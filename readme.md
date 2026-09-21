@@ -45,18 +45,32 @@ below a separator. Inputs within each group remain side by side.
 ### Presets
 
 Preset buttons are generated from the dictionary in `presets.js`. Clicking a
-preset applies its values and starts the session immediately. Each preset entry
-supplies a `label` and a `values` object using the settings names from the
-form. Add or remove presets by editing the dictionary in `presets.js`.
+preset either starts the session or only fills the settings form, depending on
+its optional top-level `autoStart` Boolean. A missing `autoStart` is treated as
+`false`. The `label` is action-neutral; the renderer adds the **Start** prefix
+and uses the primary button style only when `autoStart` is `true`. Each preset
+entry supplies a base `label`, a `values` object using the settings names from
+the form, and optionally `autoStart`. Add or remove presets by editing the
+dictionary in `presets.js`.
 
 The **Import** field accepts a bare URL parameter list, a list with a leading
 `?`, or a full URL. Settings are applied as the text changes. Unparseable
-strings and invalid values are ignored without a message. The **Export
-settings** button writes the current settings as a bare URL parameter list
-into the Import field and copies it to the clipboard. The same recognized
-parameters are applied automatically when they are present in the page URL;
-loading parameters does not start a session. Settings feedback, including
-clipboard confirmations, remains visible while scrolling.
+strings and invalid values remain ignored without a message unless the import
+explicitly requests auto-start. The optional `auto-start` parameter accepts
+`true`, `false`, `1`, or `0`. An import with `auto-start=true` starts as soon
+as the complete input is valid, including when it is present in the initial
+page URL. Auto-start imports require at least one recognized setting and every
+recognized setting supplied in the URL to be valid; invalid fields are marked
+and the session does not start. Unknown parameters are ignored when recognized
+settings are present.
+
+The **Settings export** section contains an **Auto-Start** checkbox and two
+copy actions. **Only settings** copies the bare parameter list, while **Whole
+URL** copies the current page URL with its query replaced by the settings and
+its path and hash preserved. When Auto-Start is checked, both formats include
+`auto-start=true`; otherwise the parameter is omitted. Export actions copy only
+to the clipboard and do not replace the Import field. Settings feedback,
+including clipboard confirmations, remains visible while scrolling.
 
 ### BPM (beats per minute)
 
@@ -142,8 +156,8 @@ value remains visible and is disabled until Lock is selected.
 
 ### Start
 
-The Export settings button is positioned to the left of Start. Start validates
-the active settings and navigates to the Execution view.
+The Settings export section appears before Start. Start validates the active
+settings and navigates to the Execution view.
 
 ## View "Execution"
 

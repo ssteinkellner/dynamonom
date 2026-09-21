@@ -41,8 +41,12 @@ const dom = {
   settingsTitle: document.getElementById("settings-title"),
   settingsStatus: document.getElementById("settings-status"),
   presetList: document.getElementById("preset-list"),
+  settingsImportWrapper: document.getElementById("settings-import-wrapper"),
   settingsImport: document.getElementById("settings-import"),
-  exportButton: document.getElementById("export-button"),
+  settingsImportError: document.getElementById("settings-import-error"),
+  exportAutoStart: document.getElementById("export-auto-start"),
+  exportSettingsButton: document.getElementById("export-settings-button"),
+  exportUrlButton: document.getElementById("export-url-button"),
   bpm: document.getElementById("bpm"),
   accentuate: document.getElementById("accentuate"),
   accentOptionCard: document.getElementById("accent-option-card"),
@@ -141,6 +145,8 @@ const copyFeedbackTimers = new Map();
 let progressDialogMode = null;
 let progressDialogTrigger = null;
 let progressDialogSnapshot = null;
+let autoStartImportInProgress = false;
+let lastAutoStartImportText = null;
 
 const TEXT_SETTING_CONTROLS = Object.freeze({
   bpm: dom.bpm,
@@ -169,6 +175,7 @@ const RADIO_SETTING_VALUES = Object.freeze({
   maximum: new Set(["none", "stick", "reset", "reverse"]),
   breaks: new Set(["none", "unlimited", "limited"]),
 });
+const AUTO_START_PARAMETER = "auto-start";
 
 function init() {
   if (Object.values(dom).some((element) => element === null)) {
@@ -180,20 +187,31 @@ function init() {
   const initialParameters = getInitialParameterText();
   if (initialParameters) {
     dom.settingsImport.value = initialParameters;
-    handleSettingsImport(initialParameters);
   }
   bindEvents();
   syncSettingsVisibility();
   showView("settings", false);
   dom.bpm.focus();
+  if (initialParameters) {
+    void handleSettingsImport(initialParameters);
+  }
 }
 
 function bindEvents() {
   dom.settingsForm.addEventListener("submit", handleStart);
   dom.settingsImport.addEventListener("input", () => {
-    handleSettingsImport(dom.settingsImport.value);
+    void handleSettingsImport(dom.settingsImport.value);
   });
-  dom.exportButton.addEventListener("click", handleExportSettings);
+  dom.exportSettingsButton.addEventListener("click", () => {
+    void handleExportSettings(
+      "settings",
+      dom.exportSettingsButton,
+      "Nur Einstellungen kopieren",
+    );
+  });
+  dom.exportUrlButton.addEventListener("click", () => {
+    void handleExportSettings("url", dom.exportUrlButton, "Ganze URL kopieren");
+  });
   dom.increaseProgressButton.addEventListener("click", () => {
     openProgressDialog("increase", dom.increaseProgressButton);
   });
@@ -241,6 +259,7 @@ function bindEvents() {
     if (control instanceof HTMLInputElement) {
       clearFieldError(control.id);
     }
+    dom.settingsStatus.classList.remove("error-status");
     dom.settingsStatus.textContent = "";
   });
 }
@@ -427,29 +446,73 @@ function renderPresets() {
     return;
   }
 
-  dom.presetList.replaceChildren(dom.settingsImport);
+  dom.presetList.replaceChildren(dom.settingsImportWrapper);
   let addedPreset = false;
+  const invalidPresetMessages = [];
 
   Object.entries(presets).forEach(([presetId, preset]) => {
-    if (!preset || typeof preset.label !== "string" || !preset.values) {
-      console.error(`Preset "${presetId}" has an invalid definition.`);
+    const definitionError = getPresetDefinitionError(preset);
+    if (definitionError) {
+      const button = document.createElement("button");
+      const label =
+        preset && typeof preset.label === "string" ? preset.label : presetId;
+      const message = `Voreinstellung "${presetId}" ist ungültig: ${definitionError}`;
+
+      console.error(`Preset "${presetId}" has an invalid definition: ${definitionError}`);
+      button.className = "secondary-button";
+      button.type = "button";
+      button.disabled = true;
+      button.textContent = label;
+      button.title = message;
+      button.setAttribute("aria-label", `${label}: ${message}`);
+      dom.presetList.append(button);
+      invalidPresetMessages.push(message);
       return;
     }
 
+    const autoStart = preset.autoStart === true;
     const button = document.createElement("button");
-    button.className = "secondary-button";
+    button.className = autoStart ? "primary-button" : "secondary-button";
     button.type = "button";
-    button.textContent = preset.label;
+    button.textContent = autoStart ? `Start ${preset.label}` : preset.label;
     button.dataset.presetId = presetId;
-    button.addEventListener("click", () => handlePresetStart(preset.values));
+    button.addEventListener("click", () => {
+      void handlePresetClick(preset);
+    });
     dom.presetList.append(button);
     addedPreset = true;
   });
 
+  if (invalidPresetMessages.length > 0) {
+    dom.settingsStatus.classList.add("error-status");
+    dom.settingsStatus.textContent = invalidPresetMessages.join(" ");
+  }
+
   if (!addedPreset) {
     console.error("No valid metronome presets are configured.");
-    dom.settingsStatus.textContent = "Keine gültigen Voreinstellungen verfügbar.";
+    if (invalidPresetMessages.length === 0) {
+      dom.settingsStatus.textContent = "Keine gültigen Voreinstellungen verfügbar.";
+    }
   }
+}
+
+function getPresetDefinitionError(preset) {
+  if (!preset || typeof preset !== "object" || Array.isArray(preset)) {
+    return "Definition fehlt.";
+  }
+  if (typeof preset.label !== "string") {
+    return "Ein gültiges Label fehlt.";
+  }
+  if (!preset.values || typeof preset.values !== "object" || Array.isArray(preset.values)) {
+    return "Gültige Einstellungswerte fehlen.";
+  }
+  if (
+    Object.prototype.hasOwnProperty.call(preset, "autoStart") &&
+    typeof preset.autoStart !== "boolean"
+  ) {
+    return "autoStart muss ein Boolean sein.";
+  }
+  return null;
 }
 
 function getInitialParameterText() {
@@ -459,7 +522,7 @@ function getInitialParameterText() {
   return window.location.search.slice(1);
 }
 
-function serializeSettings() {
+function serializeSettings(includeAutoStart) {
   const parameters = new URLSearchParams();
   parameters.set("bpm", dom.bpm.value.trim());
   parameters.set("accentuate", String(dom.accentuate.checked));
@@ -480,41 +543,124 @@ function serializeSettings() {
   parameters.set("session-end-beats", dom.sessionEndBeats.value.trim());
   parameters.set("lock-settings", String(dom.lockSettings.checked));
   parameters.set("lock-beats", dom.lockBeats.value.trim());
+  if (includeAutoStart) {
+    parameters.set(AUTO_START_PARAMETER, "true");
+  }
   return parameters.toString();
 }
 
-function handleExportSettings() {
-  const parameterList = serializeSettings();
-  dom.settingsImport.value = parameterList;
+async function handleExportSettings(format, button, defaultLabel) {
+  const parameterList = serializeSettings(dom.exportAutoStart.checked);
+  const text =
+    format === "url" ? buildSettingsUrl(parameterList) : parameterList;
 
-  copyText(parameterList, dom.exportButton)
-    .then(() => {
-      dom.settingsStatus.classList.remove("error-status");
-      dom.settingsStatus.textContent =
-        "Einstellungen exportiert und in die Zwischenablage kopiert.";
-    })
-    .catch((error) => {
-      dom.settingsStatus.classList.add("error-status");
-      dom.settingsStatus.textContent = getErrorMessage(
-        error,
-        "Die Einstellungen konnten nicht in die Zwischenablage kopiert werden.",
-      );
-    });
+  try {
+    await copyText(text, button);
+    dom.settingsStatus.classList.remove("error-status");
+    dom.settingsStatus.textContent =
+      format === "url"
+        ? "Ganze URL in die Zwischenablage kopiert."
+        : "Einstellungen in die Zwischenablage kopiert.";
+    button.textContent = "Kopiert!";
+
+    const existingTimer = copyFeedbackTimers.get(button);
+    if (existingTimer !== undefined) {
+      window.clearTimeout(existingTimer);
+    }
+    copyFeedbackTimers.set(
+      button,
+      window.setTimeout(() => {
+        button.textContent = defaultLabel;
+        copyFeedbackTimers.delete(button);
+      }, 2000),
+    );
+  } catch (error) {
+    dom.settingsStatus.classList.add("error-status");
+    dom.settingsStatus.textContent = getErrorMessage(
+      error,
+      "Die Einstellungen konnten nicht in die Zwischenablage kopiert werden.",
+    );
+  }
 }
 
-function handleSettingsImport(parameterText) {
+function buildSettingsUrl(parameterList) {
+  const url = new URL(window.location.href);
+  url.search = parameterList ? `?${parameterList}` : "";
+  return url.toString();
+}
+
+async function handleSettingsImport(parameterText) {
   const rawText = String(parameterText).trim();
+  clearFieldError("settings-import");
+  dom.settingsStatus.classList.remove("error-status");
+  dom.settingsStatus.textContent = "";
+
   if (!rawText) {
+    lastAutoStartImportText = null;
     return;
   }
 
   const parsed = parseSettingsParameters(rawText);
-  if (!parsed.valid || !parsed.foundSettings || Object.keys(parsed.values).length === 0) {
+  if (!parsed.valid) {
+    lastAutoStartImportText = null;
+    if (parsed.autoStartProvided) {
+      showAutoStartImportError(
+        parsed.parseError || "Die Auto-Start-URL konnte nicht gelesen werden.",
+      );
+    }
     return;
   }
 
-  applySettingsParameters(parsed.values);
-  syncSettingsVisibility();
+  if (Object.keys(parsed.values).length > 0) {
+    applySettingsParameters(parsed.values);
+    syncSettingsVisibility();
+  }
+
+  if (!parsed.autoStartProvided || parsed.autoStart === false) {
+    lastAutoStartImportText = null;
+    return;
+  }
+
+  if (parsed.autoStart === null) {
+    lastAutoStartImportText = null;
+    if (parsed.invalidSettings.length > 0) {
+      showAutoStartImportErrors(
+        parsed.invalidSettings,
+        `Auto-Start wurde nicht ausgeführt. ${parsed.autoStartError}`,
+      );
+    } else {
+      showAutoStartImportError(parsed.autoStartError);
+      dom.settingsImport.focus();
+    }
+    return;
+  }
+
+  if (!parsed.foundSettings) {
+    lastAutoStartImportText = null;
+    showAutoStartImportError(
+      "Für Auto-Start müssen gültige Einstellungen angegeben werden.",
+    );
+    dom.settingsImport.focus();
+    return;
+  }
+
+  if (parsed.invalidSettings.length > 0) {
+    lastAutoStartImportText = null;
+    showAutoStartImportErrors(parsed.invalidSettings);
+    return;
+  }
+
+  if (lastAutoStartImportText === rawText || autoStartImportInProgress) {
+    return;
+  }
+
+  lastAutoStartImportText = rawText;
+  autoStartImportInProgress = true;
+  try {
+    await startConfiguredSession();
+  } finally {
+    autoStartImportInProgress = false;
+  }
 }
 
 function parseSettingsParameters(rawText) {
@@ -529,12 +675,29 @@ function parseSettingsParameters(rawText) {
           : "http://localhost/";
       parameterText = new URL(parameterText, baseUrl).search.slice(1);
     } catch {
-      return { valid: false, foundSettings: false };
+      return {
+        valid: false,
+        foundSettings: false,
+        autoStartProvided: rawText.includes(`${AUTO_START_PARAMETER}=`),
+        parseError: "Die importierte URL ist ungültig.",
+      };
     }
   }
 
-  const parameters = new URLSearchParams(parameterText);
+  let parameters;
+  try {
+    parameters = new URLSearchParams(parameterText);
+  } catch {
+    return {
+      valid: false,
+      foundSettings: false,
+      autoStartProvided: parameterText.includes(`${AUTO_START_PARAMETER}=`),
+      parseError: "Die importierten Einstellungen konnten nicht gelesen werden.",
+    };
+  }
+
   const values = {};
+  const invalidSettings = [];
   let foundSettings = false;
 
   Object.keys(TEXT_SETTING_CONTROLS).forEach((name) => {
@@ -543,6 +706,11 @@ function parseSettingsParameters(rawText) {
       const importedValue = getValidTextSettingValue(name, parameters.get(name));
       if (importedValue.valid) {
         values[name] = importedValue.value;
+      } else {
+        invalidSettings.push({
+          name,
+          message: importedValue.message,
+        });
       }
     }
   });
@@ -555,6 +723,11 @@ function parseSettingsParameters(rawText) {
     const parsed = parseBooleanParameter(parameters.get(name));
     if (parsed !== null) {
       values[name] = parsed;
+    } else {
+      invalidSettings.push({
+        name,
+        message: "true, false, 1 oder 0 eingeben.",
+      });
     }
   });
 
@@ -566,23 +739,50 @@ function parseSettingsParameters(rawText) {
     const value = parameters.get(name);
     if (allowedValues.has(value)) {
       values[name] = value;
+    } else {
+      invalidSettings.push({
+        name,
+        message: "Ungültige Auswahl importiert.",
+      });
     }
   });
 
-  if (!foundSettings) {
-    return { valid: false, foundSettings: false };
+  const autoStartProvided = parameters.has(AUTO_START_PARAMETER);
+  const parsedAutoStart = autoStartProvided
+    ? parseBooleanParameter(parameters.get(AUTO_START_PARAMETER))
+    : false;
+
+  if (autoStartProvided && parsedAutoStart === null) {
+    return {
+      valid: true,
+      foundSettings,
+      values,
+      invalidSettings,
+      autoStartProvided: true,
+      autoStart: null,
+      autoStartError: "Auto-Start muss true, false, 1 oder 0 sein.",
+    };
   }
 
-  return { valid: true, foundSettings: true, values };
+  return {
+    valid: true,
+    foundSettings,
+    values,
+    invalidSettings,
+    autoStartProvided,
+    autoStart: parsedAutoStart,
+  };
 }
 
 function getValidTextSettingValue(name, rawValue) {
   const value = String(rawValue ?? "").trim();
   let valid = false;
+  let message = "Ungültigen Wert eingeben.";
 
   switch (name) {
     case "bpm":
       valid = parseIntegerField(value, 20, 300) !== null;
+      message = "Ganze BPM-Zahl von 20 bis 300 eingeben.";
       break;
     case "accent-repeat":
     case "increase-after":
@@ -590,29 +790,40 @@ function getValidTextSettingValue(name, rawValue) {
     case "session-end-beats":
     case "lock-beats":
       valid = parsePositiveInteger(value, Number.POSITIVE_INFINITY) !== null;
+      message = "Positive ganze Zahl eingeben.";
       break;
     case "increase-by":
       valid = parseIntegerField(value, 1, 20) !== null;
+      message = "Ganze Zahl von 1 bis 20 eingeben.";
       break;
     case "maximum-limit-stick":
     case "maximum-limit-reset":
     case "maximum-limit-reverse":
       valid = parseIntegerField(value, 60, 400) !== null;
+      message = "Ganzzahliges Limit von 60 bis 400 eingeben.";
       break;
     case "decrease-by-reverse":
       valid = parseIntegerField(value, 1, 50) !== null;
+      message = "Ganze Zahl von 1 bis 50 eingeben.";
       break;
     case "break-count":
       valid = value === "" || parsePositiveInteger(value, Number.POSITIVE_INFINITY) !== null;
+      message = "Positive ganze Zahl eingeben oder leer lassen.";
       break;
     case "break-seconds":
-      valid = value === "" || parseBreakInput(value).valid;
+      if (value === "") {
+        valid = true;
+      } else {
+        const parsedBreakInput = parseBreakInput(value);
+        valid = parsedBreakInput.valid;
+        message = parsedBreakInput.error;
+      }
       break;
     default:
       break;
   }
 
-  return { valid, value };
+  return { valid, value, message };
 }
 
 function parseBooleanParameter(rawValue) {
@@ -651,15 +862,39 @@ function applySettingsParameters(values) {
   }
 }
 
+function showAutoStartImportErrors(
+  invalidSettings,
+  message = "Auto-Start wurde nicht ausgeführt. Bitte markierte Einstellungen korrigieren.",
+) {
+  clearAllFieldErrors();
+  invalidSettings.forEach(({ name, message }) => {
+    setFieldError(name, message);
+  });
+  showAutoStartImportError(message);
+  getErrorTarget(invalidSettings[0].name)?.focus();
+}
+
+function showAutoStartImportError(message) {
+  setFieldError("settings-import", message);
+  dom.settingsStatus.classList.add("error-status");
+  dom.settingsStatus.textContent = message;
+}
+
 async function handleStart(event) {
   event.preventDefault();
   await startConfiguredSession();
 }
 
-async function handlePresetStart(values) {
-  applyPreset(values);
+async function handlePresetClick(preset) {
+  clearAllFieldErrors();
+  dom.settingsStatus.classList.remove("error-status");
+  dom.settingsStatus.textContent = "";
+  lastAutoStartImportText = null;
+  applyPreset(preset.values);
   syncSettingsVisibility();
-  await startConfiguredSession();
+  if (preset.autoStart === true) {
+    await startConfiguredSession();
+  }
 }
 
 function applyPreset(values) {

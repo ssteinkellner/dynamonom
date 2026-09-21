@@ -40,16 +40,22 @@
               role="group"
               aria-label="Voreinstellungen importieren und verfügbare Voreinstellungen"
             >
-              <input
-                id="settings-import"
-                class="settings-import-input"
-                type="text"
-                inputmode="url"
-                autocomplete="off"
-                spellcheck="false"
-                placeholder="Importieren"
-                aria-label="Einstellungen importieren"
-              />
+              <div id="settings-import-wrapper" class="settings-import-wrapper">
+                <label class="visually-hidden" for="settings-import">
+                  Einstellungen importieren
+                </label>
+                <input
+                  id="settings-import"
+                  class="settings-import-input"
+                  type="text"
+                  inputmode="url"
+                  autocomplete="off"
+                  spellcheck="false"
+                  placeholder="Importieren"
+                  aria-describedby="settings-import-error"
+                />
+                <span id="settings-import-error" class="field-error"></span>
+              </div>
             </div>
           </fieldset>
 
@@ -362,10 +368,34 @@
             </div>
           </fieldset>
 
-          <div class="button-row settings-actions">
-            <button id="export-button" class="secondary-button" type="button">
-              Einstellungen exportieren
-            </button>
+          <fieldset>
+            <legend>Einstellungen exportieren</legend>
+
+            <div class="field export-option">
+              <label class="checkbox-label" for="export-auto-start">
+                <input
+                  id="export-auto-start"
+                  type="checkbox"
+                  aria-describedby="export-auto-start-help"
+                />
+                <span>Auto-Start</span>
+              </label>
+              <p id="export-auto-start-help" class="field-help">
+                Beim Import startet die Session automatisch.
+              </p>
+            </div>
+
+            <div class="button-row export-actions">
+              <button id="export-settings-button" class="secondary-button" type="button">
+                Nur Einstellungen kopieren
+              </button>
+              <button id="export-url-button" class="secondary-button" type="button">
+                Ganze URL kopieren
+              </button>
+            </div>
+          </fieldset>
+
+          <div class="button-row settings-actions single-action">
             <button id="start-button" class="primary-button" type="submit">Start</button>
           </div>
         </form>

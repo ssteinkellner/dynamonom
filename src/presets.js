@@ -2,7 +2,8 @@
 
 window.METRONOME_PRESETS = Object.freeze({
   "120-150-2x10": Object.freeze({
-    label: "Start 120-150 : 2x10",
+    label: "120-150 : 2x10",
+    autoStart: true,
     values: Object.freeze({
       bpm: 120,
       accentuate: true,
@@ -24,7 +25,8 @@ window.METRONOME_PRESETS = Object.freeze({
     }),
   }),
   "130-200-4x5": Object.freeze({
-    label: "Start 130-200 : 4x5",
+    label: "130-200 : 4x5",
+    autoStart: true,
     values: Object.freeze({
       bpm: 130,
       accentuate: true,
