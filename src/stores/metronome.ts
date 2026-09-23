@@ -38,9 +38,11 @@ import type {
   ActionResult,
   ActiveBreak,
   BreakRecord,
+  MetronomeActionResult,
   RuntimeMetronomeSettings,
   SessionPhase,
   SessionReport,
+  StopwatchActionResult,
   TempoDirection,
 } from "../models/session.ts";
 import {
@@ -327,37 +329,54 @@ export const useMetronomeStore = defineStore("metronome", () => {
   function abortSession(): boolean {
     const action = currentAction.value;
     const result = currentActionResult.value;
-    if (!action || !result || result.status !== "active") {
+    if (
+      !action ||
+      !result ||
+      result.status !== "active" ||
+      action.type !== result.type
+    ) {
       return false;
     }
 
-    const abortedSettings =
-      action.type === ACTION_TYPES.METRONOME ? settings.value : action.settings;
-    if (!abortedSettings) {
-      return false;
-    }
-    if (
-      action.type === ACTION_TYPES.METRONOME &&
-      (phase.value === "paused" || phase.value === "resume-countdown")
-    ) {
-      resumeFromBreak("aborted", engine.now());
+    switch (result.type) {
+      case ACTION_TYPES.METRONOME:
+        if (action.type !== ACTION_TYPES.METRONOME || !settings.value) {
+          return false;
+        }
+        if (phase.value === "paused" || phase.value === "resume-countdown") {
+          resumeFromBreak("aborted", engine.now());
+        }
+        result.settings = cloneValue(settings.value);
+        result.beatCount = beatCount.value;
+        result.breakRecords = cloneBreakRecords(breakRecords.value);
+        result.endReason = "aborted";
+        break;
+      case ACTION_TYPES.SECONDS:
+        if (action.type !== ACTION_TYPES.SECONDS) {
+          return false;
+        }
+        result.settings = cloneValue(action.settings);
+        result.configuredSeconds = action.settings.seconds;
+        break;
+      case ACTION_TYPES.STOPWATCH:
+        if (action.type !== ACTION_TYPES.STOPWATCH) {
+          return false;
+        }
+        result.settings = cloneValue(action.settings);
+        result.formula = action.settings.formula;
+        result.rounding = action.settings.rounding;
+        result.roundingThreshold = action.settings.roundingThreshold;
+        break;
+      case ACTION_TYPES.MANUAL:
+        if (action.type !== ACTION_TYPES.MANUAL) {
+          return false;
+        }
+        result.settings = cloneValue(action.settings);
+        result.limitSeconds = action.settings.limitSeconds;
+        break;
     }
     result.status = "active-aborted";
     result.elapsedSeconds = getActiveActionElapsedSeconds();
-    result.settings = cloneValue(abortedSettings);
-    if (action.type === ACTION_TYPES.METRONOME) {
-      result.beatCount = beatCount.value;
-      result.breakRecords = cloneBreakRecords(breakRecords.value);
-      result.endReason = "aborted";
-    } else if (action.type === ACTION_TYPES.STOPWATCH) {
-      result.formula = action.settings.formula;
-      result.rounding = action.settings.rounding;
-      result.roundingThreshold = action.settings.roundingThreshold;
-    } else if (action.type === ACTION_TYPES.SECONDS) {
-      result.configuredSeconds = action.settings.seconds;
-    } else {
-      result.limitSeconds = action.settings.limitSeconds;
-    }
 
     engine.cancelAll();
     sessionToken.value += 1;
@@ -444,7 +463,7 @@ export const useMetronomeStore = defineStore("metronome", () => {
     currentActionIndex.value = nextIndex;
     const action = actionPlan.value[nextIndex];
     const result = actionResults.value[nextIndex];
-    if (!action || !result) {
+    if (!action || !result || action.type !== result.type) {
       throw new Error("The active action sequence is incomplete.");
     }
 
@@ -454,10 +473,18 @@ export const useMetronomeStore = defineStore("metronome", () => {
     activeElapsedSeconds.value = 0;
     secondsRemaining.value = 0;
 
-    if (action.type === ACTION_TYPES.METRONOME) {
-      startMetronomeAction(action, result);
-    } else {
-      startTimerAction(action);
+    switch (action.type) {
+      case ACTION_TYPES.METRONOME:
+        if (result.type !== ACTION_TYPES.METRONOME) {
+          throw new Error("Metronome action results must match their action.");
+        }
+        startMetronomeAction(action, result);
+        break;
+      case ACTION_TYPES.SECONDS:
+      case ACTION_TYPES.STOPWATCH:
+      case ACTION_TYPES.MANUAL:
+        startTimerAction(action);
+        break;
     }
   }
 
@@ -534,7 +561,8 @@ export const useMetronomeStore = defineStore("metronome", () => {
       !action ||
       !result ||
       result.status !== "active" ||
-      action.type === ACTION_TYPES.METRONOME
+      action.type === ACTION_TYPES.METRONOME ||
+      action.type !== result.type
     ) {
       return;
     }
@@ -545,13 +573,26 @@ export const useMetronomeStore = defineStore("metronome", () => {
     const elapsedSeconds = getActiveActionElapsedSeconds(now);
     result.status = "completed";
     result.elapsedSeconds = elapsedSeconds;
-    result.completedBy = completedBy;
-    if (action.type === ACTION_TYPES.SECONDS) {
+    if (
+      action.type === ACTION_TYPES.SECONDS &&
+      result.type === ACTION_TYPES.SECONDS
+    ) {
+      result.completedBy = completedBy;
       result.configuredSeconds = action.settings.seconds;
-    } else if (action.type === ACTION_TYPES.MANUAL) {
+    } else if (
+      action.type === ACTION_TYPES.MANUAL &&
+      result.type === ACTION_TYPES.MANUAL
+    ) {
+      result.completedBy = "manual";
       result.limitSeconds = action.settings.limitSeconds;
-    } else {
+    } else if (
+      action.type === ACTION_TYPES.STOPWATCH &&
+      result.type === ACTION_TYPES.STOPWATCH
+    ) {
+      result.completedBy = "manual";
       completeStopwatchResult(action, result, elapsedSeconds);
+    } else {
+      throw new Error("The active action and result types do not match.");
     }
     activeActionStartedAt.value = null;
     startNextAction();
@@ -559,7 +600,7 @@ export const useMetronomeStore = defineStore("metronome", () => {
 
   function completeStopwatchResult(
     action: StopwatchAction,
-    result: ActionResult,
+    result: StopwatchActionResult,
     elapsedSeconds: number,
   ): void {
     const { settings: stopwatchSettings } = action;
@@ -602,7 +643,7 @@ export const useMetronomeStore = defineStore("metronome", () => {
 
   function startMetronomeAction(
     action: MetronomeAction,
-    result: ActionResult,
+    result: MetronomeActionResult,
   ): void {
     const derived = getDerivedStopwatchEnd(currentActionIndex.value);
     const runtimeSettings = createRuntimeMetronomeSettings(
@@ -689,9 +730,13 @@ export const useMetronomeStore = defineStore("metronome", () => {
       const result = actionResults.value.find(
         (entry) => entry.id === source.id,
       );
-      const appliedBeats = result?.appliedBeats;
+      if (!result || result.type !== ACTION_TYPES.STOPWATCH) {
+        throw new Error(
+          "A preceding Stoppuhr action has no valid applied beat result.",
+        );
+      }
+      const appliedBeats = result.appliedBeats;
       if (
-        !result ||
         !source.id ||
         typeof appliedBeats !== "number" ||
         !Number.isSafeInteger(appliedBeats) ||
@@ -1041,7 +1086,12 @@ export const useMetronomeStore = defineStore("metronome", () => {
     endReason: "automatic" | "manual",
   ): void {
     const result = currentActionResult.value;
-    if (!result || result.status !== "active" || !settings.value) {
+    if (
+      !result ||
+      result.type !== ACTION_TYPES.METRONOME ||
+      result.status !== "active" ||
+      !settings.value
+    ) {
       return;
     }
     result.status = "completed";
@@ -1144,30 +1194,41 @@ export const useMetronomeStore = defineStore("metronome", () => {
 });
 
 function createPendingActionResult(action: Action): ActionResult {
-  return {
+  const base = {
     id: action.id,
-    type: action.type,
     name: action.name,
-    status: "not-started",
-    settings: cloneAction(action).settings,
+    status: "not-started" as const,
   };
+  switch (action.type) {
+    case ACTION_TYPES.METRONOME:
+      return {
+        ...base,
+        type: action.type,
+        settings: cloneValue(action.settings),
+      };
+    case ACTION_TYPES.SECONDS:
+      return {
+        ...base,
+        type: action.type,
+        settings: cloneValue(action.settings),
+      };
+    case ACTION_TYPES.STOPWATCH:
+      return {
+        ...base,
+        type: action.type,
+        settings: cloneValue(action.settings),
+      };
+    case ACTION_TYPES.MANUAL:
+      return {
+        ...base,
+        type: action.type,
+        settings: cloneValue(action.settings),
+      };
+  }
 }
 
 function cloneActionResults(results: readonly ActionResult[]): ActionResult[] {
-  return results.map((result) => ({
-    ...result,
-    settings: cloneValue(result.settings),
-    breakRecords: result.breakRecords
-      ? cloneBreakRecords(result.breakRecords)
-      : undefined,
-    derivedEnd: result.derivedEnd
-      ? {
-          total: result.derivedEnd.total,
-          sources: [...result.derivedEnd.sources],
-        }
-      : result.derivedEnd,
-    variables: result.variables ? { ...result.variables } : undefined,
-  }));
+  return results.map((result) => cloneValue(result));
 }
 
 function cloneBreakRecords(records: readonly BreakRecord[]): BreakRecord[] {

@@ -1,9 +1,15 @@
+import { ACTION_TYPES } from "../action-model.ts";
 import type {
   Action,
   ActionType,
   BreakMode,
   MaximumMode,
+  MetronomeAction,
+  MetronomeSettings,
   NumericSetting,
+  SecondsAction,
+  StopwatchAction,
+  ManualAction,
 } from "../action-model.ts";
 import type {
   PreTimerFormulaVariables,
@@ -66,17 +72,36 @@ export interface DerivedStopwatchEnd {
   sources: string[];
 }
 
-export interface ActionResult {
+interface ActionResultBase<TType extends ActionType, TSettings> {
   id: string;
-  type: ActionType;
+  type: TType;
   name: string;
   status: ActionResultStatus;
-  settings: Action["settings"] | RuntimeMetronomeSettings;
+  settings: TSettings;
   startedAt?: number;
   elapsedSeconds?: number;
+}
+
+export interface MetronomeActionResult
+  extends ActionResultBase<
+    typeof ACTION_TYPES.METRONOME,
+    MetronomeAction["settings"] | RuntimeMetronomeSettings
+  > {
+  beatCount?: number;
+  breakRecords?: BreakRecord[];
+  endReason?: "automatic" | "manual" | "aborted";
+  derivedEnd?: DerivedStopwatchEnd | null;
+}
+
+export interface SecondsActionResult
+  extends ActionResultBase<SecondsAction["type"], SecondsAction["settings"]> {
   configuredSeconds?: number;
   completedBy?: "auto" | "manual";
-  limitSeconds?: number | null;
+}
+
+export interface StopwatchActionResult
+  extends ActionResultBase<StopwatchAction["type"], StopwatchAction["settings"]> {
+  completedBy?: "manual";
   formula?: string;
   rounding?: PreTimerRounding;
   roundingThreshold?: number | null;
@@ -87,11 +112,19 @@ export interface ActionResult {
   invalidReason?: string | null;
   appliedBeats?: number;
   clamped?: boolean;
-  beatCount?: number;
-  breakRecords?: BreakRecord[];
-  endReason?: "automatic" | "manual" | "aborted";
-  derivedEnd?: DerivedStopwatchEnd | null;
 }
+
+export interface ManualActionResult
+  extends ActionResultBase<ManualAction["type"], ManualAction["settings"]> {
+  completedBy?: "manual";
+  limitSeconds?: number | null;
+}
+
+export type ActionResult =
+  | MetronomeActionResult
+  | SecondsActionResult
+  | StopwatchActionResult
+  | ManualActionResult;
 
 export interface SessionReport {
   actions: ActionResult[];

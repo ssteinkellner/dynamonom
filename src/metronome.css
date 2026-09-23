@@ -56,7 +56,8 @@ body {
 
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
 }
 
@@ -110,6 +111,17 @@ select {
   background: var(--surface);
 }
 
+textarea {
+  width: 100%;
+  min-height: 6rem;
+  border: 0.1rem solid var(--border);
+  border-radius: 0.5rem;
+  padding: 0.65rem 0.75rem;
+  color: var(--text);
+  background: var(--surface);
+  resize: vertical;
+}
+
 input[type="checkbox"],
 input[type="radio"] {
   width: 1.25rem;
@@ -121,6 +133,10 @@ input[type="radio"] {
 }
 
 input[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+
+textarea[aria-invalid="true"] {
   border-color: var(--danger);
 }
 
@@ -940,6 +956,10 @@ th {
   }
 
   .button-row.settings-actions {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr);
+  }
+
+  .button-row.action-list-actions {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr);
   }
 

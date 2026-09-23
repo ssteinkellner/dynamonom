@@ -86,8 +86,13 @@ test("seconds actions advance automatically and abort produces a partial report"
 
   await vi.advanceTimersByTimeAsync(1000);
 
-  assert.equal(store.actionResults[0]?.status, "completed");
-  assert.equal(store.actionResults[0]?.completedBy, "auto");
+  const secondsResult = store.actionResults[0];
+  assert.ok(secondsResult);
+  if (secondsResult.type !== ACTION_TYPES.SECONDS) {
+    throw new Error("Expected a seconds-action result.");
+  }
+  assert.equal(secondsResult.status, "completed");
+  assert.equal(secondsResult.completedBy, "auto");
   assert.equal(store.currentAction?.type, ACTION_TYPES.METRONOME);
   assert.equal(store.phase, "countdown");
   assert.equal(store.abortSession(), true);
@@ -129,9 +134,14 @@ test("metronome countdown and automatic end advance to the next action", async (
 
   await vi.advanceTimersByTimeAsync(3500);
 
-  assert.equal(store.actionResults[0]?.status, "completed");
-  assert.equal(store.actionResults[0]?.endReason, "automatic");
-  assert.equal(store.actionResults[0]?.beatCount, 2);
+  const metronomeResult = store.actionResults[0];
+  assert.ok(metronomeResult);
+  if (metronomeResult.type !== ACTION_TYPES.METRONOME) {
+    throw new Error("Expected a metronome-action result.");
+  }
+  assert.equal(metronomeResult.status, "completed");
+  assert.equal(metronomeResult.endReason, "automatic");
+  assert.equal(metronomeResult.beatCount, 2);
   assert.equal(store.currentAction?.type, ACTION_TYPES.MANUAL);
   assert.equal(store.phase, "action-manuell");
 });
@@ -164,7 +174,12 @@ test("stopwatch results determine the next metronome's end and lock", async () =
   await vi.advanceTimersByTimeAsync(2000);
   assert.equal(store.continueTimerAction(), true);
 
-  assert.equal(store.actionResults[0]?.appliedBeats, 2);
+  const stopwatchResult = store.actionResults[0];
+  assert.ok(stopwatchResult);
+  if (stopwatchResult.type !== ACTION_TYPES.STOPWATCH) {
+    throw new Error("Expected a stopwatch-action result.");
+  }
+  assert.equal(stopwatchResult.appliedBeats, 2);
   assert.equal(store.currentAction?.type, ACTION_TYPES.METRONOME);
   assert.equal(store.settings?.derivedEndTotal, 2);
   assert.equal(store.settings?.sessionEndBeats, 2);
@@ -195,5 +210,10 @@ test("manual metronome pauses resume and are recorded before abort", async () =>
   assert.equal(store.phase, "running");
   assert.match(store.breakRecords[0]?.ended ?? "", /Manuell fortgesetzt/);
   assert.equal(store.abortSession(), true);
-  assert.equal(store.report?.actions[0]?.breakRecords?.length, 1);
+  const reportResult = store.report?.actions[0];
+  assert.ok(reportResult);
+  if (reportResult.type !== ACTION_TYPES.METRONOME) {
+    throw new Error("Expected the report to contain a metronome result.");
+  }
+  assert.equal(reportResult.breakRecords?.length, 1);
 });

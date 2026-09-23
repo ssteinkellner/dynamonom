@@ -6,13 +6,18 @@ copilot please ignore this section.
 
 - add "Lock abort" for exports
 
-This is a browser-based metronome and ordered action runner. The application
-uses Vite with markup in `src/index.html`; its current controller is
-`src/metronome.js`. Action/timer models, metronome validation, built-in presets,
-and the Pinia session store are typed modules in `src/action-model.ts`,
-`src/pre-timer-model.ts`, `src/models/metronome-settings.ts`,
-`src/presets.ts`, and `src/stores/metronome.ts`; audio/timer resources are
-managed by `src/services/session-engine.ts`.
+This is a browser-based metronome and ordered action runner built with Vue 3,
+TypeScript, and Pinia. `src/main.ts` mounts `src/App.vue`, which coordinates the
+presets, settings, execution, and report views without a router. The
+settings/action editors and each action's execution view are separate Vue
+components under `src/components/`.
+
+Typed action/timer models, metronome validation, built-in presets, settings
+transfer, and report text are implemented in `src/action-model.ts`,
+`src/pre-timer-model.ts`, `src/models/`, and `src/presets.ts`. The Pinia session
+store is in `src/stores/metronome.ts`; browser audio and timer resources are
+managed by `src/services/session-engine.ts`. The standalone service worker,
+manifest, and icons remain under `src/public/`.
 
 ## Local development and phone installation
 
