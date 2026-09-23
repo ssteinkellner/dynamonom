@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { ACTION_TYPES, getActionTypeLabel } from "../../action-model.ts";
 import type { StopwatchAction } from "../../action-model.ts";
 import { useMetronomeStore } from "../../stores/metronome.ts";
 import ActionExecutionFrame from "./ActionExecutionFrame.vue";
@@ -22,7 +21,6 @@ function abort(): void {
 <template>
   <ActionExecutionFrame
     :action-name="action.name"
-    :action-type-label="getActionTypeLabel(ACTION_TYPES.STOPWATCH)"
     :progress-label="store.progressLabel"
     :hide-progress="store.hideProgress"
     :message="store.executionMessage"
@@ -31,15 +29,15 @@ function abort(): void {
     <strong class="action-clock">{{ formatTime(store.activeElapsedSeconds) }}</strong>
     <p class="action-options-summary">Formel: {{ action.settings.formula }}</p>
     <div class="button-row action-execution-actions">
+      <button class="danger-button" type="button" @click="abort">
+        Abbrechen
+      </button>
       <button
         class="primary-button"
         type="button"
         @click="store.continueTimerAction()"
       >
         Weiter
-      </button>
-      <button class="danger-button" type="button" @click="abort">
-        Abbrechen
       </button>
     </div>
   </ActionExecutionFrame>

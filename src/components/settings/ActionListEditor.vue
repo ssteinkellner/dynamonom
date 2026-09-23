@@ -20,20 +20,15 @@ import { useMetronomeStore } from "../../stores/metronome.ts";
 import ActionEditor from "./ActionEditor.vue";
 
 const store = useMetronomeStore();
-const emit = defineEmits<{
-  start: [];
-  back: [];
-}>();
 
 const actionsFieldset = ref<HTMLElement | null>(null);
 const editorWrapper = ref<HTMLElement | null>(null);
-const typeSelect = ref<HTMLSelectElement | null>(null);
 const draft = ref<Action | null>(null);
 const originalDraft = ref<Action | null>(null);
 const draftMode = ref<"add" | "edit" | null>(null);
 const draftIndex = ref<number | null>(null);
 const editorErrors = ref<ActionValidationError[]>([]);
-const chooserVisible = ref(false);
+const newActionType = ref("");
 const draggedActionId = ref<string | null>(null);
 
 const actionTypes: readonly { value: ActionType; label: string }[] = [
@@ -114,7 +109,6 @@ function openDraft(mode: "add" | "edit", action: Action, index: number): void {
   originalDraft.value = mode === "edit" ? cloneAction(action) : null;
   draftIndex.value = index;
   editorErrors.value = [];
-  chooserVisible.value = false;
   void nextTick(() => {
     scrollTo(editorWrapper.value);
     document.getElementById("action-editor-title")?.focus();
@@ -134,16 +128,6 @@ function openActionEditor(action: Action, index: number): void {
   openDraft("edit", action, index);
 }
 
-function showTypeChooser(): void {
-  if (!closeIfAllowed()) {
-    return;
-  }
-  chooserVisible.value = !chooserVisible.value;
-  if (chooserVisible.value) {
-    void nextTick(() => typeSelect.value?.focus());
-  }
-}
-
 function isActionType(value: string): value is ActionType {
   return actionTypes.some((option) => option.value === value);
 }
@@ -161,10 +145,14 @@ function createActionDraft(type: ActionType): Action {
 
 function beginAddAction(event: Event): void {
   const select = event.target;
-  if (!(select instanceof HTMLSelectElement) || !isActionType(select.value)) {
+  if (!(select instanceof HTMLSelectElement)) {
     return;
   }
   const type = select.value;
+  newActionType.value = "";
+  if (!isActionType(type) || !closeIfAllowed()) {
+    return;
+  }
   openDraft(
     "add",
     createActionDraft(type),
@@ -263,18 +251,6 @@ function dropOnAction(actionId: string): void {
   moveAction(sourceId, targetIndex);
 }
 
-function requestStart(): void {
-  if (closeIfAllowed()) {
-    emit("start");
-  }
-}
-
-function requestBack(): void {
-  if (closeIfAllowed()) {
-    emit("back");
-  }
-}
-
 defineExpose({ closeIfAllowed });
 </script>
 
@@ -354,28 +330,14 @@ defineExpose({ closeIfAllowed });
       </table>
     </div>
 
-    <div class="button-row action-list-actions">
-      <button
-        class="secondary-button"
-        type="button"
-        @click="showTypeChooser"
-      >
-        Aktion hinzufügen
-      </button>
-      <button class="primary-button" type="button" @click="requestStart">
-        Starten
-      </button>
-    </div>
-
-    <div v-if="chooserVisible" class="field input-wrapper">
-      <label for="new-action-type">Aktionstyp auswählen</label>
+    <div class="field input-wrapper action-add-wrapper">
       <select
         id="new-action-type"
-        ref="typeSelect"
-        value=""
+        :value="newActionType"
+        aria-label="Aktion hinzufügen"
         @change="beginAddAction"
       >
-        <option value="" disabled>Typ auswählen …</option>
+        <option value="" disabled>Aktion hinzufügen</option>
         <option
           v-for="option in actionTypes"
           :key="option.value"
@@ -395,12 +357,6 @@ defineExpose({ closeIfAllowed });
         @save="saveDraft"
         @cancel="closeIfAllowed"
       />
-    </div>
-
-    <div class="button-row settings-actions">
-      <button class="secondary-button" type="button" @click="requestBack">
-        Zurück zu Voreinstellungen
-      </button>
     </div>
   </fieldset>
 </template>

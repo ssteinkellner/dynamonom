@@ -23,6 +23,7 @@ afterEach(() => {
 test("the presets view opens first and manual settings can edit the initial action", async () => {
   const wrapper = mountApp();
   assert.equal(wrapper.get("h1").text(), "Metronom - Voreinstellungen");
+  assert.equal(wrapper.find("#settings-import-error").exists(), false);
 
   await wrapper.get("button.secondary-button").trigger("click");
   assert.equal(wrapper.get("h1").text(), "Metronom-Einstellungen");
@@ -50,7 +51,7 @@ test("dirty action drafts guard navigation and can be discarded", async () => {
 
   const backButton = wrapper
     .findAll("button")
-    .find((button) => button.text() === "Zurück zu Voreinstellungen");
+    .find((button) => button.text() === "Zurück zu den Voreinstellungen");
   assert.ok(backButton);
   await backButton.trigger("click");
   assert.equal(wrapper.get("h1").text(), "Metronom-Einstellungen");
@@ -59,6 +60,50 @@ test("dirty action drafts guard navigation and can be discarded", async () => {
   vi.mocked(window.confirm).mockReturnValue(true);
   await backButton.trigger("click");
   assert.equal(wrapper.get("h1").text(), "Metronom - Voreinstellungen");
+  wrapper.unmount();
+});
+
+test("action type dropdown creates a draft and returns to its disabled default", async () => {
+  const wrapper = mountApp();
+  await wrapper.get("button.secondary-button").trigger("click");
+
+  const dropdown = wrapper.get<HTMLSelectElement>("#new-action-type");
+  assert.equal(dropdown.element.value, "");
+  assert.equal(dropdown.get("option[value='']").text(), "Aktion hinzufügen");
+  assert.equal(dropdown.get("option[value='']").attributes("disabled"), "");
+
+  await dropdown.setValue(ACTION_TYPES.SECONDS);
+  await flushPromises();
+
+  assert.equal(wrapper.get<HTMLSelectElement>("#new-action-type").element.value, "");
+  assert.equal(wrapper.get("#action-editor-title").text(), "Sekunden-Einstellungen");
+  await wrapper.get("#action-seconds").setValue("15");
+  const saveButton = wrapper
+    .findAll("button")
+    .find((button) => button.text() === "Bestätigen");
+  assert.ok(saveButton);
+  await saveButton.trigger("click");
+
+  assert.match(wrapper.get("#actions-table").text(), /Sekunden.*15 Sekunden/);
+  wrapper.unmount();
+});
+
+test("settings navigation and start controls follow the final settings section", async () => {
+  const wrapper = mountApp();
+  await wrapper.get("button.secondary-button").trigger("click");
+
+  const settingsView = wrapper.get(".view");
+  assert.equal(
+    settingsView.element.lastElementChild?.classList.contains("settings-actions"),
+    true,
+  );
+  assert.deepEqual(
+    settingsView
+      .find(".settings-actions")
+      .findAll("button")
+      .map((button) => button.text()),
+    ["Zurück zu den Voreinstellungen", "Starten"],
+  );
   wrapper.unmount();
 });
 

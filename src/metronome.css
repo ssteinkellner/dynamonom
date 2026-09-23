@@ -808,8 +808,8 @@ table {
   color: var(--muted);
 }
 
-.action-execution-card h3 {
-  margin: 0.5rem 0 0;
+.action-execution-card h2 {
+  margin: 0 0 1rem;
   font-size: 1.7rem;
 }
 
@@ -828,6 +828,10 @@ table {
 
 .action-execution-actions {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.action-execution-actions .full-width-button {
+  grid-column: 1 / -1;
 }
 
 .action-report-sections {
@@ -956,10 +960,6 @@ th {
   }
 
   .button-row.settings-actions {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr);
-  }
-
-  .button-row.action-list-actions {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr);
   }
 

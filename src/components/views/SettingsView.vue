@@ -32,6 +32,18 @@ function canChangeConfiguration(): boolean {
   return actionListEditor.value?.closeIfAllowed() === true;
 }
 
+function requestStart(): void {
+  if (canChangeConfiguration()) {
+    emit("start");
+  }
+}
+
+function requestBack(): void {
+  if (canChangeConfiguration()) {
+    emit("back");
+  }
+}
+
 function updateBooleanSetting(
   setting: "hideProgress" | "autoStart",
   event: Event,
@@ -133,8 +145,6 @@ async function exportSettings(format: "settings" | "url"): Promise<void> {
 
     <ActionListEditor
       ref="actionListEditor"
-      @start="emit('start')"
-      @back="emit('back')"
     />
 
     <fieldset class="global-settings">
@@ -195,5 +205,14 @@ async function exportSettings(format: "settings" | "url"): Promise<void> {
         {{ exportStatus }}
       </p>
     </fieldset>
+
+    <div class="button-row settings-actions">
+      <button class="secondary-button" type="button" @click="requestBack">
+        Zurück zu den Voreinstellungen
+      </button>
+      <button class="primary-button" type="button" @click="requestStart">
+        Starten
+      </button>
+    </div>
   </section>
 </template>

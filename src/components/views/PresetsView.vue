@@ -56,12 +56,13 @@ function processPaste(): void {
             placeholder="Importieren"
             :value="importText"
             :aria-invalid="importInvalid ? 'true' : undefined"
-            aria-describedby="settings-import-error"
+            :aria-describedby="importError ? 'settings-import-error' : undefined"
             @input="updateImportText"
             @keydown.enter.prevent="emit('import')"
             @paste="processPaste"
           />
           <span
+            v-if="importError"
             id="settings-import-error"
             class="field-error"
             role="alert"

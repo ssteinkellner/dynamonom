@@ -50,13 +50,16 @@ Selecting a preset loads its ordered actions; presets with `autoStart: true`
 start immediately. **Manuell** opens Settings.
 
 The Settings view contains an ordered **Aktionen** table. Drag rows or use
-Alt+Arrow keys to reorder them. Add an action with the plus button; choosing
-its type opens its editor below the table. Action names are required and
-unique, ignoring case. Editing is transactional: **Bestätigen** saves the
-draft, **Abbrechen** discards it, and errors keep the editor open. Changing
-actions, leaving Settings, starting, or exporting is blocked or confirmed as
-appropriate while a draft is unresolved. The table can be empty while editing,
-but starting requires at least one **Metronom** action.
+Alt+Arrow keys to reorder them. Add an action with the full-width
+**Aktion hinzufügen** dropdown; choosing a type opens its editor below the
+table and resets the dropdown. Action names are required and unique, ignoring
+case. Editing is transactional: **Bestätigen** saves the draft,
+**Abbrechen** discards it, and errors keep the editor open. Changing actions,
+leaving Settings, starting, or exporting is blocked or confirmed as appropriate
+while a draft is unresolved. The table can be empty while editing, but
+starting requires at least one **Metronom** action. The **Zurück zu den
+Voreinstellungen** and **Starten** buttons appear below the final settings
+section.
 
 **Globale Einstellungen** includes the unchecked-by-default **Fortschritt
 ausblenden** option. Progress is otherwise shown as **Aktion n von N** on
