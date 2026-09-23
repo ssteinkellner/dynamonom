@@ -1,7 +1,5 @@
 "use strict";
 
-export const PRE_TIMER_PAYLOAD_VERSION = 1;
-
 export const PRE_TIMER_TYPES = Object.freeze({
   SECONDS: "sekunden",
   STOPWATCH: "stoppuhr",
@@ -63,6 +61,8 @@ export function createDefaultPreTimer(type = PRE_TIMER_TYPES.SECONDS) {
       formula: "sekunden",
       rounding: PRE_TIMER_ROUNDING.FLOOR,
       roundingThreshold: null,
+      min: 10,
+      max: null,
     };
   }
 
@@ -81,20 +81,6 @@ export function createDefaultPreTimer(type = PRE_TIMER_TYPES.SECONDS) {
     name: getPreTimerDefaultName(PRE_TIMER_TYPES.SECONDS),
     seconds: 10,
   };
-}
-
-export function clonePreTimer(preTimer) {
-  if (!preTimer) {
-    return preTimer;
-  }
-  return {
-    ...preTimer,
-    id: preTimer.id || createPreTimerId(),
-  };
-}
-
-export function clonePreTimers(preTimers) {
-  return Array.isArray(preTimers) ? preTimers.map(clonePreTimer) : [];
 }
 
 export function parsePreTimerInteger(rawValue, min, max, allowBlank = false) {
@@ -117,7 +103,7 @@ export function normalizePreTimerDefinition(rawDefinition, { generateId = true }
   if (!rawDefinition || typeof rawDefinition !== "object" || Array.isArray(rawDefinition)) {
     return {
       valid: false,
-      errors: { row: "Eine gültige Vorlaufzeit-Definition fehlt." },
+      errors: { row: "Eine gültige Aktionsdefinition fehlt." },
     };
   }
 
@@ -125,7 +111,7 @@ export function normalizePreTimerDefinition(rawDefinition, { generateId = true }
   const errors = {};
   const name = String(rawDefinition.name ?? "").trim();
   if (!Object.prototype.hasOwnProperty.call(PRE_TIMER_TYPE_LABELS, type)) {
-    errors.type = "Ungültigen Vorlaufzeit-Typ auswählen.";
+    errors.type = "Ungültigen Aktionstyp auswählen.";
   }
   if (!name) {
     errors.name = "Einen Namen eingeben.";
@@ -151,6 +137,12 @@ export function normalizePreTimerDefinition(rawDefinition, { generateId = true }
     } else if (!parsedFormula.valid) {
       errors.formula = parsedFormula.error;
     }
+    if (
+      isStaticPreTimerFormula(formula) &&
+      (!Number.isSafeInteger(Number(formula)) || Number(formula) < 1)
+    ) {
+      errors.formula = "Eine positive sichere ganze Zahl eingeben.";
+    }
 
     const rounding = rawDefinition.rounding;
     if (!Object.prototype.hasOwnProperty.call(PRE_TIMER_ROUNDING_LABELS, rounding)) {
@@ -168,6 +160,33 @@ export function normalizePreTimerDefinition(rawDefinition, { generateId = true }
       }
     }
 
+    const staticFormula = isStaticPreTimerFormula(formula);
+    const minimumRaw = String(rawDefinition.min ?? "10").trim();
+    const minimum = parsePreTimerInteger(
+      minimumRaw,
+      1,
+      Number.MAX_SAFE_INTEGER,
+    );
+    const maximumRaw = String(rawDefinition.max ?? "").trim();
+    const maximum =
+      maximumRaw === ""
+        ? null
+        : parsePreTimerInteger(maximumRaw, 1, Number.MAX_SAFE_INTEGER);
+    if (!staticFormula) {
+      if (minimum === null) {
+        errors.min = "Eine positive ganze Mindestzahl eingeben.";
+      }
+      if (maximumRaw !== "" && maximum === null) {
+        errors.max = "Eine positive ganze Höchstzahl eingeben oder leer lassen.";
+      } else if (
+        maximum !== null &&
+        minimum !== null &&
+        maximum < minimum
+      ) {
+        errors.max = "Die Höchstzahl darf nicht kleiner als die Mindestzahl sein.";
+      }
+    }
+
     normalized = {
       id: rawDefinition.id || (generateId ? createPreTimerId() : undefined),
       type,
@@ -175,6 +194,8 @@ export function normalizePreTimerDefinition(rawDefinition, { generateId = true }
       formula,
       rounding,
       roundingThreshold,
+      min: minimum ?? 10,
+      max: maximum,
     };
   } else if (type === PRE_TIMER_TYPES.MANUAL) {
     const limitSeconds = parsePreTimerInteger(rawDefinition.limitSeconds, 1, 600, true);
@@ -199,45 +220,6 @@ export function normalizePreTimerDefinition(rawDefinition, { generateId = true }
   return { valid: true, errors: {}, value: normalized };
 }
 
-export function validatePreTimerRows(preTimers) {
-  if (!Array.isArray(preTimers)) {
-    return {
-      valid: false,
-      errors: [{ index: -1, field: "pre-timers", message: "Vorlaufzeiten müssen eine Liste sein." }],
-      rows: [],
-    };
-  }
-
-  const rows = [];
-  const errors = [];
-  const names = new Map();
-
-  preTimers.forEach((preTimer, index) => {
-    const normalized = normalizePreTimerDefinition(preTimer, { generateId: false });
-    if (!normalized.valid) {
-      Object.entries(normalized.errors).forEach(([field, message]) => {
-        errors.push({ index, field, message });
-      });
-      return;
-    }
-
-    const normalizedName = normalized.value.name.toLocaleLowerCase();
-    const previousIndex = names.get(normalizedName);
-    if (previousIndex !== undefined) {
-      errors.push({
-        index,
-        field: "name",
-        message: `Der Name muss eindeutig sein; "${preTimers[previousIndex].name}" ist bereits vergeben.`,
-      });
-      return;
-    }
-    names.set(normalizedName, index);
-    rows.push(normalized.value);
-  });
-
-  return { valid: errors.length === 0, errors, rows };
-}
-
 export function getPreTimerOptionsSummary(preTimer) {
   if (preTimer.type === PRE_TIMER_TYPES.SECONDS) {
     return `${preTimer.seconds} Sekunden`;
@@ -248,103 +230,14 @@ export function getPreTimerOptionsSummary(preTimer) {
       preTimer.rounding === PRE_TIMER_ROUNDING.ROUND
         ? ` ab ${preTimer.roundingThreshold ?? 30}s`
         : "";
-    return `Formel: ${preTimer.formula}; Rundung: ${rounding}${threshold}`;
+    const bounds = isStaticPreTimerFormula(preTimer.formula)
+      ? ""
+      : `; Min: ${preTimer.min}; Max: ${preTimer.max ?? "unbegrenzt"}`;
+    return `Formel: ${preTimer.formula}; Rundung: ${rounding}${threshold}${bounds}`;
   }
   return preTimer.limitSeconds === null
     ? "Ohne Limit"
     : `Limit Sekunden: ${preTimer.limitSeconds}`;
-}
-
-export function serializePreTimerPayload(preTimers) {
-  const rows = preTimers.map((preTimer) => {
-    const compact = {
-      t: preTimer.type,
-      n: preTimer.name,
-    };
-    if (preTimer.type === PRE_TIMER_TYPES.SECONDS) {
-      compact.s = preTimer.seconds;
-    } else if (preTimer.type === PRE_TIMER_TYPES.STOPWATCH) {
-      compact.f = preTimer.formula;
-      compact.r = preTimer.rounding;
-      if (preTimer.rounding === PRE_TIMER_ROUNDING.ROUND && preTimer.roundingThreshold !== null) {
-        compact.rt = preTimer.roundingThreshold;
-      }
-    } else if (preTimer.limitSeconds !== null) {
-      compact.l = preTimer.limitSeconds;
-    }
-    return compact;
-  });
-
-  return JSON.stringify({
-    v: PRE_TIMER_PAYLOAD_VERSION,
-    r: rows,
-  });
-}
-
-export function deserializePreTimerPayload(rawPayload) {
-  let payload;
-  try {
-    payload = JSON.parse(String(rawPayload));
-  } catch {
-    return { valid: false, error: "Die Vorlaufzeiten konnten nicht gelesen werden." };
-  }
-
-  if (
-    !payload ||
-    typeof payload !== "object" ||
-    Array.isArray(payload) ||
-    payload.v !== PRE_TIMER_PAYLOAD_VERSION ||
-    !Array.isArray(payload.r)
-  ) {
-    return { valid: false, error: "Die Version der Vorlaufzeiten ist ungültig." };
-  }
-
-  const rawRows = payload.r.map((row) => {
-    if (!row || typeof row !== "object" || Array.isArray(row)) {
-      return null;
-    }
-    if (row.t === PRE_TIMER_TYPES.SECONDS) {
-      return {
-        type: row.t,
-        name: row.n,
-        seconds: row.s,
-      };
-    }
-    if (row.t === PRE_TIMER_TYPES.STOPWATCH) {
-      return {
-        type: row.t,
-        name: row.n,
-        formula: row.f,
-        rounding: row.r,
-        roundingThreshold: row.rt,
-      };
-    }
-    if (row.t === PRE_TIMER_TYPES.MANUAL) {
-      return {
-        type: row.t,
-        name: row.n,
-        limitSeconds: row.l,
-      };
-    }
-    return null;
-  });
-
-  if (rawRows.some((row) => row === null)) {
-    return { valid: false, error: "Eine Vorlaufzeit enthält ungültige Daten." };
-  }
-
-  const validation = validatePreTimerRows(rawRows);
-  if (!validation.valid) {
-    return {
-      valid: false,
-      error: validation.errors[0]?.message || "Die Vorlaufzeiten sind ungültig.",
-    };
-  }
-
-  return {
-    valid: true,
-    rows: validation.rows.map((row) => ({ ...row, id: createPreTimerId() })),
-  };
 }
 
 export function getPreTimerFormulaVariables(elapsedSeconds, rounding, roundingThreshold) {
@@ -495,6 +388,10 @@ export function parsePreTimerFormula(formula) {
     return { valid: false, error: "Die Formel enthält ein ungültiges Zeichen." };
   }
   return { valid: true, ast: parsed.node };
+}
+
+export function isStaticPreTimerFormula(formula) {
+  return /^\d+$/.test(String(formula ?? "").trim());
 }
 
 export function evaluatePreTimerFormula(formula, variables) {

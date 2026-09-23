@@ -1,19 +1,23 @@
 import {
+  ACTION_TYPES,
+  ACTIONS_VERSION,
+  cloneAction,
+  cloneActions,
+  createDefaultAction,
+  getActionTypeLabel,
+  normalizeActionDefinition,
+  parseActionsPayload,
+  serializeActionsPayload,
+  validateActionDefinitions,
+} from "./action-model.js";
+import {
   PRE_TIMER_ROUNDING,
-  PRE_TIMER_TYPES,
-  clonePreTimers,
-  createDefaultPreTimer,
-  deserializePreTimerPayload,
   evaluatePreTimerFormula,
   formatPreTimerDuration,
-  getPreTimerDefaultName,
   getPreTimerFormulaVariables,
   getPreTimerOptionsSummary,
   getPreTimerRoundingLabel,
-  getPreTimerTypeLabel,
-  normalizePreTimerDefinition,
-  serializePreTimerPayload,
-  validatePreTimerRows,
+  isStaticPreTimerFormula,
 } from "./pre-timer-model.js";
 
 "use strict";
@@ -46,7 +50,6 @@ const TONE = Object.freeze({
   peakGain: 0.18,
 });
 
-const REPORT_BREAKS_HEADING = "gebrauchte Pausen";
 const PRE_TIMER_FORMULA_PLACEHOLDERS = new Set([
   "minuten",
   "summe-minuten",
@@ -57,7 +60,9 @@ const PRE_TIMER_FORMULA_PLACEHOLDERS = new Set([
 const views = {
   presets: document.getElementById("presets-view"),
   settings: document.getElementById("settings-view"),
-  preTimers: document.getElementById("pre-timers-view"),
+  seconds: document.getElementById("seconds-view"),
+  stopwatch: document.getElementById("stopwatch-view"),
+  manual: document.getElementById("manual-view"),
   execution: document.getElementById("execution-view"),
   report: document.getElementById("report-view"),
 };
@@ -76,63 +81,55 @@ const dom = {
   presetList: document.getElementById("preset-list"),
   settingsImport: document.getElementById("settings-import"),
   settingsImportError: document.getElementById("settings-import-error"),
-  preTimersFieldset: document.getElementById("pre-timers-fieldset"),
-  preTimersTable: document.getElementById("pre-timers-table"),
-  preTimersTableBody: document.getElementById("pre-timers-table-body"),
-  preTimersEmptyMessage: document.getElementById("pre-timers-empty-message"),
-  preTimersError: document.getElementById("pre-timers-error"),
-  preTimerAddButton: document.getElementById("pre-timer-add-button"),
-  preTimerDialog: document.getElementById("pre-timer-dialog"),
-  preTimerDialogTitle: document.getElementById("pre-timer-dialog-title"),
-  preTimerForm: document.getElementById("pre-timer-form"),
-  preTimerName: document.getElementById("pre-timer-name"),
-  preTimerType: document.getElementById("pre-timer-type"),
-  preTimerTypeError: document.getElementById("pre-timer-type-error"),
-  preTimerSecondsFields: document.getElementById("pre-timer-seconds-fields"),
-  preTimerSeconds: document.getElementById("pre-timer-seconds"),
-  preTimerSecondsError: document.getElementById("pre-timer-seconds-error"),
-  preTimerStopwatchFields: document.getElementById("pre-timer-stopwatch-fields"),
-  preTimerFormula: document.getElementById("pre-timer-formula"),
-  preTimerFormulaPlaceholders: document.getElementById(
-    "pre-timer-formula-placeholders",
-  ),
-  preTimerFormulaError: document.getElementById("pre-timer-formula-error"),
-  preTimerRounding: document.getElementById("pre-timer-rounding"),
-  preTimerRoundingError: document.getElementById("pre-timer-rounding-error"),
-  preTimerRoundingThresholdField: document.getElementById(
-    "pre-timer-rounding-threshold-field",
-  ),
-  preTimerRoundingThreshold: document.getElementById("pre-timer-rounding-threshold"),
-  preTimerRoundingThresholdError: document.getElementById(
-    "pre-timer-rounding-threshold-error",
-  ),
-  preTimerManualFields: document.getElementById("pre-timer-manual-fields"),
-  preTimerLimitSeconds: document.getElementById("pre-timer-limit-seconds"),
-  preTimerLimitSecondsError: document.getElementById(
-    "pre-timer-limit-seconds-error",
-  ),
-  preTimerDialogCancel: document.getElementById("pre-timer-dialog-cancel"),
-  preTimerDeleteDialog: document.getElementById("pre-timer-delete-dialog"),
-  preTimerDeleteDialogMessage: document.getElementById(
-    "pre-timer-delete-dialog-message",
-  ),
-  preTimerDeleteCancel: document.getElementById("pre-timer-delete-cancel"),
-  preTimerDeleteConfirm: document.getElementById("pre-timer-delete-confirm"),
-  preTimerAbortDialog: document.getElementById("pre-timer-abort-dialog"),
-  preTimerAbortCancel: document.getElementById("pre-timer-abort-cancel"),
-  preTimerAbortConfirm: document.getElementById("pre-timer-abort-confirm"),
-  preTimerEarlyDialog: document.getElementById("pre-timer-early-dialog"),
-  preTimerEarlyDialogMessage: document.getElementById(
-    "pre-timer-early-dialog-message",
-  ),
-  preTimerEarlyCancel: document.getElementById("pre-timer-early-cancel"),
-  preTimerEarlyConfirm: document.getElementById("pre-timer-early-confirm"),
+  actionsFieldset: document.getElementById("actions-fieldset"),
+  actionsTable: document.getElementById("actions-table"),
+  actionsTableBody: document.getElementById("actions-table-body"),
+  actionsEmptyMessage: document.getElementById("actions-empty-message"),
+  actionsError: document.getElementById("actions-error"),
+  actionAddButton: document.getElementById("action-add-button"),
+  actionEditor: document.getElementById("action-editor"),
+  actionEditorTitle: document.getElementById("action-editor-title"),
+  actionTypeField: document.getElementById("action-type-field"),
+  actionType: document.getElementById("action-type"),
+  actionTypeDescription: document.getElementById("action-type-description"),
+  actionNameField: document.getElementById("action-name-field"),
+  actionName: document.getElementById("action-name"),
+  actionSecondsFields: document.getElementById("action-seconds-fields"),
+  actionSeconds: document.getElementById("action-seconds"),
+  actionStopwatchFields: document.getElementById("action-stopwatch-fields"),
+  actionFormula: document.getElementById("action-formula"),
+  actionFormulaPlaceholders: document.getElementById("action-formula-placeholders"),
+  actionRounding: document.getElementById("action-rounding"),
+  actionRoundingThresholdField: document.getElementById("action-rounding-threshold-field"),
+  actionRoundingThreshold: document.getElementById("action-rounding-threshold"),
+  actionFormulaBounds: document.getElementById("action-formula-bounds"),
+  actionMin: document.getElementById("action-min"),
+  actionMax: document.getElementById("action-max"),
+  actionManualFields: document.getElementById("action-manual-fields"),
+  actionLimitSeconds: document.getElementById("action-limit-seconds"),
+  metronomeActionFields: document.getElementById("metronome-action-fields"),
+  actionEditorCancel: document.getElementById("action-editor-cancel"),
+  actionEditorSave: document.getElementById("action-editor-save"),
+  actionDeleteDialog: document.getElementById("action-delete-dialog"),
+  actionDeleteDialogMessage: document.getElementById("action-delete-dialog-message"),
+  actionDeleteCancel: document.getElementById("action-delete-cancel"),
+  actionDeleteConfirm: document.getElementById("action-delete-confirm"),
+  actionDiscardDialog: document.getElementById("action-discard-dialog"),
+  actionDiscardStay: document.getElementById("action-discard-stay"),
+  actionDiscardConfirm: document.getElementById("action-discard-confirm"),
+  actionAbortDialog: document.getElementById("action-abort-dialog"),
+  actionAbortDialogMessage: document.getElementById("action-abort-dialog-message"),
+  actionAbortCancel: document.getElementById("action-abort-cancel"),
+  actionAbortConfirm: document.getElementById("action-abort-confirm"),
+  secondsEarlyDialog: document.getElementById("seconds-early-dialog"),
+  secondsEarlyDialogMessage: document.getElementById("seconds-early-dialog-message"),
+  secondsEarlyCancel: document.getElementById("seconds-early-cancel"),
+  secondsEarlyConfirm: document.getElementById("seconds-early-confirm"),
+  hideProgress: document.getElementById("hide-progress"),
   exportAutoStart: document.getElementById("export-auto-start"),
   exportSettingsButton: document.getElementById("export-settings-button"),
   exportUrlButton: document.getElementById("export-url-button"),
-  settingsBackPresetsButton: document.getElementById(
-    "settings-back-presets-button",
-  ),
+  settingsBackPresetsButton: document.getElementById("settings-back-presets-button"),
   bpm: document.getElementById("bpm"),
   accentuate: document.getElementById("accentuate"),
   accentOptionCard: document.getElementById("accent-option-card"),
@@ -141,7 +138,6 @@ const dom = {
   increaseOptionCard: document.getElementById("increase-option-card"),
   increaseBy: document.getElementById("increase-by"),
   increaseAfter: document.getElementById("increase-after"),
-  increaseProgressButton: document.getElementById("increase-progress-button"),
   maximumOptions: document.getElementById("maximum-options"),
   maximumNoneOption: document.getElementById("maximum-none-option"),
   maximumStickOption: document.getElementById("maximum-stick-option"),
@@ -152,13 +148,6 @@ const dom = {
   maximumLimitReverse: document.getElementById("maximum-limit-reverse"),
   decreaseByReverse: document.getElementById("decrease-by-reverse"),
   decreaseAfterReverse: document.getElementById("decrease-after-reverse"),
-  reverseProgressButton: document.getElementById("reverse-progress-button"),
-  tempoProgressDialog: document.getElementById("tempo-progress-dialog"),
-  tempoProgressDialogTitle: document.getElementById("tempo-progress-dialog-title"),
-  increaseProgressFields: document.getElementById("increase-progress-fields"),
-  reverseProgressFields: document.getElementById("reverse-progress-fields"),
-  progressDialogCancel: document.getElementById("progress-dialog-cancel"),
-  progressDialogSave: document.getElementById("progress-dialog-save"),
   lockSettings: document.getElementById("lock-settings"),
   lockOptionCard: document.getElementById("lock-option-card"),
   lockBeats: document.getElementById("lock-beats"),
@@ -170,17 +159,31 @@ const dom = {
   sessionEndOptionCard: document.getElementById("session-end-option-card"),
   sessionEndEnabled: document.getElementById("session-end-enabled"),
   sessionEndBeats: document.getElementById("session-end-beats"),
-  preTimersTitle: document.getElementById("pre-timers-title"),
-  preTimersProgress: document.getElementById("pre-timers-progress"),
-  preTimerCard: document.getElementById("pre-timer-card"),
-  preTimerCardType: document.getElementById("pre-timer-card-type"),
-  preTimerCardName: document.getElementById("pre-timer-card-name"),
-  preTimerCardOptions: document.getElementById("pre-timer-card-options"),
-  preTimerClock: document.getElementById("pre-timer-clock"),
-  preTimerStatus: document.getElementById("pre-timer-status"),
-  preTimerAbortButton: document.getElementById("pre-timer-abort-button"),
-  preTimerContinueButton: document.getElementById("pre-timer-continue-button"),
+  derivedEndMessage: document.getElementById("derived-end-message"),
+  secondsTitle: document.getElementById("seconds-title"),
+  secondsProgress: document.getElementById("seconds-progress"),
+  secondsActionName: document.getElementById("seconds-action-name"),
+  secondsActionOptions: document.getElementById("seconds-action-options"),
+  secondsClock: document.getElementById("seconds-clock"),
+  secondsStatus: document.getElementById("seconds-status"),
+  secondsContinueButton: document.getElementById("seconds-continue-button"),
+  stopwatchTitle: document.getElementById("stopwatch-title"),
+  stopwatchProgress: document.getElementById("stopwatch-progress"),
+  stopwatchActionName: document.getElementById("stopwatch-action-name"),
+  stopwatchActionOptions: document.getElementById("stopwatch-action-options"),
+  stopwatchClock: document.getElementById("stopwatch-clock"),
+  stopwatchStatus: document.getElementById("stopwatch-status"),
+  stopwatchContinueButton: document.getElementById("stopwatch-continue-button"),
+  manualTitle: document.getElementById("manual-title"),
+  manualProgress: document.getElementById("manual-progress"),
+  manualActionName: document.getElementById("manual-action-name"),
+  manualActionOptions: document.getElementById("manual-action-options"),
+  manualClock: document.getElementById("manual-clock"),
+  manualStatus: document.getElementById("manual-status"),
+  manualContinueButton: document.getElementById("manual-continue-button"),
   executionTitle: document.getElementById("execution-title"),
+  executionActionName: document.getElementById("execution-action-name"),
+  executionProgress: document.getElementById("execution-progress"),
   executionPhase: document.getElementById("execution-phase"),
   currentBpmLabel: document.getElementById("current-bpm-label"),
   currentBpm: document.getElementById("current-bpm"),
@@ -194,23 +197,10 @@ const dom = {
   executionActions: document.getElementById("execution-actions"),
   abortButton: document.getElementById("abort-button"),
   pauseButton: document.getElementById("pause-button"),
-  stopButton: document.getElementById("stop-button"),
+  continueMetronomeButton: document.getElementById("continue-metronome-button"),
   reportTitle: document.getElementById("report-title"),
   reportStatus: document.getElementById("report-status"),
-  reportTotalBeats: document.getElementById("report-total-beats"),
-  reportBpm: document.getElementById("report-bpm"),
-  reportBreaks: document.getElementById("report-breaks"),
-  reportBreaksRow: document.getElementById("report-breaks-row"),
-  reportSessionEnd: document.getElementById("report-session-end"),
-  reportPreTimersCard: document.getElementById("report-pre-timers-card"),
-  reportPreTimersTableBody: document.getElementById(
-    "report-pre-timers-table-body",
-  ),
-  reportBreaksTitle: document.getElementById("report-breaks-title"),
-  reportNoBreaks: document.getElementById("report-no-breaks"),
-  breakTableWrapper: document.getElementById("break-table-wrapper"),
-  breakTableBody: document.getElementById("break-table-body"),
-  breakRowTemplate: document.getElementById("break-row-template"),
+  actionReportSections: document.getElementById("action-report-sections"),
   copyReportButton: document.getElementById("copy-report-button"),
   copyShortReportButton: document.getElementById("copy-short-report-button"),
   clipboardBuffer: document.getElementById("clipboard-buffer"),
@@ -239,78 +229,63 @@ const state = {
   breakSessions: 0,
   breakRecords: [],
   activeBreak: null,
-  preTimerRecords: [],
-  preTimerIndex: -1,
-  preTimerStartedAt: null,
-  preTimerTimer: null,
-  preTimerDisplayTimer: null,
-  preTimerReport: null,
-  preTimerEarlyDialogOpen: false,
+  actionPlan: [],
+  actionResults: [],
+  currentActionIndex: -1,
+  activeActionStartedAt: null,
+  actionTimer: null,
+  actionDisplayTimer: null,
   report: null,
 };
 
 let audioContext = null;
 const copyFeedbackTimers = new Map();
-let progressDialogMode = null;
-let progressDialogTrigger = null;
-let progressDialogSnapshot = null;
 let autoStartImportInProgress = false;
 let settingsImportPasteTimer = null;
-let preTimerDefinitions = [];
-let preTimerDialogMode = null;
-let preTimerDialogEditingId = null;
-let preTimerDialogTrigger = null;
-let preTimerDialogNameGenerated = false;
-let preTimerDeleteId = null;
-let preTimerDeleteTrigger = null;
-let preTimerAbortDialogTrigger = null;
-let preTimerEarlyDialogTrigger = null;
-let preTimerDragState = null;
-let preTimerFormulaSelection = null;
-
-const TEXT_SETTING_CONTROLS = Object.freeze({
-  bpm: dom.bpm,
-  "accent-repeat": dom.accentRepeat,
-  "increase-by": dom.increaseBy,
-  "increase-after": dom.increaseAfter,
-  "maximum-limit-stick": dom.maximumLimitStick,
-  "maximum-limit-reset": dom.maximumLimitReset,
-  "maximum-limit-reverse": dom.maximumLimitReverse,
-  "decrease-by-reverse": dom.decreaseByReverse,
-  "decrease-after-reverse": dom.decreaseAfterReverse,
-  "break-count": dom.breakCount,
-  "break-seconds": dom.breakSeconds,
-  "session-end-beats": dom.sessionEndBeats,
-  "lock-beats": dom.lockBeats,
-});
-
-const BOOLEAN_SETTING_NAMES = Object.freeze([
-  "accentuate",
-  "increase-tempo",
-  "session-end-enabled",
-  "lock-settings",
-]);
+let actionDefinitions = [];
+let actionEditorDraft = null;
+let actionEditorOriginal = null;
+let actionEditorMode = null;
+let actionEditorId = null;
+let actionEditorDirty = false;
+let pendingEditorCommand = null;
+let actionDeleteId = null;
+let actionDeleteTrigger = null;
+let actionAbortDialogTrigger = null;
+let secondsEarlyDialogTrigger = null;
+let actionDragState = null;
+let actionFormulaSelection = null;
 
 const RADIO_SETTING_VALUES = Object.freeze({
   maximum: new Set(["none", "stick", "reset", "reverse"]),
   breaks: new Set(["none", "unlimited", "limited"]),
 });
-const AUTO_START_PARAMETER = "auto-start";
 
 function init() {
-  if (Object.values(dom).some((element) => element === null)) {
-    console.error("Metronome initialization failed because required markup is missing.");
+  const missingElements = Object.entries(dom)
+    .filter(([, element]) => element === null)
+    .map(([name]) => name);
+  if (missingElements.length > 0) {
+    console.error("Metronome initialization failed because required markup is missing:", missingElements);
     return;
   }
 
+  actionDefinitions = [
+    createDefaultAction(
+      ACTION_TYPES.METRONOME,
+      [],
+      createDefaultMetronomeSettings(),
+    ),
+  ];
   renderPresets();
-  renderPreTimerTable();
+  renderActionTable();
   const initialParameters = getInitialParameterText();
   if (initialParameters) {
     dom.settingsImport.value = initialParameters;
   }
   bindEvents();
   syncSettingsVisibility();
+  syncProgressVisibility();
   showView("presets", false);
   if (initialParameters) {
     void handleSettingsImport(initialParameters);
@@ -319,6 +294,8 @@ function init() {
 
 function bindEvents() {
   dom.settingsForm.addEventListener("submit", handleStart);
+  dom.settingsForm.addEventListener("input", handleSettingsFormInput);
+  dom.settingsForm.addEventListener("change", handleSettingsFormChange);
   dom.settingsImport.addEventListener("paste", () => {
     if (settingsImportPasteTimer !== null) {
       window.clearTimeout(settingsImportPasteTimer);
@@ -343,165 +320,174 @@ function bindEvents() {
     showView("settings", true);
   });
   dom.settingsBackPresetsButton.addEventListener("click", () => {
-    showView("presets", true);
+    requestCloseActionEditor(() => showView("presets", true));
   });
+  dom.actionAddButton.addEventListener("click", () => {
+    requestOpenActionEditor("add");
+  });
+  dom.actionsTableBody.addEventListener("click", handleActionTableClick);
+  dom.actionsTableBody.addEventListener("keydown", handleActionTableKeydown);
+  dom.actionsTableBody.addEventListener("pointerdown", handleActionPointerDown);
+  dom.actionsTableBody.addEventListener("pointermove", handleActionPointerMove);
+  dom.actionsTableBody.addEventListener("pointerup", handleActionPointerUp);
+  dom.actionsTableBody.addEventListener("pointercancel", handleActionPointerCancel);
+  dom.actionsTableBody.addEventListener("dragstart", handleActionDragStart);
+  dom.actionsTableBody.addEventListener("dragover", handleActionDragOver);
+  dom.actionsTableBody.addEventListener("drop", handleActionDrop);
+  dom.actionsTableBody.addEventListener("dragend", handleActionDragEnd);
+  dom.actionType.addEventListener("change", handleActionTypeChange);
+  dom.actionFormula.addEventListener("input", syncActionEditorFields);
+  dom.actionRounding.addEventListener("change", syncActionEditorFields);
+  dom.actionEditorSave.addEventListener("click", saveActionEditorDraft);
+  dom.actionEditorCancel.addEventListener("click", () => {
+    cancelActionEditor();
+  });
+  dom.actionFormulaPlaceholders.addEventListener("click", handleFormulaPlaceholderClick);
+  dom.actionFormulaPlaceholders.addEventListener("dragstart", handleFormulaPlaceholderDragStart);
+  dom.actionFormula.addEventListener("dragover", handleFormulaDragOver);
+  dom.actionFormula.addEventListener("drop", handleFormulaDrop);
+  ["blur", "focus", "keyup", "mouseup", "select"].forEach((eventName) => {
+    dom.actionFormula.addEventListener(eventName, rememberFormulaSelection);
+  });
+
+  dom.actionDeleteCancel.addEventListener("click", () => closeActionDeleteDialog(false));
+  dom.actionDeleteConfirm.addEventListener("click", confirmActionDelete);
+  dom.actionDeleteDialog.addEventListener("cancel", (event) => {
+    event.preventDefault();
+    closeActionDeleteDialog(false);
+  });
+  dom.actionDiscardStay.addEventListener("click", () => resolvePendingEditorCommand(false));
+  dom.actionDiscardConfirm.addEventListener("click", () => resolvePendingEditorCommand(true));
+  dom.actionDiscardDialog.addEventListener("cancel", (event) => {
+    event.preventDefault();
+    resolvePendingEditorCommand(false);
+  });
+
   dom.exportSettingsButton.addEventListener("click", () => {
-    void handleExportSettings(
-      "settings",
-      dom.exportSettingsButton,
-      "Nur Einstellungen kopieren",
-    );
+    void handleExportSettings("settings", dom.exportSettingsButton, "Nur Einstellungen kopieren");
   });
   dom.exportUrlButton.addEventListener("click", () => {
     void handleExportSettings("url", dom.exportUrlButton, "Ganze URL kopieren");
   });
-  dom.preTimerAddButton.addEventListener("click", () => {
-    openPreTimerDialog();
-  });
-  dom.preTimerForm.addEventListener("submit", handlePreTimerDialogSave);
-  dom.preTimerType.addEventListener("change", handlePreTimerTypeChange);
-  dom.preTimerRounding.addEventListener("change", syncPreTimerDialogFields);
-  dom.preTimerFormulaPlaceholders.addEventListener(
-    "click",
-    handlePreTimerPlaceholderClick,
-  );
-  dom.preTimerFormulaPlaceholders.addEventListener(
-    "dragstart",
-    handlePreTimerPlaceholderDragStart,
-  );
-  dom.preTimerFormula.addEventListener("dragover", handlePreTimerFormulaDragOver);
-  dom.preTimerFormula.addEventListener("drop", handlePreTimerFormulaDrop);
-  ["blur", "focus", "input", "keyup", "mouseup", "select"].forEach((eventName) => {
-    dom.preTimerFormula.addEventListener(eventName, rememberPreTimerFormulaSelection);
-  });
-  dom.preTimerForm.addEventListener("input", (event) => {
-    const control = event.target;
-    if (control === dom.preTimerName) {
-      preTimerDialogNameGenerated = false;
-    }
-    if (control instanceof HTMLInputElement || control instanceof HTMLSelectElement) {
-      clearFieldError(control.id);
-    }
-  });
-  dom.preTimerDialogCancel.addEventListener("click", () => {
-    closePreTimerDialog(false);
-  });
-  dom.preTimerDialog.addEventListener("cancel", (event) => {
-    event.preventDefault();
-    closePreTimerDialog(false);
-  });
-  dom.preTimerDeleteCancel.addEventListener("click", () => {
-    closePreTimerDeleteDialog(false);
-  });
-  dom.preTimerDeleteConfirm.addEventListener("click", () => {
-    confirmPreTimerDelete();
-  });
-  dom.preTimerDeleteDialog.addEventListener("cancel", (event) => {
-    event.preventDefault();
-    closePreTimerDeleteDialog(false);
-  });
-  dom.preTimersTableBody.addEventListener("click", handlePreTimerTableClick);
-  dom.preTimersTableBody.addEventListener("keydown", handlePreTimerTableKeydown);
-  dom.preTimersTableBody.addEventListener("pointerdown", handlePreTimerPointerDown);
-  dom.preTimersTableBody.addEventListener("pointermove", handlePreTimerPointerMove);
-  dom.preTimersTableBody.addEventListener("pointerup", handlePreTimerPointerUp);
-  dom.preTimersTableBody.addEventListener("pointercancel", handlePreTimerPointerCancel);
-  dom.preTimersTableBody.addEventListener("dragstart", handlePreTimerDragStart);
-  dom.preTimersTableBody.addEventListener("dragover", handlePreTimerDragOver);
-  dom.preTimersTableBody.addEventListener("drop", handlePreTimerDrop);
-  dom.preTimersTableBody.addEventListener("dragend", handlePreTimerDragEnd);
-  dom.increaseProgressButton.addEventListener("click", () => {
-    openProgressDialog("increase", dom.increaseProgressButton);
-  });
-  dom.reverseProgressButton.addEventListener("click", () => {
-    openProgressDialog("reverse", dom.reverseProgressButton);
-  });
-  dom.progressDialogCancel.addEventListener("click", () => {
-    closeProgressDialog(false);
-  });
-  dom.progressDialogSave.addEventListener("click", handleProgressDialogSave);
-  dom.tempoProgressDialog.addEventListener("cancel", (event) => {
-    event.preventDefault();
-    closeProgressDialog(false);
-  });
-  dom.tempoProgressDialog.addEventListener("input", (event) => {
-    const control = event.target;
-    if (control instanceof HTMLInputElement) {
-      clearFieldError(control.id);
-    }
-  });
-  dom.accentuate.addEventListener("change", syncSettingsVisibility);
-  dom.increaseTempo.addEventListener("change", syncSettingsVisibility);
-  dom.lockSettings.addEventListener("change", syncSettingsVisibility);
-  dom.sessionEndEnabled.addEventListener("change", syncSettingsVisibility);
   dom.pauseButton.addEventListener("click", handlePause);
-  dom.abortButton.addEventListener("click", handleAbort);
-  dom.stopButton.addEventListener("click", handleStop);
-  dom.preTimerContinueButton.addEventListener("click", handlePreTimerContinue);
-  dom.preTimerAbortButton.addEventListener("click", handlePreTimerAbortRequest);
-  dom.preTimerAbortCancel.addEventListener("click", () => {
-    closePreTimerAbortDialog(false);
+  dom.abortButton.addEventListener("click", handleActionAbortRequest);
+  document.querySelectorAll("[data-abort-sequence]").forEach((button) => {
+    button.addEventListener("click", handleActionAbortRequest);
   });
-  dom.preTimerAbortConfirm.addEventListener("click", () => {
-    abortPreTimerRun();
-  });
-  dom.preTimerAbortDialog.addEventListener("cancel", (event) => {
+  dom.continueMetronomeButton.addEventListener("click", handleMetronomeContinue);
+  dom.secondsContinueButton.addEventListener("click", handleTimerActionContinue);
+  dom.stopwatchContinueButton.addEventListener("click", handleTimerActionContinue);
+  dom.manualContinueButton.addEventListener("click", handleTimerActionContinue);
+  dom.actionAbortCancel.addEventListener("click", () => closeActionAbortDialog(false));
+  dom.actionAbortConfirm.addEventListener("click", () => closeActionAbortDialog(true));
+  dom.actionAbortDialog.addEventListener("cancel", (event) => {
     event.preventDefault();
-    closePreTimerAbortDialog(false);
+    closeActionAbortDialog(false);
   });
-  dom.preTimerEarlyCancel.addEventListener("click", () => {
-    closePreTimerEarlyDialog(false);
-  });
-  dom.preTimerEarlyConfirm.addEventListener("click", () => {
-    finishPreTimer("manual");
-  });
-  dom.preTimerEarlyDialog.addEventListener("cancel", (event) => {
+  dom.secondsEarlyCancel.addEventListener("click", () => closeSecondsEarlyDialog(false));
+  dom.secondsEarlyConfirm.addEventListener("click", () => closeSecondsEarlyDialog(true));
+  dom.secondsEarlyDialog.addEventListener("cancel", (event) => {
     event.preventDefault();
-    closePreTimerEarlyDialog(false);
+    closeSecondsEarlyDialog(false);
   });
+
   dom.copyReportButton.addEventListener("click", handleCopyReport);
   dom.copyShortReportButton.addEventListener("click", handleCopyShortReport);
   dom.backButton.addEventListener("click", handleBackToSettings);
   dom.backPresetsButton.addEventListener("click", handleBackToPresets);
   dom.repeatButton.addEventListener("click", handleRepeatRun);
-
-  document.querySelectorAll('input[name="maximum"]').forEach((input) => {
-    input.addEventListener("change", syncSettingsVisibility);
-  });
-
-  document.querySelectorAll('input[name="breaks"]').forEach((input) => {
-    input.addEventListener("change", syncSettingsVisibility);
-  });
-
   document.addEventListener("wheel", handleNumberInputWheel, {
     capture: true,
     passive: true,
   });
+}
 
-  dom.settingsForm.addEventListener("input", (event) => {
-    const control = event.target;
-    if (control instanceof HTMLInputElement || control instanceof HTMLSelectElement) {
-      clearFieldError(control.id);
-      if (control.name === "maximum") {
-        clearFieldError("maximum");
-      } else if (control.name === "breaks") {
-        clearFieldError("breaks");
-      }
+function handleSettingsFormInput(event) {
+  const control = event.target;
+  if (control instanceof HTMLInputElement || control instanceof HTMLSelectElement) {
+    clearFieldError(control.id);
+    if (control.name === "maximum") {
+      clearFieldError("maximum");
+    } else if (control.name === "breaks") {
+      clearFieldError("breaks");
     }
-    dom.settingsStatus.classList.remove("error-status");
-    dom.settingsStatus.textContent = "";
-  });
+  }
+  if (actionEditorDraft && dom.actionEditor.contains(control)) {
+    actionEditorDirty = true;
+  }
+  dom.settingsStatus.classList.remove("error-status");
+  dom.settingsStatus.textContent = "";
+}
+
+function handleSettingsFormChange(event) {
+  const control = event.target;
+  if (control === dom.hideProgress) {
+    syncProgressVisibility();
+  }
+  if (control === dom.accentuate && !control.checked) {
+    clearFieldError("accent-repeat");
+  }
+  if (control === dom.increaseTempo && !control.checked) {
+    [
+      "increase-by",
+      "increase-after",
+      "maximum",
+      "maximum-limit-stick",
+      "maximum-limit-reset",
+      "maximum-limit-reverse",
+      "decrease-by-reverse",
+      "decrease-after-reverse",
+    ].forEach(clearFieldError);
+  }
+  if (control === dom.lockSettings && !control.checked) {
+    clearFieldError("lock-beats");
+  }
+  if (control === dom.sessionEndEnabled && !control.checked) {
+    clearFieldError("session-end-beats");
+  }
+  if (control.name === "maximum") {
+    [
+      "maximum",
+      "maximum-limit-stick",
+      "maximum-limit-reset",
+      "maximum-limit-reverse",
+      "decrease-by-reverse",
+      "decrease-after-reverse",
+    ].forEach(clearFieldError);
+  } else if (control.name === "breaks") {
+    ["breaks", "break-count", "break-seconds"].forEach(clearFieldError);
+  }
+  if (
+    control === dom.accentuate ||
+    control === dom.increaseTempo ||
+    control === dom.lockSettings ||
+    control === dom.sessionEndEnabled ||
+    control.name === "maximum" ||
+    control.name === "breaks"
+  ) {
+    syncSettingsVisibility();
+  }
+  if (actionEditorDraft && dom.actionEditor.contains(control)) {
+    actionEditorDirty = true;
+  }
 }
 
 function syncSettingsVisibility() {
+  if (actionEditorDraft?.type !== ACTION_TYPES.METRONOME) {
+    return;
+  }
+
   const increaseEnabled = dom.increaseTempo.checked;
   const accentEnabled = dom.accentuate.checked;
   const lockEnabled = dom.lockSettings.checked;
   const maximum = getSelectedValue("maximum");
   const breaks = getSelectedValue("breaks");
-  const hasStopwatch = preTimerDefinitions.some(
-    (preTimer) => preTimer.type === PRE_TIMER_TYPES.STOPWATCH,
+  const actionIndex = getActionEditorIndex();
+  const stopwatchSources = getStopwatchSourcesBeforeMetronome(
+    actionDefinitions,
+    actionIndex,
   );
+  const hasDerivedEnd = stopwatchSources.length > 0;
 
   setOptionCardState(dom.accentOptionCard, accentEnabled);
   setOptionCardState(dom.increaseOptionCard, increaseEnabled);
@@ -509,8 +495,7 @@ function syncSettingsVisibility() {
   setControlDisabled(dom.increaseBy, !increaseEnabled);
   setControlDisabled(dom.increaseAfter, !increaseEnabled);
 
-  const maximumInputs = document.querySelectorAll('input[name="maximum"]');
-  maximumInputs.forEach((input) => {
+  document.querySelectorAll('input[name="maximum"]').forEach((input) => {
     setControlDisabled(input, !increaseEnabled);
   });
   setOptionCardState(dom.maximumNoneOption, increaseEnabled && maximum === "none");
@@ -524,9 +509,9 @@ function syncSettingsVisibility() {
   setControlDisabled(dom.decreaseAfterReverse, !increaseEnabled || maximum !== "reverse");
   dom.maximumOptions.setAttribute("aria-disabled", String(!increaseEnabled));
 
-  setOptionCardState(dom.lockOptionCard, lockEnabled && !hasStopwatch);
-  setControlDisabled(dom.lockSettings, hasStopwatch);
-  setControlDisabled(dom.lockBeats, hasStopwatch || !lockEnabled);
+  setOptionCardState(dom.lockOptionCard, lockEnabled && !hasDerivedEnd);
+  setControlDisabled(dom.lockSettings, hasDerivedEnd);
+  setControlDisabled(dom.lockBeats, hasDerivedEnd || !lockEnabled);
 
   setOptionCardState(dom.breaksNoneOption, breaks === "none");
   setOptionCardState(dom.breaksUnlimitedOption, breaks === "unlimited");
@@ -535,257 +520,839 @@ function syncSettingsVisibility() {
   setControlDisabled(dom.breakSeconds, breaks !== "limited");
 
   const sessionEndEnabled = dom.sessionEndEnabled.checked;
-  setOptionCardState(dom.sessionEndOptionCard, sessionEndEnabled && !hasStopwatch);
-  setControlDisabled(dom.sessionEndEnabled, hasStopwatch);
-  setControlDisabled(dom.sessionEndBeats, hasStopwatch || !sessionEndEnabled);
-  if (hasStopwatch) {
+  setOptionCardState(dom.sessionEndOptionCard, sessionEndEnabled && !hasDerivedEnd);
+  setControlDisabled(dom.sessionEndEnabled, hasDerivedEnd);
+  setControlDisabled(dom.sessionEndBeats, hasDerivedEnd || !sessionEndEnabled);
+
+  if (hasDerivedEnd) {
+    const names = stopwatchSources.map((action) => action.name).join(", ");
     dom.sessionEndOptionCard.setAttribute("aria-disabled", "true");
     dom.lockOptionCard.setAttribute("aria-disabled", "true");
+    dom.derivedEndMessage.textContent =
+      "Ende und Sperre werden aus diesen Stoppuhr-Aktionen berechnet: " + names + ".";
+    dom.derivedEndMessage.hidden = false;
   } else {
     dom.sessionEndOptionCard.removeAttribute("aria-disabled");
     dom.lockOptionCard.removeAttribute("aria-disabled");
+    dom.derivedEndMessage.textContent = "";
+    dom.derivedEndMessage.hidden = true;
   }
-  setControlDisabled(dom.increaseProgressButton, !increaseEnabled);
-  setControlDisabled(dom.reverseProgressButton, !increaseEnabled || maximum !== "reverse");
-  updateProgressButtonLabels();
 }
 
-function renderPreTimerTable() {
-  dom.preTimersTableBody.replaceChildren();
-  const hasRows = preTimerDefinitions.length > 0;
-  dom.preTimersEmptyMessage.hidden = hasRows;
+function syncActionEditorFields() {
+  const isAdding = actionEditorMode === "add";
+  const type = actionEditorDraft?.type || (isAdding ? dom.actionType.value : "");
+  const isOpen = actionEditorMode !== null;
+  const isMetronome = type === ACTION_TYPES.METRONOME;
+  const isSeconds = type === ACTION_TYPES.SECONDS;
+  const isStopwatch = type === ACTION_TYPES.STOPWATCH;
+  const isManual = type === ACTION_TYPES.MANUAL;
+  const isRound = dom.actionRounding.value === PRE_TIMER_ROUNDING.ROUND;
+  const hasDynamicFormula = isStopwatch && !isStaticPreTimerFormula(dom.actionFormula.value);
 
-  if (!hasRows) {
-    return;
+  dom.actionEditor.hidden = !isOpen;
+  dom.actionTypeField.hidden = !isAdding;
+  dom.actionNameField.hidden = !type;
+  dom.actionEditorTitle.textContent = type
+    ? getActionTypeLabel(type)
+    : "Aktion hinzufügen";
+  dom.actionTypeDescription.textContent = getActionTypeDescription(type);
+  dom.actionSecondsFields.hidden = !isSeconds;
+  dom.actionStopwatchFields.hidden = !isStopwatch;
+  dom.actionManualFields.hidden = !isManual;
+  dom.metronomeActionFields.hidden = !isMetronome;
+  dom.actionRoundingThresholdField.hidden = !isStopwatch || !isRound;
+  dom.actionMin.disabled = !hasDynamicFormula;
+  dom.actionMax.disabled = !hasDynamicFormula;
+  dom.actionFormulaBounds.classList.toggle("is-disabled", !hasDynamicFormula);
+  syncSettingsVisibility();
+}
+
+function getActionTypeDescription(type) {
+  switch (type) {
+    case ACTION_TYPES.METRONOME:
+      return "Spielt ein Metronom mit eigenem Tempo, Pausen und Ende.";
+    case ACTION_TYPES.SECONDS:
+      return "Wartet die eingestellte Zeit und wechselt danach automatisch zur nächsten Aktion.";
+    case ACTION_TYPES.STOPWATCH:
+      return "Erfasst eine Dauer; das Formelergebnis gilt für das nächste Metronom.";
+    case ACTION_TYPES.MANUAL:
+      return "Wartet auf Weiter; ein optionales Limit löst keinen automatischen Wechsel aus.";
+    default:
+      return "";
   }
+}
 
-  preTimerDefinitions.forEach((preTimer) => {
-    const row = document.createElement("tr");
-    row.className = "pre-timer-row";
-    row.dataset.preTimerId = preTimer.id;
+function createDefaultMetronomeSettings() {
+  const { maximumLimit, ...settings } = DEFAULTS;
+  return {
+    ...settings,
+    maximumLimitStick: maximumLimit,
+    maximumLimitReset: maximumLimit,
+    maximumLimitReverse: maximumLimit,
+    breakSeconds: "",
+  };
+}
 
-    const typeCell = document.createElement("td");
-    typeCell.className = "pre-timer-type-cell";
-    const dragHandle = document.createElement("button");
-    dragHandle.className = "pre-timer-drag-handle";
-    dragHandle.type = "button";
-    dragHandle.draggable = true;
-    dragHandle.dataset.action = "drag";
-    dragHandle.dataset.preTimerId = preTimer.id;
-    dragHandle.setAttribute(
-      "aria-label",
-      `"${preTimer.name}" in der Reihenfolge verschieben`,
-    );
-    dragHandle.title = "Vorlaufzeit verschieben";
-    dragHandle.textContent = "⠿";
-    const typeText = document.createElement("span");
-    typeText.textContent = getPreTimerTypeLabel(preTimer.type);
-    typeCell.append(dragHandle, typeText);
+function getStopwatchSourcesBeforeMetronome(actions, metronomeIndex) {
+  const sources = [];
+  for (let index = 0; index < metronomeIndex; index += 1) {
+    const action = actions[index];
+    if (!action || typeof action !== "object") {
+      continue;
+    }
+    if (action.type === ACTION_TYPES.METRONOME) {
+      sources.length = 0;
+    } else if (action.type === ACTION_TYPES.STOPWATCH) {
+      sources.push(action);
+    }
+  }
+  return sources;
+}
 
-    const nameCell = document.createElement("td");
-    nameCell.textContent = preTimer.name;
+function getActionEditorIndex() {
+  if (actionEditorMode === "edit") {
+    return actionDefinitions.findIndex((action) => action.id === actionEditorId);
+  }
+  return actionDefinitions.length;
+}
 
-    const optionsCell = document.createElement("td");
-    optionsCell.textContent = getPreTimerOptionsSummary(preTimer);
-
-    const actionsCell = document.createElement("td");
-    const editButton = createPreTimerIconButton(
-      "edit",
-      preTimer.id,
-      "Vorlaufzeit bearbeiten",
-      "✎",
-    );
-    const deleteButton = createPreTimerIconButton(
-      "delete",
-      preTimer.id,
-      "Vorlaufzeit löschen",
-      "×",
-    );
-    actionsCell.append(editButton, deleteButton);
-
-    row.append(typeCell, nameCell, optionsCell, actionsCell);
-    dom.preTimersTableBody.append(row);
+function syncProgressVisibility() {
+  const hidden = dom.hideProgress.checked;
+  document.querySelectorAll(".action-progress").forEach((element) => {
+    element.hidden = hidden;
   });
 }
 
-function createPreTimerIconButton(action, preTimerId, label, icon) {
+function renderActionTable() {
+  dom.actionsTableBody.replaceChildren();
+  const hasRows = actionDefinitions.length > 0;
+  dom.actionsEmptyMessage.hidden = hasRows;
+  actionDefinitions.forEach((action) => {
+    const row = document.createElement("tr");
+    row.className = "action-row";
+    row.dataset.actionId = action.id;
+
+    const typeCell = document.createElement("td");
+    typeCell.className = "action-type-cell";
+    const dragHandle = document.createElement("button");
+    dragHandle.className = "action-drag-handle";
+    dragHandle.type = "button";
+    dragHandle.draggable = true;
+    dragHandle.dataset.actionId = action.id;
+    dragHandle.setAttribute(
+      "aria-label",
+      "\"" + action.name + "\" in der Reihenfolge verschieben",
+    );
+    dragHandle.title = "Aktion verschieben";
+    dragHandle.textContent = "⠿";
+    const typeText = document.createElement("span");
+    typeText.textContent = getActionTypeLabel(action.type);
+    typeCell.append(dragHandle, typeText);
+
+    const nameCell = document.createElement("td");
+    nameCell.textContent = action.name;
+    const optionsCell = document.createElement("td");
+    optionsCell.textContent = getActionOptionsSummary(action);
+    const controlsCell = document.createElement("td");
+    const editButton = createActionIconButton(
+      "edit",
+      action,
+      "Aktion bearbeiten",
+      "✎",
+    );
+    const deleteButton = createActionIconButton(
+      "delete",
+      action,
+      "Aktion löschen",
+      "×",
+    );
+    controlsCell.append(editButton, deleteButton);
+    row.append(typeCell, nameCell, optionsCell, controlsCell);
+    dom.actionsTableBody.append(row);
+  });
+  syncSettingsVisibility();
+}
+
+function getActionOptionsSummary(action) {
+  if (action.type === ACTION_TYPES.METRONOME) {
+    return formatMetronomeSettingsSummary(action.settings);
+  }
+  return getPreTimerOptionsSummary({
+    ...action.settings,
+    type: action.type,
+  });
+}
+
+function createActionIconButton(operation, action, label, icon) {
   const button = document.createElement("button");
   button.className = "secondary-button icon-button";
   button.type = "button";
-  button.dataset.action = action;
-  button.dataset.preTimerId = preTimerId;
-  button.setAttribute("aria-label", `${label}: ${getPreTimerById(preTimerId)?.name || ""}`);
+  button.dataset.actionOperation = operation;
+  button.dataset.actionId = action.id;
+  button.setAttribute("aria-label", label + ": " + action.name);
   button.title = label;
   button.textContent = icon;
   return button;
 }
 
-function getPreTimerById(preTimerId) {
-  return preTimerDefinitions.find((preTimer) => preTimer.id === preTimerId) || null;
+function findActionById(actionId) {
+  return actionDefinitions.find((action) => action.id === actionId) || null;
 }
 
-function openPreTimerDialog(preTimerId = null, trigger = dom.preTimerAddButton) {
-  if (
-    dom.preTimerDialog.open ||
-    typeof dom.preTimerDialog.showModal !== "function"
-  ) {
+function requestOpenActionEditor(actionId = null, trigger = dom.actionAddButton) {
+  if (actionId === "add") {
+    actionId = null;
+  }
+  const open = () => openActionEditor(actionId, trigger);
+  if (actionEditorMode !== null) {
+    requestCloseActionEditor(open);
+    return;
+  }
+  open();
+}
+
+function openActionEditor(actionId, trigger) {
+  if (actionId) {
+    const action = findActionById(actionId);
+    if (!action) {
+      console.error("Cannot edit a missing action:", actionId);
+      return;
+    }
+    actionEditorMode = "edit";
+    actionEditorId = action.id;
+    actionEditorDraft = cloneAction(action);
+    actionEditorOriginal = cloneAction(action);
+    dom.actionType.value = action.type;
+    dom.actionName.value = action.name;
+    applyActionSettingsToEditor(actionEditorDraft);
+    actionEditorDirty = false;
+  } else {
+    actionEditorMode = "add";
+    actionEditorId = null;
+    actionEditorDraft = null;
+    actionEditorOriginal = null;
+    dom.actionType.value = "";
+    dom.actionName.value = "";
+    actionEditorDirty = false;
+    clearActionTypeFields();
+  }
+  clearActionEditorErrors();
+  dom.actionsError.textContent = "";
+  syncActionEditorFields();
+  dom.actionEditor.hidden = false;
+  dom.actionEditor.scrollIntoView({ behavior: "smooth", block: "start" });
+  if (actionEditorMode === "add") {
+    dom.actionType.focus({ preventScroll: true });
+  } else {
+    dom.actionEditorTitle.focus({ preventScroll: true });
+  }
+}
+
+function handleActionTypeChange() {
+  if (actionEditorMode !== "add") {
+    return;
+  }
+  clearActionEditorErrors();
+  const type = dom.actionType.value;
+  if (!type) {
+    actionEditorDraft = null;
+    dom.actionName.value = "";
+    syncActionEditorFields();
+    return;
+  }
+  actionEditorDraft = createDefaultAction(
+    type,
+    actionDefinitions,
+    createDefaultMetronomeSettings(),
+  );
+  dom.actionName.value = actionEditorDraft.name;
+  applyActionSettingsToEditor(actionEditorDraft);
+  actionEditorDirty = true;
+  syncActionEditorFields();
+  const firstField = getActionEditorFirstField(type);
+  firstField?.focus({ preventScroll: true });
+}
+
+function getActionEditorFirstField(type) {
+  if (type === ACTION_TYPES.METRONOME) {
+    return dom.bpm;
+  }
+  if (type === ACTION_TYPES.SECONDS) {
+    return dom.actionSeconds;
+  }
+  if (type === ACTION_TYPES.STOPWATCH) {
+    return dom.actionFormula;
+  }
+  if (type === ACTION_TYPES.MANUAL) {
+    return dom.actionLimitSeconds;
+  }
+  return dom.actionName;
+}
+
+function applyActionSettingsToEditor(action) {
+  if (action.type === ACTION_TYPES.METRONOME) {
+    applyMetronomeSettingsToForm(action.settings);
+  } else if (action.type === ACTION_TYPES.SECONDS) {
+    dom.actionSeconds.value = String(action.settings.seconds);
+  } else if (action.type === ACTION_TYPES.STOPWATCH) {
+    dom.actionFormula.value = action.settings.formula;
+    dom.actionRounding.value = action.settings.rounding;
+    dom.actionRoundingThreshold.value =
+      action.settings.roundingThreshold === null
+        ? ""
+        : String(action.settings.roundingThreshold);
+    dom.actionMin.value = String(action.settings.min ?? 10);
+    dom.actionMax.value = action.settings.max === null ? "" : String(action.settings.max);
+    actionFormulaSelection = {
+      start: dom.actionFormula.value.length,
+      end: dom.actionFormula.value.length,
+    };
+  } else if (action.type === ACTION_TYPES.MANUAL) {
+    dom.actionLimitSeconds.value =
+      action.settings.limitSeconds === null ? "" : String(action.settings.limitSeconds);
+  }
+  syncActionEditorFields();
+}
+
+function clearActionTypeFields() {
+  dom.actionSeconds.value = "10";
+  dom.actionFormula.value = "sekunden";
+  dom.actionRounding.value = PRE_TIMER_ROUNDING.FLOOR;
+  dom.actionRoundingThreshold.value = "";
+  dom.actionMin.value = "10";
+  dom.actionMax.value = "";
+  dom.actionLimitSeconds.value = "";
+  applyMetronomeSettingsToForm(createDefaultMetronomeSettings());
+}
+
+function collectActionEditorSettings(type) {
+  if (type === ACTION_TYPES.METRONOME) {
+    return readMetronomeSettingsFromForm();
+  }
+  if (type === ACTION_TYPES.SECONDS) {
+    return { seconds: dom.actionSeconds.value };
+  }
+  if (type === ACTION_TYPES.STOPWATCH) {
+    return {
+      formula: dom.actionFormula.value,
+      rounding: dom.actionRounding.value,
+      roundingThreshold: dom.actionRoundingThreshold.value,
+      min: dom.actionMin.value,
+      max: dom.actionMax.value,
+    };
+  }
+  return { limitSeconds: dom.actionLimitSeconds.value };
+}
+
+function saveActionEditorDraft() {
+  if (!actionEditorDraft || !actionEditorMode) {
+    setFieldError("action-type", "Einen Aktionstyp auswählen.");
+    dom.actionType.focus();
     return;
   }
 
-  const existing = preTimerId ? getPreTimerById(preTimerId) : null;
-  const draft = existing ? clonePreTimers([existing])[0] : createDefaultPreTimer();
-  preTimerDialogMode = existing ? "edit" : "add";
-  preTimerDialogEditingId = existing?.id || null;
-  preTimerDialogTrigger = trigger;
-  preTimerDialogNameGenerated =
-    draft.name === getPreTimerDefaultName(draft.type);
-  dom.preTimerDialogTitle.textContent = existing
-    ? "Vorlaufzeit bearbeiten"
-    : "Vorlaufzeit hinzufügen";
-  dom.preTimerName.value = draft.name;
-  dom.preTimerType.value = draft.type;
-  dom.preTimerSeconds.value =
-    draft.type === PRE_TIMER_TYPES.SECONDS ? String(draft.seconds) : "10";
-  dom.preTimerFormula.value =
-    draft.type === PRE_TIMER_TYPES.STOPWATCH ? draft.formula : "sekunden";
-  dom.preTimerRounding.value =
-    draft.type === PRE_TIMER_TYPES.STOPWATCH
-      ? draft.rounding
-      : PRE_TIMER_ROUNDING.FLOOR;
-  dom.preTimerRoundingThreshold.value =
-    draft.type === PRE_TIMER_TYPES.STOPWATCH &&
-    draft.roundingThreshold !== null
-      ? String(draft.roundingThreshold)
-      : "";
-  dom.preTimerLimitSeconds.value =
-    draft.type === PRE_TIMER_TYPES.MANUAL && draft.limitSeconds !== null
-      ? String(draft.limitSeconds)
-      : "";
-  preTimerFormulaSelection = {
-    start: dom.preTimerFormula.value.length,
-    end: dom.preTimerFormula.value.length,
+  const candidate = {
+    ...actionEditorDraft,
+    name: dom.actionName.value,
+    settings: collectActionEditorSettings(actionEditorDraft.type),
   };
-  clearPreTimerDialogErrors();
-  syncPreTimerDialogFields();
-  dom.preTimerDialog.showModal();
-  dom.preTimerType.focus();
-}
-
-function handlePreTimerTypeChange() {
-  if (preTimerDialogNameGenerated) {
-    dom.preTimerName.value = getPreTimerDefaultName(dom.preTimerType.value);
+  const normalized = normalizeActionDefinition(candidate);
+  if (!normalized.valid) {
+    showActionEditorErrors(
+      Object.entries(normalized.errors).map(([field, message]) => ({ field, message })),
+    );
+    return;
   }
-  syncPreTimerDialogFields();
+
+  const duplicate = actionDefinitions.find(
+    (action) =>
+      action.id !== actionEditorId &&
+      action.name.trim().toLowerCase() ===
+        normalized.value.name.toLowerCase(),
+  );
+  if (duplicate) {
+    showActionEditorErrors([
+      {
+        field: "name",
+        message: "Der Name \"" + duplicate.name + "\" ist bereits vergeben.",
+      },
+    ]);
+    return;
+  }
+
+  const nextActions = cloneActions(actionDefinitions);
+  let index = actionEditorMode === "edit"
+    ? nextActions.findIndex((action) => action.id === actionEditorId)
+    : nextActions.length;
+  if (actionEditorMode === "edit" && index < 0) {
+    console.error("Cannot save an action that no longer exists:", actionEditorId);
+    closeActionEditor();
+    return;
+  }
+  if (actionEditorMode === "edit") {
+    nextActions[index] = normalized.value;
+  } else {
+    nextActions.push(normalized.value);
+  }
+
+  const validation = validateActionDefinitions(nextActions, {
+    validateMetronomeSettings: validateMetronomeActionSettings,
+  });
+  if (!validation.valid) {
+    const errors = validation.errors
+      .filter((error) => error.index === index)
+      .map(({ field, message }) => ({ field, message }));
+    showActionEditorErrors(errors);
+    return;
+  }
+
+  actionDefinitions = validation.actions;
+  renderActionTable();
+  clearActionEditorErrors();
+  closeActionEditor();
 }
 
-function syncPreTimerDialogFields() {
-  const type = dom.preTimerType.value;
-  const isSeconds = type === PRE_TIMER_TYPES.SECONDS;
-  const isStopwatch = type === PRE_TIMER_TYPES.STOPWATCH;
-  const isManual = type === PRE_TIMER_TYPES.MANUAL;
-  const isRound = dom.preTimerRounding.value === PRE_TIMER_ROUNDING.ROUND;
-
-  dom.preTimerSecondsFields.hidden = !isSeconds;
-  dom.preTimerStopwatchFields.hidden = !isStopwatch;
-  dom.preTimerManualFields.hidden = !isManual;
-  dom.preTimerRoundingThresholdField.hidden = !isStopwatch || !isRound;
-  dom.preTimerSeconds.disabled = !isSeconds;
-  dom.preTimerFormula.disabled = !isStopwatch;
-  dom.preTimerRounding.disabled = !isStopwatch;
-  dom.preTimerRoundingThreshold.disabled = !isStopwatch || !isRound;
-  dom.preTimerLimitSeconds.disabled = !isManual;
+function showActionEditorErrors(errors) {
+  let firstInvalid = null;
+  errors.forEach(({ field, message }) => {
+    const fieldId = getActionEditorFieldId(field);
+    if (fieldId === "actions-error") {
+      dom.actionsError.textContent = message;
+      firstInvalid = firstInvalid || dom.actionAddButton;
+      return;
+    }
+    setFieldError(fieldId, message);
+    if (!firstInvalid) {
+      firstInvalid =
+        document.getElementById(fieldId) ||
+        (field === "maximum"
+          ? document.querySelector('input[name="maximum"]:checked')
+          : field === "breaks"
+            ? document.querySelector('input[name="breaks"]:checked')
+            : getErrorTarget(fieldId));
+    }
+  });
+  firstInvalid?.focus();
 }
 
-function rememberPreTimerFormulaSelection() {
+function getActionEditorFieldId(field) {
+  const ids = {
+    action: "action-type",
+    type: "action-type",
+    name: "action-name",
+    accentuate: "accentuate",
+    increaseTempo: "increase-tempo",
+    seconds: "action-seconds",
+    formula: "action-formula",
+    rounding: "action-rounding",
+    roundingThreshold: "action-rounding-threshold",
+    min: "action-min",
+    max: "action-max",
+    limitSeconds: "action-limit-seconds",
+    bpm: "bpm",
+    accentRepeat: "accent-repeat",
+    increaseBy: "increase-by",
+    increaseAfter: "increase-after",
+    maximum: "maximum",
+    maximumLimitStick: "maximum-limit-stick",
+    maximumLimitReset: "maximum-limit-reset",
+    maximumLimitReverse: "maximum-limit-reverse",
+    decreaseBy: "decrease-by-reverse",
+    decreaseAfter: "decrease-after-reverse",
+    breakCount: "break-count",
+    breakSeconds: "break-seconds",
+    sessionEndBeats: "session-end-beats",
+    sessionEndEnabled: "session-end-enabled",
+    lockSettings: "lock-settings",
+    lockBeats: "lock-beats",
+    actions: "actions-error",
+  };
+  return ids[field] || field;
+}
+
+function clearActionEditorErrors() {
+  [
+    "action-type",
+    "action-name",
+    "action-seconds",
+    "action-formula",
+    "action-rounding",
+    "action-rounding-threshold",
+    "action-min",
+    "action-max",
+    "action-limit-seconds",
+    "bpm",
+    "accent-repeat",
+    "increase-by",
+    "increase-after",
+    "maximum-limit-stick",
+    "maximum-limit-reset",
+    "maximum-limit-reverse",
+    "decrease-by-reverse",
+    "decrease-after-reverse",
+    "break-count",
+    "break-seconds",
+    "session-end-beats",
+    "lock-beats",
+    "maximum",
+    "breaks",
+  ].forEach(clearFieldError);
+  dom.actionsError.textContent = "";
+}
+
+function cancelActionEditor() {
+  closeActionEditor();
+}
+
+function requestCloseActionEditor(command = null) {
+  if (actionEditorMode === null) {
+    command?.();
+    return;
+  }
+  if (!actionEditorDirty) {
+    closeActionEditor({ scroll: !command });
+    command?.();
+    return;
+  }
+  pendingEditorCommand = command;
+  if (dom.actionDiscardDialog.open) {
+    return;
+  }
+  if (typeof dom.actionDiscardDialog.showModal !== "function") {
+    dom.settingsStatus.textContent = "Der unbestätigte Entwurf muss zuerst bestätigt oder abgebrochen werden.";
+    return;
+  }
+  dom.actionDiscardDialog.showModal();
+  dom.actionDiscardConfirm.focus();
+}
+
+function resolvePendingEditorCommand(discard) {
+  if (!dom.actionDiscardDialog.open) {
+    return;
+  }
+  dom.actionDiscardDialog.close();
+  const command = pendingEditorCommand;
+  pendingEditorCommand = null;
+  if (!discard) {
+    dom.actionEditorTitle.focus();
+    return;
+  }
+  closeActionEditor({ scroll: !command });
+  command?.();
+}
+
+function closeActionEditor({ scroll = true } = {}) {
+  actionEditorMode = null;
+  actionEditorId = null;
+  actionEditorDraft = null;
+  actionEditorOriginal = null;
+  actionEditorDirty = false;
+  dom.actionEditor.hidden = true;
+  clearActionEditorErrors();
+  renderActionTable();
+  syncActionEditorFields();
+  if (scroll) {
+    dom.actionsFieldset.scrollIntoView({ behavior: "smooth", block: "start" });
+    dom.actionAddButton.focus({ preventScroll: true });
+  }
+}
+
+function handleActionTableClick(event) {
+  const button = event.target.closest("button[data-action-operation]");
+  if (!button) {
+    return;
+  }
+  const actionId = button.dataset.actionId;
+  if (!actionId) {
+    return;
+  }
+  if (button.dataset.actionOperation === "edit") {
+    requestOpenActionEditor(actionId, button);
+  } else if (button.dataset.actionOperation === "delete") {
+    requestCloseActionEditor(() => openActionDeleteDialog(actionId, button));
+  }
+}
+
+function handleActionTableKeydown(event) {
+  const handle = event.target.closest(".action-drag-handle");
+  if (!handle || !event.altKey || (event.key !== "ArrowUp" && event.key !== "ArrowDown")) {
+    return;
+  }
+  const actionId = handle.dataset.actionId;
+  const index = actionDefinitions.findIndex((action) => action.id === actionId);
+  const targetIndex = event.key === "ArrowUp" ? index - 1 : index + 1;
+  if (index < 0 || targetIndex < 0 || targetIndex >= actionDefinitions.length) {
+    return;
+  }
+  event.preventDefault();
+  const [moved] = actionDefinitions.splice(index, 1);
+  actionDefinitions.splice(targetIndex, 0, moved);
+  renderActionTable();
+  syncActionEditorFields();
+  Array.from(dom.actionsTableBody.querySelectorAll(".action-drag-handle"))
+    .find((candidate) => candidate.dataset.actionId === actionId)
+    ?.focus();
+}
+
+function handleActionPointerDown(event) {
+  const handle = event.target.closest(".action-drag-handle");
+  const row = handle?.closest("tr[data-action-id]");
+  if (!row) {
+    return;
+  }
+  actionDragState = {
+    id: row.dataset.actionId,
+    pointerId: event.pointerId,
+    startY: event.clientY,
+    dragging: false,
+  };
+  handle.setPointerCapture?.(event.pointerId);
+}
+
+function handleActionPointerMove(event) {
+  if (!actionDragState || actionDragState.pointerId !== event.pointerId) {
+    return;
+  }
+  if (!actionDragState.dragging) {
+    if (Math.abs(event.clientY - actionDragState.startY) < 8) {
+      return;
+    }
+    actionDragState.dragging = true;
+    getActionRowElement(actionDragState.id)?.classList.add("is-dragging");
+  }
+  event.preventDefault();
+  updateActionDropTarget(event.clientX, event.clientY);
+}
+
+function handleActionPointerUp(event) {
+  if (!actionDragState || actionDragState.pointerId !== event.pointerId) {
+    return;
+  }
+  if (actionDragState.dragging) {
+    moveActionByDrop(actionDragState.id, getActionDropTarget(event.clientX, event.clientY));
+  }
+  clearActionDragState();
+}
+
+function handleActionPointerCancel(event) {
+  if (actionDragState?.pointerId === event.pointerId) {
+    clearActionDragState();
+  }
+}
+
+function handleActionDragStart(event) {
+  const handle = event.target.closest(".action-drag-handle");
+  const row = handle?.closest("tr[data-action-id]");
+  if (!row) {
+    return;
+  }
+  actionDragState = {
+    id: row.dataset.actionId,
+    pointerId: null,
+    startY: event.clientY,
+    dragging: true,
+  };
+  row.classList.add("is-dragging");
+  event.dataTransfer.effectAllowed = "move";
+  event.dataTransfer.setData("text/plain", row.dataset.actionId);
+}
+
+function handleActionDragOver(event) {
+  if (!actionDragState?.dragging) {
+    return;
+  }
+  if (!event.target.closest("tr[data-action-id]")) {
+    return;
+  }
+  event.preventDefault();
+  updateActionDropTarget(event.clientX, event.clientY);
+}
+
+function handleActionDrop(event) {
+  if (!actionDragState?.dragging) {
+    return;
+  }
+  event.preventDefault();
+  moveActionByDrop(actionDragState.id, getActionDropTarget(event.clientX, event.clientY));
+  clearActionDragState();
+}
+
+function handleActionDragEnd() {
+  clearActionDragState();
+}
+
+function getActionRowElement(actionId) {
+  return Array.from(dom.actionsTableBody.querySelectorAll("tr[data-action-id]"))
+    .find((row) => row.dataset.actionId === actionId) || null;
+}
+
+function updateActionDropTarget(clientX, clientY) {
+  document.querySelectorAll(".action-row.is-drop-target").forEach((row) => {
+    row.classList.remove("is-drop-target");
+  });
+  const target = getActionDropTarget(clientX, clientY);
+  target?.row?.classList.add("is-drop-target");
+}
+
+function getActionDropTarget(clientX, clientY) {
+  const element = document.elementFromPoint(clientX, clientY);
+  const row = element?.closest?.("tr[data-action-id]");
+  if (!row) {
+    return null;
+  }
+  const bounds = row.getBoundingClientRect();
+  return {
+    row,
+    id: row.dataset.actionId,
+    before: clientY < bounds.top + bounds.height / 2,
+  };
+}
+
+function moveActionByDrop(actionId, target) {
+  if (!target || actionId === target.id) {
+    return;
+  }
+  const sourceIndex = actionDefinitions.findIndex((action) => action.id === actionId);
+  const targetIndex = actionDefinitions.findIndex((action) => action.id === target.id);
+  if (sourceIndex < 0 || targetIndex < 0) {
+    return;
+  }
+  const [moved] = actionDefinitions.splice(sourceIndex, 1);
+  let insertionIndex = targetIndex;
+  if (sourceIndex < targetIndex) {
+    insertionIndex -= 1;
+  }
+  if (!target.before) {
+    insertionIndex += 1;
+  }
+  actionDefinitions.splice(Math.max(0, insertionIndex), 0, moved);
+  renderActionTable();
+  syncActionEditorFields();
+}
+
+function clearActionDragState() {
+  document.querySelectorAll(".action-row.is-dragging, .action-row.is-drop-target").forEach((row) => {
+    row.classList.remove("is-dragging", "is-drop-target");
+  });
+  actionDragState = null;
+}
+
+function openActionDeleteDialog(actionId, trigger) {
+  if (dom.actionDeleteDialog.open) {
+    return;
+  }
+  if (typeof dom.actionDeleteDialog.showModal !== "function") {
+    dom.settingsStatus.textContent = "Aktionen können in diesem Browser nicht gelöscht werden.";
+    return;
+  }
+  const action = findActionById(actionId);
+  if (!action) {
+    return;
+  }
+  actionDeleteId = actionId;
+  actionDeleteTrigger = trigger;
+  dom.actionDeleteDialogMessage.textContent =
+    "\"" + action.name + "\" (" + getActionTypeLabel(action.type) + ") wirklich löschen?";
+  dom.actionDeleteDialog.showModal();
+  dom.actionDeleteConfirm.focus();
+}
+
+function confirmActionDelete() {
+  if (!actionDeleteId) {
+    return;
+  }
+  actionDefinitions = actionDefinitions.filter((action) => action.id !== actionDeleteId);
+  renderActionTable();
+  closeActionDeleteDialog(true);
+}
+
+function closeActionDeleteDialog(saveChanges) {
+  if (!actionDeleteId || !dom.actionDeleteDialog.open) {
+    return;
+  }
+  dom.actionDeleteDialog.close();
+  const trigger = actionDeleteTrigger;
+  actionDeleteId = null;
+  actionDeleteTrigger = null;
+  if (!saveChanges) {
+    trigger?.focus();
+  } else {
+    dom.actionAddButton.focus();
+  }
+}
+
+function rememberFormulaSelection() {
   if (
-    typeof dom.preTimerFormula.selectionStart !== "number" ||
-    typeof dom.preTimerFormula.selectionEnd !== "number"
+    typeof dom.actionFormula.selectionStart !== "number" ||
+    typeof dom.actionFormula.selectionEnd !== "number"
   ) {
     return;
   }
-  preTimerFormulaSelection = {
-    start: dom.preTimerFormula.selectionStart,
-    end: dom.preTimerFormula.selectionEnd,
+  actionFormulaSelection = {
+    start: dom.actionFormula.selectionStart,
+    end: dom.actionFormula.selectionEnd,
   };
 }
 
-function handlePreTimerPlaceholderClick(event) {
-  const button = event.target.closest("[data-pre-timer-placeholder]");
+function handleFormulaPlaceholderClick(event) {
+  const button = event.target.closest("[data-action-formula-placeholder]");
   if (!button) {
     return;
   }
   event.preventDefault();
-  insertPreTimerFormulaPlaceholder(button.dataset.preTimerPlaceholder);
+  insertActionFormulaPlaceholder(button.dataset.actionFormulaPlaceholder);
 }
 
-function handlePreTimerPlaceholderDragStart(event) {
-  const button = event.target.closest("[data-pre-timer-placeholder]");
-  const placeholder = button?.dataset.preTimerPlaceholder;
-  if (!placeholder || !PRE_TIMER_FORMULA_PLACEHOLDERS.has(placeholder)) {
+function handleFormulaPlaceholderDragStart(event) {
+  const button = event.target.closest("[data-action-formula-placeholder]");
+  const placeholder = button?.dataset.actionFormulaPlaceholder;
+  if (!placeholder) {
     return;
   }
-
   event.dataTransfer?.setData("text/plain", placeholder);
   if (event.dataTransfer) {
     event.dataTransfer.effectAllowed = "copy";
   }
 }
 
-function handlePreTimerFormulaDragOver(event) {
+function handleFormulaDragOver(event) {
   event.preventDefault();
   if (event.dataTransfer) {
     event.dataTransfer.dropEffect = "copy";
   }
 }
 
-function handlePreTimerFormulaDrop(event) {
+function handleFormulaDrop(event) {
   const placeholder = event.dataTransfer?.getData("text/plain")?.trim();
   if (!PRE_TIMER_FORMULA_PLACEHOLDERS.has(placeholder)) {
     return;
   }
-
   event.preventDefault();
-  insertPreTimerFormulaPlaceholder(placeholder, {
-    start: dom.preTimerFormula.selectionStart,
-    end: dom.preTimerFormula.selectionEnd,
+  insertActionFormulaPlaceholder(placeholder, {
+    start: dom.actionFormula.selectionStart,
+    end: dom.actionFormula.selectionEnd,
   });
 }
 
-function insertPreTimerFormulaPlaceholder(placeholder, selection = null) {
+function insertActionFormulaPlaceholder(placeholder, selection = null) {
   if (!PRE_TIMER_FORMULA_PLACEHOLDERS.has(placeholder)) {
     return;
   }
-
-  const currentValue = dom.preTimerFormula.value;
-  const rememberedSelection = preTimerFormulaSelection || {
+  const currentValue = dom.actionFormula.value;
+  const remembered = actionFormulaSelection || {
     start: currentValue.length,
     end: currentValue.length,
   };
-  const start = Math.max(
-    0,
-    Math.min(
-      currentValue.length,
-      Number.isInteger(selection?.start)
-        ? selection.start
-        : rememberedSelection.start,
-    ),
-  );
-  const end = Math.max(
-    start,
-    Math.min(
-      currentValue.length,
-      Number.isInteger(selection?.end) ? selection.end : rememberedSelection.end,
-    ),
-  );
-  const nextValue =
-    currentValue.slice(0, start) + placeholder + currentValue.slice(end);
+  const start = Math.max(0, Math.min(currentValue.length, Number.isInteger(selection?.start) ? selection.start : remembered.start));
+  const end = Math.max(start, Math.min(currentValue.length, Number.isInteger(selection?.end) ? selection.end : remembered.end));
+  const nextValue = currentValue.slice(0, start) + placeholder + currentValue.slice(end);
   const nextCaret = start + placeholder.length;
-
-  dom.preTimerFormula.value = nextValue;
-  dom.preTimerFormula.focus();
-  dom.preTimerFormula.setSelectionRange(nextCaret, nextCaret);
-  preTimerFormulaSelection = { start: nextCaret, end: nextCaret };
-  dom.preTimerFormula.dispatchEvent(new Event("input", { bubbles: true }));
+  dom.actionFormula.value = nextValue;
+  dom.actionFormula.focus();
+  dom.actionFormula.setSelectionRange(nextCaret, nextCaret);
+  actionFormulaSelection = { start: nextCaret, end: nextCaret };
+  dom.actionFormula.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
 function handleNumberInputWheel(event) {
@@ -798,500 +1365,6 @@ function handleNumberInputWheel(event) {
     return;
   }
   input.blur();
-}
-
-function handlePreTimerDialogSave(event) {
-  event.preventDefault();
-  const validation = validatePreTimerDialog();
-  if (!validation.valid) {
-    validation.firstInvalid?.focus();
-    return;
-  }
-
-  if (preTimerDialogMode === "edit") {
-    const index = preTimerDefinitions.findIndex(
-      (preTimer) => preTimer.id === preTimerDialogEditingId,
-    );
-    if (index >= 0) {
-      preTimerDefinitions[index] = validation.value;
-    }
-  } else {
-    preTimerDefinitions.push(validation.value);
-  }
-
-  renderPreTimerTable();
-  syncSettingsVisibility();
-  clearFieldError("pre-timers");
-  closePreTimerDialog(true);
-}
-
-function validatePreTimerDialog() {
-  clearPreTimerDialogErrors();
-  const type = dom.preTimerType.value;
-  const rawValue = {
-    id: preTimerDialogEditingId || undefined,
-    type,
-    name: dom.preTimerName.value,
-    seconds: dom.preTimerSeconds.value,
-    formula: dom.preTimerFormula.value,
-    rounding: dom.preTimerRounding.value,
-    roundingThreshold: dom.preTimerRoundingThreshold.value,
-    limitSeconds: dom.preTimerLimitSeconds.value,
-  };
-  const normalized = normalizePreTimerDefinition(rawValue);
-  let firstInvalid = null;
-
-  Object.entries(normalized.errors).forEach(([field, message]) => {
-    const fieldId = getPreTimerDialogFieldId(field);
-    setFieldError(fieldId, message);
-    if (!firstInvalid) {
-      firstInvalid = document.getElementById(fieldId);
-    }
-  });
-
-  if (normalized.valid) {
-    const normalizedName = normalized.value.name.toLocaleLowerCase();
-    const duplicate = preTimerDefinitions.find(
-      (preTimer) =>
-        preTimer.id !== preTimerDialogEditingId &&
-        preTimer.name.toLocaleLowerCase() === normalizedName,
-    );
-    if (duplicate) {
-      setFieldError(
-        "pre-timer-name",
-        `Der Name "${duplicate.name}" ist bereits vergeben.`,
-      );
-      firstInvalid = firstInvalid || dom.preTimerName;
-      normalized.valid = false;
-    }
-  }
-
-  return {
-    valid: normalized.valid,
-    value: normalized.value,
-    firstInvalid,
-  };
-}
-
-function getPreTimerDialogFieldId(field) {
-  const ids = {
-    type: "pre-timer-type",
-    name: "pre-timer-name",
-    seconds: "pre-timer-seconds",
-    formula: "pre-timer-formula",
-    rounding: "pre-timer-rounding",
-    roundingThreshold: "pre-timer-rounding-threshold",
-    limitSeconds: "pre-timer-limit-seconds",
-  };
-  return ids[field] || "pre-timer-name";
-}
-
-function clearPreTimerDialogErrors() {
-  [
-    "pre-timer-type",
-    "pre-timer-name",
-    "pre-timer-seconds",
-    "pre-timer-formula",
-    "pre-timer-rounding",
-    "pre-timer-rounding-threshold",
-    "pre-timer-limit-seconds",
-  ].forEach((fieldId) => clearFieldError(fieldId));
-}
-
-function closePreTimerDialog(saveChanges) {
-  if (!preTimerDialogMode) {
-    return;
-  }
-  dom.preTimerDialog.close();
-  const trigger = preTimerDialogTrigger;
-  preTimerDialogMode = null;
-  preTimerDialogEditingId = null;
-  preTimerDialogTrigger = null;
-  preTimerDialogNameGenerated = false;
-  if (!saveChanges) {
-    trigger?.focus();
-  } else {
-    dom.preTimerAddButton.focus();
-  }
-}
-
-function handlePreTimerTableClick(event) {
-  const button = event.target.closest("button[data-action]");
-  if (!button) {
-    return;
-  }
-  const preTimerId = button.dataset.preTimerId;
-  if (!preTimerId) {
-    return;
-  }
-  if (button.dataset.action === "edit") {
-    openPreTimerDialog(preTimerId, button);
-  } else if (button.dataset.action === "delete") {
-    openPreTimerDeleteDialog(preTimerId, button);
-  }
-}
-
-function handlePreTimerTableKeydown(event) {
-  const handle = event.target.closest(".pre-timer-drag-handle");
-  if (!handle || !event.altKey) {
-    return;
-  }
-  if (event.key !== "ArrowUp" && event.key !== "ArrowDown") {
-    return;
-  }
-
-  const preTimerId = handle.dataset.preTimerId;
-  const index = preTimerDefinitions.findIndex(
-    (preTimer) => preTimer.id === preTimerId,
-  );
-  const targetIndex = event.key === "ArrowUp" ? index - 1 : index + 1;
-  if (index < 0 || targetIndex < 0 || targetIndex >= preTimerDefinitions.length) {
-    return;
-  }
-
-  event.preventDefault();
-  const [moved] = preTimerDefinitions.splice(index, 1);
-  preTimerDefinitions.splice(targetIndex, 0, moved);
-  renderPreTimerTable();
-  Array.from(
-    dom.preTimersTableBody.querySelectorAll(".pre-timer-drag-handle"),
-  )
-    .find((candidate) => candidate.dataset.preTimerId === preTimerId)
-    ?.focus();
-}
-
-function handlePreTimerPointerDown(event) {
-  const handle = event.target.closest(".pre-timer-drag-handle");
-  if (!handle) {
-    return;
-  }
-  const row = handle.closest("tr[data-pre-timer-id]");
-  if (!row) {
-    return;
-  }
-  preTimerDragState = {
-    id: row.dataset.preTimerId,
-    pointerId: event.pointerId,
-    startY: event.clientY,
-    dragging: false,
-  };
-  handle.setPointerCapture?.(event.pointerId);
-}
-
-function handlePreTimerPointerMove(event) {
-  if (
-    !preTimerDragState ||
-    preTimerDragState.pointerId !== event.pointerId
-  ) {
-    return;
-  }
-  if (!preTimerDragState.dragging) {
-    if (Math.abs(event.clientY - preTimerDragState.startY) < 8) {
-      return;
-    }
-    preTimerDragState.dragging = true;
-    getPreTimerRowElement(preTimerDragState.id)?.classList.add("is-dragging");
-  }
-  event.preventDefault();
-  updatePreTimerDropTarget(event.clientX, event.clientY);
-}
-
-function handlePreTimerPointerUp(event) {
-  if (
-    !preTimerDragState ||
-    preTimerDragState.pointerId !== event.pointerId
-  ) {
-    return;
-  }
-  if (preTimerDragState.dragging) {
-    const target = getPreTimerDropTarget(event.clientX, event.clientY);
-    movePreTimerDefinitionByDrop(preTimerDragState.id, target);
-  }
-  clearPreTimerDragState();
-}
-
-function handlePreTimerPointerCancel(event) {
-  if (preTimerDragState?.pointerId === event.pointerId) {
-    clearPreTimerDragState();
-  }
-}
-
-function handlePreTimerDragStart(event) {
-  const handle = event.target.closest(".pre-timer-drag-handle");
-  const row = handle?.closest("tr[data-pre-timer-id]");
-  if (!row) {
-    return;
-  }
-  preTimerDragState = {
-    id: row.dataset.preTimerId,
-    pointerId: null,
-    startY: event.clientY,
-    dragging: true,
-  };
-  row.classList.add("is-dragging");
-  event.dataTransfer.effectAllowed = "move";
-  event.dataTransfer.setData("text/plain", row.dataset.preTimerId);
-}
-
-function handlePreTimerDragOver(event) {
-  if (!preTimerDragState?.dragging) {
-    return;
-  }
-  const row = event.target.closest("tr[data-pre-timer-id]");
-  if (!row) {
-    return;
-  }
-  event.preventDefault();
-  updatePreTimerDropTarget(event.clientX, event.clientY);
-}
-
-function handlePreTimerDrop(event) {
-  if (!preTimerDragState?.dragging) {
-    return;
-  }
-  event.preventDefault();
-  const target = getPreTimerDropTarget(event.clientX, event.clientY);
-  movePreTimerDefinitionByDrop(preTimerDragState.id, target);
-  clearPreTimerDragState();
-}
-
-function handlePreTimerDragEnd() {
-  clearPreTimerDragState();
-}
-
-function updatePreTimerDropTarget(clientX, clientY) {
-  document.querySelectorAll(".pre-timer-row.is-drop-target").forEach((row) => {
-    row.classList.remove("is-drop-target");
-  });
-  const target = getPreTimerDropTarget(clientX, clientY);
-  if (target?.row) {
-    target.row.classList.add("is-drop-target");
-  }
-}
-
-function getPreTimerDropTarget(clientX, clientY) {
-  const element = document.elementFromPoint(clientX, clientY);
-  const row = element?.closest?.("tr[data-pre-timer-id]");
-  if (!row) {
-    return null;
-  }
-  const bounds = row.getBoundingClientRect();
-  return {
-    row,
-    id: row.dataset.preTimerId,
-    before: clientY < bounds.top + bounds.height / 2,
-  };
-}
-
-function movePreTimerDefinitionByDrop(preTimerId, target) {
-  if (!target || preTimerId === target.id) {
-    return;
-  }
-  const sourceIndex = preTimerDefinitions.findIndex(
-    (preTimer) => preTimer.id === preTimerId,
-  );
-  const targetIndex = preTimerDefinitions.findIndex(
-    (preTimer) => preTimer.id === target.id,
-  );
-  if (sourceIndex < 0 || targetIndex < 0) {
-    return;
-  }
-
-  const [moved] = preTimerDefinitions.splice(sourceIndex, 1);
-  let insertionIndex = targetIndex;
-  if (sourceIndex < targetIndex) {
-    insertionIndex -= 1;
-  }
-  if (!target.before) {
-    insertionIndex += 1;
-  }
-  preTimerDefinitions.splice(Math.max(0, insertionIndex), 0, moved);
-  renderPreTimerTable();
-}
-
-function clearPreTimerDragState() {
-  document.querySelectorAll(".pre-timer-row.is-dragging, .pre-timer-row.is-drop-target").forEach(
-    (row) => {
-      row.classList.remove("is-dragging", "is-drop-target");
-    },
-  );
-  preTimerDragState = null;
-}
-
-function openPreTimerDeleteDialog(preTimerId, trigger) {
-  if (
-    dom.preTimerDeleteDialog.open ||
-    typeof dom.preTimerDeleteDialog.showModal !== "function"
-  ) {
-    return;
-  }
-  const preTimer = getPreTimerById(preTimerId);
-  if (!preTimer) {
-    return;
-  }
-  preTimerDeleteId = preTimerId;
-  preTimerDeleteTrigger = trigger;
-  dom.preTimerDeleteDialogMessage.textContent =
-    `"${preTimer.name}" (${getPreTimerTypeLabel(preTimer.type)}) wirklich löschen?`;
-  dom.preTimerDeleteDialog.showModal();
-  dom.preTimerDeleteConfirm.focus();
-}
-
-function confirmPreTimerDelete() {
-  if (!preTimerDeleteId) {
-    return;
-  }
-  preTimerDefinitions = preTimerDefinitions.filter(
-    (preTimer) => preTimer.id !== preTimerDeleteId,
-  );
-  renderPreTimerTable();
-  syncSettingsVisibility();
-  clearFieldError("pre-timers");
-  closePreTimerDeleteDialog(true);
-}
-
-function closePreTimerDeleteDialog(saveChanges) {
-  if (!preTimerDeleteId) {
-    return;
-  }
-  dom.preTimerDeleteDialog.close();
-  const trigger = preTimerDeleteTrigger;
-  preTimerDeleteId = null;
-  preTimerDeleteTrigger = null;
-  if (!saveChanges) {
-    trigger?.focus();
-  } else {
-    dom.preTimerAddButton.focus();
-  }
-}
-
-function updateProgressButtonLabels() {
-  dom.increaseProgressButton.textContent = `${formatProgressSummary(
-    dom.increaseBy.value,
-    dom.increaseAfter.value,
-  )} *`;
-  dom.reverseProgressButton.textContent = `${formatProgressSummary(
-    dom.decreaseByReverse.value,
-    dom.decreaseAfterReverse.value,
-  )} *`;
-}
-
-function formatProgressSummary(amount, interval) {
-  const amountText = String(amount).trim() || "?";
-  const intervalText = String(interval).trim() || "?";
-  return `um ${amountText} BPM alle ${intervalText} Beats`;
-}
-
-function openProgressDialog(mode, trigger) {
-  if (dom.tempoProgressDialog.open || typeof dom.tempoProgressDialog.showModal !== "function") {
-    return;
-  }
-
-  progressDialogMode = mode;
-  progressDialogTrigger = trigger;
-  progressDialogSnapshot = {
-    increaseBy: dom.increaseBy.value,
-    increaseAfter: dom.increaseAfter.value,
-    decreaseByReverse: dom.decreaseByReverse.value,
-    decreaseAfterReverse: dom.decreaseAfterReverse.value,
-  };
-
-  const isIncrease = mode === "increase";
-  dom.tempoProgressDialogTitle.textContent = isIncrease
-    ? "Tempodynamik erhöhen"
-    : "Umkehr-Tempodynamik festlegen";
-  dom.increaseProgressFields.hidden = !isIncrease;
-  dom.reverseProgressFields.hidden = isIncrease;
-  clearProgressDialogErrors();
-  dom.tempoProgressDialog.showModal();
-  (isIncrease ? dom.increaseBy : dom.decreaseByReverse).focus();
-}
-
-function handleProgressDialogSave() {
-  if (!progressDialogMode) {
-    return;
-  }
-
-  const validation = validateProgressDialog(progressDialogMode);
-  if (!validation.valid) {
-    validation.firstInvalid?.focus();
-    return;
-  }
-
-  closeProgressDialog(true);
-}
-
-function validateProgressDialog(mode) {
-  clearProgressDialogErrors();
-  const fields =
-    mode === "increase"
-      ? {
-          amount: dom.increaseBy,
-          interval: dom.increaseAfter,
-          amountMessage: "Ganze Zahl von 1 bis 20 eingeben.",
-          intervalMessage: "Positive ganze Zahl eingeben.",
-        }
-      : {
-          amount: dom.decreaseByReverse,
-          interval: dom.decreaseAfterReverse,
-          amountMessage: "Ganze Zahl von 1 bis 50 eingeben.",
-          intervalMessage: "Positive ganze Zahl eingeben.",
-        };
-  let firstInvalid = null;
-  let valid = true;
-
-  const markInvalid = (control, message) => {
-    valid = false;
-    setFieldError(control.id, message);
-    if (!firstInvalid) {
-      firstInvalid = control;
-    }
-  };
-
-  const amountValid =
-    mode === "increase"
-      ? parseIntegerField(fields.amount.value, 1, 20) !== null
-      : parseIntegerField(fields.amount.value, 1, 50) !== null;
-  if (!amountValid) {
-    markInvalid(fields.amount, fields.amountMessage);
-  }
-
-  if (parsePositiveInteger(fields.interval.value, Number.POSITIVE_INFINITY) === null) {
-    markInvalid(fields.interval, fields.intervalMessage);
-  }
-
-  return { valid, firstInvalid };
-}
-
-function clearProgressDialogErrors() {
-  [
-    dom.increaseBy,
-    dom.increaseAfter,
-    dom.decreaseByReverse,
-    dom.decreaseAfterReverse,
-  ].forEach((control) => clearFieldError(control.id));
-}
-
-function closeProgressDialog(saveChanges) {
-  if (!progressDialogMode) {
-    return;
-  }
-
-  if (!saveChanges && progressDialogSnapshot) {
-    dom.increaseBy.value = progressDialogSnapshot.increaseBy;
-    dom.increaseAfter.value = progressDialogSnapshot.increaseAfter;
-    dom.decreaseByReverse.value = progressDialogSnapshot.decreaseByReverse;
-    dom.decreaseAfterReverse.value = progressDialogSnapshot.decreaseAfterReverse;
-  }
-
-  clearProgressDialogErrors();
-  dom.tempoProgressDialog.close();
-  const trigger = progressDialogTrigger;
-  progressDialogMode = null;
-  progressDialogTrigger = null;
-  progressDialogSnapshot = null;
-  updateProgressButtonLabels();
-  trigger?.focus();
 }
 
 function renderPresets() {
@@ -1368,17 +1441,19 @@ function getPresetDefinitionError(preset) {
   if (!preset.values || typeof preset.values !== "object" || Array.isArray(preset.values)) {
     return "Gültige Einstellungswerte fehlen.";
   }
-  if (
-    Object.prototype.hasOwnProperty.call(preset, "autoStart") &&
-    typeof preset.autoStart !== "boolean"
-  ) {
+  if (Object.prototype.hasOwnProperty.call(preset, "autoStart") && typeof preset.autoStart !== "boolean") {
     return "autoStart muss ein Boolean sein.";
   }
-  if (Object.prototype.hasOwnProperty.call(preset.values, "preTimers")) {
-    const validation = validatePreTimerRows(preset.values.preTimers);
-    if (!validation.valid) {
-      return validation.errors[0]?.message || "Vorlaufzeiten sind ungültig.";
-    }
+  if (Object.prototype.hasOwnProperty.call(preset, "hideProgress") && typeof preset.hideProgress !== "boolean") {
+    return "hideProgress muss ein Boolean sein.";
+  }
+  const validation = validateActionDefinitions(preset.values.actions, {
+    validateMetronomeSettings: validateMetronomeActionSettings,
+    requireMetronome: true,
+  });
+  if (!validation.valid) {
+    const firstError = validation.errors[0];
+    return firstError?.message || "Aktionen sind ungültig.";
   }
   return null;
 }
@@ -1390,40 +1465,27 @@ function getInitialParameterText() {
   return window.location.search.slice(1);
 }
 
-function serializeSettings(includeAutoStart) {
+function serializeSettings(autoStart) {
   const parameters = new URLSearchParams();
-  parameters.set("bpm", dom.bpm.value.trim());
-  parameters.set("accentuate", String(dom.accentuate.checked));
-  parameters.set("accent-repeat", dom.accentRepeat.value.trim());
-  parameters.set("increase-tempo", String(dom.increaseTempo.checked));
-  parameters.set("increase-by", dom.increaseBy.value.trim());
-  parameters.set("increase-after", dom.increaseAfter.value.trim());
-  parameters.set("maximum", getSelectedValue("maximum") || "");
-  parameters.set("maximum-limit-stick", dom.maximumLimitStick.value.trim());
-  parameters.set("maximum-limit-reset", dom.maximumLimitReset.value.trim());
-  parameters.set("maximum-limit-reverse", dom.maximumLimitReverse.value.trim());
-  parameters.set("decrease-by-reverse", dom.decreaseByReverse.value.trim());
-  parameters.set("decrease-after-reverse", dom.decreaseAfterReverse.value.trim());
-  parameters.set("breaks", getSelectedValue("breaks") || "");
-  parameters.set("break-count", dom.breakCount.value.trim());
-  parameters.set("break-seconds", dom.breakSeconds.value.trim());
-  parameters.set("session-end-enabled", String(dom.sessionEndEnabled.checked));
-  parameters.set("session-end-beats", dom.sessionEndBeats.value.trim());
-  parameters.set("lock-settings", String(dom.lockSettings.checked));
-  parameters.set("lock-beats", dom.lockBeats.value.trim());
-  if (preTimerDefinitions.length > 0) {
-    parameters.set("pre-timers", serializePreTimerPayload(preTimerDefinitions));
+  parameters.set("version", String(ACTIONS_VERSION));
+  parameters.set("auto-start", String(Boolean(autoStart)));
+  if (dom.hideProgress.checked) {
+    parameters.set("hide-progress", "true");
   }
-  if (includeAutoStart) {
-    parameters.set(AUTO_START_PARAMETER, "true");
-  }
+  parameters.set("actions", serializeActionsPayload(actionDefinitions));
   return parameters.toString();
 }
 
 async function handleExportSettings(format, button, defaultLabel) {
+  if (actionEditorMode !== null) {
+    dom.settingsStatus.classList.add("error-status");
+    dom.settingsStatus.textContent = "Aktion zuerst bestätigen oder abbrechen, bevor Einstellungen exportiert werden.";
+    dom.actionEditorTitle.focus();
+    return;
+  }
+
   const parameterList = serializeSettings(dom.exportAutoStart.checked);
-  const text =
-    format === "url" ? buildSettingsUrl(parameterList) : parameterList;
+  const text = format === "url" ? buildSettingsUrl(parameterList) : parameterList;
 
   try {
     await copyText(text, button);
@@ -1435,7 +1497,6 @@ async function handleExportSettings(format, button, defaultLabel) {
           : "Ganze URL in die Zwischenablage kopiert."
         : "Einstellungen in die Zwischenablage kopiert.";
     button.textContent = "Kopiert!";
-
     const existingTimer = copyFeedbackTimers.get(button);
     if (existingTimer !== undefined) {
       window.clearTimeout(existingTimer);
@@ -1458,7 +1519,7 @@ async function handleExportSettings(format, button, defaultLabel) {
 
 function buildSettingsUrl(parameterList) {
   const url = new URL(window.location.href);
-  url.search = parameterList ? `?${parameterList}` : "";
+  url.search = parameterList ? "?" + parameterList : "";
   return url.toString();
 }
 
@@ -1468,80 +1529,50 @@ async function handleSettingsImport(parameterText) {
   }
 
   const importedText = String(parameterText);
-  const rawText = importedText.trim();
   clearImportError();
   clearAllFieldErrors();
-  clearFieldError("settings-import");
   dom.settingsStatus.classList.remove("error-status");
   dom.settingsStatus.textContent = "";
   resetSettingsToDefaults();
-  syncSettingsVisibility();
 
-  const parsed = parseSettingsParameters(rawText);
+  const parsed = parseSettingsParameters(importedText.trim());
   if (!parsed.valid) {
-    const issues = [];
-    addImportIssue(
-      issues,
-      null,
-      parsed.parseError || "Die importierten Einstellungen konnten nicht gelesen werden.",
-    );
-    getMissingRequiredImportSettings(parsed.providedSettings).forEach((name) => {
-      addImportIssue(issues, name, "Pflichtfeld fehlt im Import.");
-    });
-    showImportError(importedText, issues);
+    showImportError(importedText, [{ fieldId: null, message: parsed.error }]);
     showView("settings", true);
-    return;
+    return false;
   }
 
-  const importedValues = {
-    ...parsed.values,
-    preTimers:
-      parsed.preTimersProvided && !parsed.preTimersError
-        ? parsed.values.preTimers
-        : [],
-  };
-  applySettingsParameters(importedValues);
-  syncSettingsVisibility();
-
-  const validation = validateSettings();
-  const issues = [];
-
-  parsed.invalidSettings.forEach(({ name, message }) => {
-    addImportIssue(issues, name, message);
+  const validation = validateActionDefinitions(parsed.actions, {
+    validateMetronomeSettings: validateMetronomeActionSettings,
+    requireMetronome: true,
   });
-
-  if (parsed.preTimersError) {
-    addImportIssue(issues, "pre-timers", parsed.preTimersError);
+  const actionErrors = validation.errors.filter((error) => error.index >= 0);
+  if (actionErrors.length === 0) {
+    actionDefinitions = validation.actions;
   }
+  dom.hideProgress.checked = parsed.hideProgress;
+  dom.exportAutoStart.checked = parsed.autoStart;
+  renderActionTable();
+  syncProgressVisibility();
 
-  if (parsed.autoStartError) {
-    addImportIssue(issues, "auto-start", parsed.autoStartError);
-  }
-
-  if (!parsed.foundSettings) {
-    addImportIssue(issues, null, "Der Import enthält keine bekannten Einstellungen.");
-  }
-
-  getMissingRequiredImportSettings(parsed.providedSettings).forEach((name) => {
-    addImportIssue(issues, name, "Pflichtfeld fehlt im Import.");
-  });
-
-  validation.errors.forEach(({ fieldId, message }) => {
-    addImportIssue(issues, fieldId, message);
-  });
-
-  if (issues.length > 0) {
+  if (validation.errors.length > 0) {
+    const issues = validation.errors.map((error) => ({
+      fieldId:
+        error.index >= 0
+          ? "Aktion " + (error.index + 1) + " - " + getImportFieldLabel(error.field)
+          : getImportFieldLabel(error.field),
+      message: error.message,
+    }));
     showImportError(importedText, issues);
     showView("settings", true);
     return false;
   }
 
   dom.settingsImport.value = "";
-  if (parsed.autoStart === true) {
+  if (parsed.autoStart) {
     autoStartImportInProgress = true;
     try {
-      const started = await startConfiguredSession();
-      return started;
+      return await startConfiguredSession();
     } finally {
       autoStartImportInProgress = false;
     }
@@ -1552,187 +1583,64 @@ async function handleSettingsImport(parameterText) {
 }
 
 function parseSettingsParameters(rawText) {
-  let parameterText = rawText.trim();
+  let parameterText = String(rawText).trim();
   if (parameterText.startsWith("?")) {
     parameterText = parameterText.slice(1);
   } else if (/^[a-z][a-z\d+.-]*:\/\//i.test(parameterText)) {
     try {
-      const baseUrl =
-        typeof window !== "undefined" && window.location?.href
-          ? window.location.href
-          : "http://localhost/";
+      const baseUrl = window.location?.href || "http://localhost/";
       parameterText = new URL(parameterText, baseUrl).search.slice(1);
     } catch {
-      return {
-        valid: false,
-        foundSettings: false,
-        providedSettings: new Set(),
-        parseError: "Die importierte URL ist ungültig.",
-      };
+      return { valid: false, error: "Die importierte URL ist ungültig." };
     }
   }
 
-  let parameters;
-  try {
-    parameters = new URLSearchParams(parameterText);
-  } catch {
+  const parameters = new URLSearchParams(parameterText);
+  const allowedParameters = new Set(["version", "auto-start", "hide-progress", "actions"]);
+  const unknown = Array.from(new Set(Array.from(parameters.keys()).filter((key) => !allowedParameters.has(key))));
+  if (unknown.length > 0) {
     return {
       valid: false,
-      foundSettings: false,
-      providedSettings: new Set(),
-      parseError: "Die importierten Einstellungen konnten nicht gelesen werden.",
+      error: "Unbekannte Importparameter: " + unknown.join(", ") + ".",
     };
   }
 
-  const values = {};
-  const invalidSettings = [];
-  const providedSettings = new Set();
-  let foundSettings = false;
-
-  Object.keys(TEXT_SETTING_CONTROLS).forEach((name) => {
-    if (parameters.has(name)) {
-      providedSettings.add(name);
-      foundSettings = true;
-      const importedValue = getValidTextSettingValue(name, parameters.get(name));
-      if (importedValue.valid) {
-        values[name] = importedValue.value;
-      } else {
-        invalidSettings.push({
-          name,
-          message: importedValue.message,
-        });
-      }
-    }
-  });
-
-  BOOLEAN_SETTING_NAMES.forEach((name) => {
-    if (!parameters.has(name)) {
-      return;
-    }
-    providedSettings.add(name);
-    foundSettings = true;
-    const parsed = parseBooleanParameter(parameters.get(name));
-    if (parsed !== null) {
-      values[name] = parsed;
-    } else {
-      invalidSettings.push({
-        name,
-        message: "true, false, 1 oder 0 eingeben.",
-      });
-    }
-  });
-
-  Object.entries(RADIO_SETTING_VALUES).forEach(([name, allowedValues]) => {
-    if (!parameters.has(name)) {
-      return;
-    }
-    providedSettings.add(name);
-    foundSettings = true;
-    const value = parameters.get(name);
-    if (allowedValues.has(value)) {
-      values[name] = value;
-    } else {
-      invalidSettings.push({
-        name,
-        message: "Ungültige Auswahl importiert.",
-      });
-    }
-  });
-
-  const preTimersProvided = parameters.has("pre-timers");
-  let preTimersError = null;
-  if (preTimersProvided) {
-    providedSettings.add("pre-timers");
-    foundSettings = true;
-    const parsedPreTimers = deserializePreTimerPayload(parameters.get("pre-timers"));
-    if (parsedPreTimers.valid) {
-      values.preTimers = parsedPreTimers.rows;
-    } else {
-      preTimersError = parsedPreTimers.error;
+  for (const name of ["version", "auto-start", "actions"]) {
+    if (parameters.getAll(name).length !== 1) {
+      return { valid: false, error: "Der Import benötigt genau einen Parameter " + name + "." };
     }
   }
+  if (parameters.getAll("hide-progress").length > 1) {
+    return { valid: false, error: "Der Parameter hide-progress darf nur einmal vorkommen." };
+  }
 
-  const autoStartProvided = parameters.has(AUTO_START_PARAMETER);
-  const parsedAutoStart = autoStartProvided
-    ? parseBooleanParameter(parameters.get(AUTO_START_PARAMETER))
-    : false;
-
-  if (autoStartProvided && parsedAutoStart === null) {
+  const version = parameters.get("version");
+  if (version !== String(ACTIONS_VERSION)) {
     return {
-      valid: true,
-      foundSettings,
-      providedSettings,
-      values,
-      invalidSettings,
-      preTimersProvided,
-      preTimersError,
-      autoStart: null,
-      autoStartError: "Auto-Start muss true, false, 1 oder 0 sein.",
+      valid: false,
+      error: "Die Exportversion " + version + " wird nicht unterstützt.",
     };
   }
-
+  const autoStart = parseBooleanParameter(parameters.get("auto-start"));
+  if (autoStart === null) {
+    return { valid: false, error: "Auto-Start muss true oder false sein." };
+  }
+  const hideProgress = parameters.has("hide-progress")
+    ? parseBooleanParameter(parameters.get("hide-progress"))
+    : false;
+  if (hideProgress === null) {
+    return { valid: false, error: "hide-progress muss true oder false sein." };
+  }
+  const parsedActions = parseActionsPayload(parameters.get("actions"));
+  if (!parsedActions.valid) {
+    return { valid: false, error: parsedActions.error };
+  }
   return {
     valid: true,
-    foundSettings,
-    providedSettings,
-    values,
-    invalidSettings,
-    preTimersProvided,
-    preTimersError,
-    autoStart: parsedAutoStart,
+    autoStart,
+    hideProgress,
+    actions: parsedActions.actions,
   };
-}
-
-function getValidTextSettingValue(name, rawValue) {
-  const value = String(rawValue ?? "").trim();
-  let valid = false;
-  let message = "Ungültigen Wert eingeben.";
-
-  switch (name) {
-    case "bpm":
-      valid = parseIntegerField(value, 20, 300) !== null;
-      message = "Ganze BPM-Zahl von 20 bis 300 eingeben.";
-      break;
-    case "accent-repeat":
-    case "increase-after":
-    case "decrease-after-reverse":
-    case "session-end-beats":
-    case "lock-beats":
-      valid = parsePositiveInteger(value, Number.POSITIVE_INFINITY) !== null;
-      message = "Positive ganze Zahl eingeben.";
-      break;
-    case "increase-by":
-      valid = parseIntegerField(value, 1, 20) !== null;
-      message = "Ganze Zahl von 1 bis 20 eingeben.";
-      break;
-    case "maximum-limit-stick":
-    case "maximum-limit-reset":
-    case "maximum-limit-reverse":
-      valid = parseIntegerField(value, 60, 400) !== null;
-      message = "Ganzzahliges Limit von 60 bis 400 eingeben.";
-      break;
-    case "decrease-by-reverse":
-      valid = parseIntegerField(value, 1, 50) !== null;
-      message = "Ganze Zahl von 1 bis 50 eingeben.";
-      break;
-    case "break-count":
-      valid = value === "" || parsePositiveInteger(value, Number.POSITIVE_INFINITY) !== null;
-      message = "Positive ganze Zahl eingeben oder leer lassen.";
-      break;
-    case "break-seconds":
-      if (value === "") {
-        valid = true;
-      } else {
-        const parsedBreakInput = parseBreakInput(value);
-        valid = parsedBreakInput.valid;
-        message = parsedBreakInput.error;
-      }
-      break;
-    default:
-      break;
-  }
-
-  return { valid, value, message };
 }
 
 function parseBooleanParameter(rawValue) {
@@ -1746,97 +1654,21 @@ function parseBooleanParameter(rawValue) {
   return null;
 }
 
-function applySettingsParameters(values) {
-  if (Object.prototype.hasOwnProperty.call(values, "preTimers")) {
-    preTimerDefinitions = clonePreTimers(values.preTimers);
-    renderPreTimerTable();
-  }
-
-  Object.entries(TEXT_SETTING_CONTROLS).forEach(([name, control]) => {
-    if (Object.prototype.hasOwnProperty.call(values, name)) {
-      control.value = values[name] ?? "";
-    }
-  });
-
-  BOOLEAN_SETTING_NAMES.forEach((name) => {
-    if (!Object.prototype.hasOwnProperty.call(values, name)) {
-      return;
-    }
-    const control = document.querySelector(`input[name="${name}"]`);
-    if (control) {
-      control.checked = values[name];
-    }
-  });
-
-  if (Object.prototype.hasOwnProperty.call(values, "maximum")) {
-    setSelectedValue("maximum", values.maximum);
-  }
-  if (Object.prototype.hasOwnProperty.call(values, "breaks")) {
-    setSelectedValue("breaks", values.breaks);
-  }
-}
-
-function getMissingRequiredImportSettings(providedSettings) {
-  const requiredSettings = ["bpm"];
-  const maximum = getSelectedValue("maximum") || DEFAULTS.maximum;
-  const hasStopwatch = preTimerDefinitions.some(
-    (preTimer) => preTimer.type === PRE_TIMER_TYPES.STOPWATCH,
-  );
-
-  if (dom.accentuate.checked) {
-    requiredSettings.push("accent-repeat");
-  }
-
-  if (dom.increaseTempo.checked) {
-    requiredSettings.push("increase-by", "increase-after");
-    if (maximum !== "none") {
-      requiredSettings.push(`maximum-limit-${maximum}`);
-    }
-    if (maximum === "reverse") {
-      requiredSettings.push("decrease-by-reverse", "decrease-after-reverse");
-    }
-  }
-
-  if (!hasStopwatch && dom.sessionEndEnabled.checked) {
-    requiredSettings.push("session-end-beats");
-  }
-  if (!hasStopwatch && dom.lockSettings.checked) {
-    requiredSettings.push("lock-beats");
-  }
-
-  return requiredSettings.filter((name) => !providedSettings.has(name));
-}
-
-function addImportIssue(issues, fieldId, message) {
-  if (fieldId) {
-    setFieldError(fieldId, message);
-  }
-  issues.push({ fieldId, message });
-}
-
 function getImportFieldLabel(fieldId) {
   const labels = {
-    "accent-repeat": "Betonungsintervall",
-    accentuate: "Betonung",
+    actions: "Aktionen",
+    version: "Exportversion",
     "auto-start": "Auto-Start",
-    bpm: "BPM",
-    breaks: "Pausen",
-    "break-count": "Pausenanzahl",
-    "break-seconds": "Pausendauer",
-    "decrease-after-reverse": "Intervall für Tempo-Umkehr",
-    "decrease-by-reverse": "Verringerung bei Tempo-Umkehr",
-    "increase-after": "Tempo-Erhöhungsintervall",
-    "increase-by": "Tempo-Erhöhung",
-    "increase-tempo": "Tempo erhöhen",
-    "lock-beats": "Stop-Sperre",
-    "lock-settings": "Stop-Sperre",
-    maximum: "Maximum",
-    "maximum-limit-reverse": "Umkehrlimit",
-    "maximum-limit-reset": "Zurücksetzlimit",
-    "maximum-limit-stick": "Tempolimit",
-    "pre-timers": "Vorlaufzeiten",
-    "session-end-beats": "Session-Ende",
-    "session-end-enabled": "Automatisches Session-Ende",
+    "hide-progress": "Fortschritt ausblenden",
+    type: "Aktionstyp",
+    name: "Name",
+    seconds: "Dauer in Sekunden",
+    formula: "Formel",
+    rounding: "Minutenrundung",
+    roundingThreshold: "Rundungsschwelle",
+    min: "Min",
+    max: "Max",
+    limitSeconds: "Limit Sekunden",
   };
   return labels[fieldId] || fieldId;
 }
@@ -1872,10 +1704,10 @@ async function handleStart(event) {
 
 async function handlePresetClick(preset) {
   clearAllFieldErrors();
+  clearImportError();
   dom.settingsStatus.classList.remove("error-status");
   dom.settingsStatus.textContent = "";
-  applyPreset(preset.values);
-  syncSettingsVisibility();
+  applyPreset(preset);
   if (preset.autoStart === true) {
     await startConfiguredSession();
     return;
@@ -1883,47 +1715,360 @@ async function handlePresetClick(preset) {
   showView("settings", true);
 }
 
-function applyPreset(values) {
-  const setInputValue = (control, value) => {
-    control.value = value === null || value === undefined ? "" : String(value);
-  };
-
-  setInputValue(dom.bpm, values.bpm);
-  dom.accentuate.checked = Boolean(values.accentuate);
-  setInputValue(dom.accentRepeat, values.accentRepeat);
-  dom.increaseTempo.checked = Boolean(values.increaseTempo);
-  setInputValue(dom.increaseBy, values.increaseBy);
-  setInputValue(dom.increaseAfter, values.increaseAfter);
-  setSelectedValue("maximum", values.maximum);
-  setInputValue(dom.maximumLimitStick, values.maximumLimit);
-  setInputValue(dom.maximumLimitReset, values.maximumLimit);
-  setInputValue(dom.maximumLimitReverse, values.maximumLimit);
-  setInputValue(dom.decreaseByReverse, values.decreaseBy);
-  setInputValue(dom.decreaseAfterReverse, values.decreaseAfter);
-  setSelectedValue("breaks", values.breaks);
-  setInputValue(dom.breakCount, values.breakCount);
-  setInputValue(dom.breakSeconds, values.breakSeconds);
-  preTimerDefinitions = clonePreTimers(values.preTimers);
-  renderPreTimerTable();
-  dom.sessionEndEnabled.checked = Boolean(values.sessionEndEnabled);
-  setInputValue(dom.sessionEndBeats, values.sessionEndBeats);
-  dom.lockSettings.checked = Boolean(values.lockSettings);
-  setInputValue(dom.lockBeats, values.lockBeats);
+function applyPreset(preset) {
+  const validation = validateActionDefinitions(preset.values.actions, {
+    validateMetronomeSettings: validateMetronomeActionSettings,
+    requireMetronome: true,
+  });
+  if (!validation.valid) {
+    throw new Error(validation.errors[0]?.message || "Voreinstellung ist ungültig.");
+  }
+  actionDefinitions = validation.actions;
+  dom.hideProgress.checked = preset.hideProgress === true;
+  renderActionTable();
+  syncProgressVisibility();
 }
 
 function resetSettingsToDefaults() {
-  applyPreset(DEFAULTS);
+  actionEditorMode = null;
+  actionEditorId = null;
+  actionEditorDraft = null;
+  actionEditorOriginal = null;
+  actionEditorDirty = false;
+  actionDefinitions = [
+    createDefaultAction(
+      ACTION_TYPES.METRONOME,
+      [],
+      createDefaultMetronomeSettings(),
+    ),
+  ];
+  dom.hideProgress.checked = false;
+  dom.exportAutoStart.checked = false;
+  dom.actionEditor.hidden = true;
+  dom.actionsError.textContent = "";
+  clearActionEditorErrors();
+  renderActionTable();
+  syncProgressVisibility();
+}
+
+function readMetronomeSettingsFromForm() {
+  const maximum = getSelectedValue("maximum") || DEFAULTS.maximum;
+  return {
+    bpm: dom.bpm.value,
+    accentuate: dom.accentuate.checked,
+    accentRepeat: dom.accentRepeat.value,
+    increaseTempo: dom.increaseTempo.checked,
+    increaseBy: dom.increaseBy.value,
+    increaseAfter: dom.increaseAfter.value,
+    maximum,
+    maximumLimitStick: dom.maximumLimitStick.value,
+    maximumLimitReset: dom.maximumLimitReset.value,
+    maximumLimitReverse: dom.maximumLimitReverse.value,
+    decreaseBy: dom.decreaseByReverse.value,
+    decreaseAfter: dom.decreaseAfterReverse.value,
+    breaks: getSelectedValue("breaks") || DEFAULTS.breaks,
+    breakCount: dom.breakCount.value,
+    breakSeconds: dom.breakSeconds.value,
+    sessionEndEnabled: dom.sessionEndEnabled.checked,
+    sessionEndBeats: dom.sessionEndBeats.value,
+    lockSettings: dom.lockSettings.checked,
+    lockBeats: dom.lockBeats.value,
+  };
+}
+
+function applyMetronomeSettingsToForm(settings) {
+  const values = settings || createDefaultMetronomeSettings();
+  const setInputValue = (control, value) => {
+    control.value = value === null || value === undefined ? "" : String(value);
+  };
+  setInputValue(dom.bpm, values.bpm ?? DEFAULTS.bpm);
+  dom.accentuate.checked = values.accentuate ?? DEFAULTS.accentuate;
+  setInputValue(dom.accentRepeat, values.accentRepeat ?? DEFAULTS.accentRepeat);
+  dom.increaseTempo.checked = values.increaseTempo ?? DEFAULTS.increaseTempo;
+  setInputValue(dom.increaseBy, values.increaseBy ?? DEFAULTS.increaseBy);
+  setInputValue(dom.increaseAfter, values.increaseAfter ?? DEFAULTS.increaseAfter);
+  const maximum = values.maximum ?? DEFAULTS.maximum;
+  setSelectedValue("maximum", maximum);
+  setInputValue(dom.maximumLimitStick, values.maximumLimitStick ?? DEFAULTS.maximumLimit);
+  setInputValue(dom.maximumLimitReset, values.maximumLimitReset ?? DEFAULTS.maximumLimit);
+  setInputValue(dom.maximumLimitReverse, values.maximumLimitReverse ?? DEFAULTS.maximumLimit);
+  setInputValue(dom.decreaseByReverse, values.decreaseBy ?? DEFAULTS.decreaseBy);
+  setInputValue(dom.decreaseAfterReverse, values.decreaseAfter ?? DEFAULTS.decreaseAfter);
+  setSelectedValue("breaks", values.breaks ?? DEFAULTS.breaks);
+  setInputValue(dom.breakCount, values.breakCount ?? "");
+  setInputValue(dom.breakSeconds, values.breakSeconds ?? "");
+  dom.sessionEndEnabled.checked = values.sessionEndEnabled ?? DEFAULTS.sessionEndEnabled;
+  setInputValue(dom.sessionEndBeats, values.sessionEndBeats ?? DEFAULTS.sessionEndBeats);
+  dom.lockSettings.checked = values.lockSettings ?? DEFAULTS.lockSettings;
+  setInputValue(dom.lockBeats, values.lockBeats ?? DEFAULTS.lockBeats);
+}
+
+function formatMetronomeSettingsSummary(settings) {
+  const maximumLimit = getMetronomeMaximumLimit(settings);
+  const bpm = settings.increaseTempo && settings.maximum !== "none"
+    ? settings.bpm + "-" + maximumLimit + " BPM"
+    : settings.bpm + " BPM";
+  const progression = settings.increaseTempo
+    ? "; +" + settings.increaseBy + "/" + settings.increaseAfter +
+      (settings.maximum === "reverse"
+        ? "; -" + settings.decreaseBy + "/" + settings.decreaseAfter
+        : "")
+    : "";
+  const pauses = settings.breaks === "none"
+    ? "Keine Pausen"
+    : settings.breaks === "limited"
+      ? "Begrenzte Pausen"
+      : "Unbegrenzte Pausen";
+  const end = settings.sessionEndEnabled
+    ? settings.sessionEndBeats + " Beats Ende"
+    : "Manuelles Ende";
+  return bpm + progression + "; " + pauses + "; " + end;
+}
+
+function getMetronomeMaximumLimit(settings) {
+  if (settings.maximum === "stick") {
+    return settings.maximumLimitStick ?? settings.maximumLimit ?? DEFAULTS.maximumLimit;
+  }
+  if (settings.maximum === "reset") {
+    return settings.maximumLimitReset ?? settings.maximumLimit ?? DEFAULTS.maximumLimit;
+  }
+  if (settings.maximum === "reverse") {
+    return settings.maximumLimitReverse ?? settings.maximumLimit ?? DEFAULTS.maximumLimit;
+  }
+  return DEFAULTS.maximumLimit;
+}
+
+function validateMetronomeActionSettings(rawSettings, index, actions) {
+  const defaults = createDefaultMetronomeSettings();
+  const raw = rawSettings && typeof rawSettings === "object" && !Array.isArray(rawSettings)
+    ? rawSettings
+    : {};
+  const errors = [];
+  const markInvalid = (field, message) => errors.push({ field, message });
+  const getBoolean = (name, fallback) => {
+    if (raw[name] === undefined) {
+      return fallback;
+    }
+    if (typeof raw[name] === "boolean") {
+      return raw[name];
+    }
+    markInvalid(name, "Einen gültigen Ja/Nein-Wert auswählen.");
+    return fallback;
+  };
+  const getText = (name, fallback) => String(raw[name] ?? fallback ?? "").trim();
+
+  const bpm = parseIntegerField(getText("bpm", defaults.bpm), 20, 300);
+  if (bpm === null) {
+    markInvalid("bpm", "Ganze BPM-Zahl von 20 bis 300 eingeben.");
+  }
+
+  const accentuate = getBoolean("accentuate", defaults.accentuate);
+  const accentRepeatRaw = getText("accentRepeat", defaults.accentRepeat);
+  const parsedAccentRepeat = parsePositiveInteger(
+    accentRepeatRaw,
+    Number.POSITIVE_INFINITY,
+  );
+  if (accentuate && parsedAccentRepeat === null) {
+    markInvalid("accentRepeat", "Positive ganze Zahl eingeben.");
+  }
+  const accentRepeat = parsedAccentRepeat ?? accentRepeatRaw;
+
+  const increaseTempo = getBoolean("increaseTempo", defaults.increaseTempo);
+  const increaseByRaw = getText("increaseBy", defaults.increaseBy);
+  const parsedIncreaseBy = parseIntegerField(increaseByRaw, 1, 20);
+  if (increaseTempo && parsedIncreaseBy === null) {
+    markInvalid("increaseBy", "Ganze Zahl von 1 bis 20 eingeben.");
+  }
+  const increaseBy = parsedIncreaseBy ?? increaseByRaw;
+  const increaseAfterRaw = getText("increaseAfter", defaults.increaseAfter);
+  const parsedIncreaseAfter = parsePositiveInteger(
+    increaseAfterRaw,
+    Number.POSITIVE_INFINITY,
+  );
+  if (increaseTempo && parsedIncreaseAfter === null) {
+    markInvalid("increaseAfter", "Positive ganze Zahl eingeben.");
+  }
+  const increaseAfter = parsedIncreaseAfter ?? increaseAfterRaw;
+
+  const maximum = String(raw.maximum ?? defaults.maximum);
+  if (!RADIO_SETTING_VALUES.maximum.has(maximum)) {
+    markInvalid("maximum", "Eine gültige Maximum-Option auswählen.");
+  }
+  const activeMaximumLimitField = {
+    stick: "maximumLimitStick",
+    reset: "maximumLimitReset",
+    reverse: "maximumLimitReverse",
+  }[maximum];
+  const maximumLimits = {
+    maximumLimitStick: parseIntegerField(
+      getText("maximumLimitStick", defaults.maximumLimitStick),
+      60,
+      400,
+    ),
+    maximumLimitReset: parseIntegerField(
+      getText("maximumLimitReset", defaults.maximumLimitReset),
+      60,
+      400,
+    ),
+    maximumLimitReverse: parseIntegerField(
+      getText("maximumLimitReverse", defaults.maximumLimitReverse),
+      60,
+      400,
+    ),
+  };
+  Object.keys(maximumLimits).forEach((field) => {
+    if (maximumLimits[field] === null) {
+      maximumLimits[field] = getText(field, defaults[field]);
+    }
+  });
+  const decreaseByRaw = getText("decreaseBy", defaults.decreaseBy);
+  const parsedDecreaseBy = parseIntegerField(decreaseByRaw, 1, 50);
+  const decreaseAfterRaw = getText("decreaseAfter", defaults.decreaseAfter);
+  const parsedDecreaseAfter = parsePositiveInteger(
+    decreaseAfterRaw,
+    Number.POSITIVE_INFINITY,
+  );
+  let decreaseBy = parsedDecreaseBy ?? decreaseByRaw;
+  let decreaseAfter = parsedDecreaseAfter ?? decreaseAfterRaw;
+  if (increaseTempo && activeMaximumLimitField) {
+    const selectedMaximumLimit = parseIntegerField(
+      getText(activeMaximumLimitField, defaults[activeMaximumLimitField]),
+      60,
+      400,
+    );
+    if (selectedMaximumLimit === null) {
+      markInvalid(activeMaximumLimitField, "Ganzzahliges Limit von 60 bis 400 eingeben.");
+    } else {
+      maximumLimits[activeMaximumLimitField] = selectedMaximumLimit;
+      if (bpm !== null && selectedMaximumLimit <= bpm) {
+        markInvalid(activeMaximumLimitField, "Das Limit muss über dem Startwert liegen.");
+      }
+    }
+    if (maximum === "reverse") {
+      if (parsedDecreaseBy === null) {
+        markInvalid("decreaseBy", "Ganze Zahl von 1 bis 50 eingeben.");
+      }
+      if (parsedDecreaseAfter === null) {
+        markInvalid("decreaseAfter", "Positive ganze Zahl eingeben.");
+      }
+    }
+  }
+
+  const breaks = String(raw.breaks ?? defaults.breaks);
+  if (!RADIO_SETTING_VALUES.breaks.has(breaks)) {
+    markInvalid("breaks", "Eine gültige Pausen-Option auswählen.");
+  }
+  const breakCountRaw = getText("breakCount", "");
+  const parsedBreakCount = breakCountRaw === ""
+    ? null
+    : parsePositiveInteger(breakCountRaw, Number.POSITIVE_INFINITY);
+  if (breaks === "limited" && breakCountRaw !== "" && parsedBreakCount === null) {
+    markInvalid("breakCount", "Positive ganze Zahl eingeben oder leer lassen.");
+  }
+  const breakCount = parsedBreakCount ?? (breakCountRaw === "" ? null : breakCountRaw);
+  const breakSecondsRaw = getText("breakSeconds", "");
+  if (breaks === "limited" && breakSecondsRaw !== "") {
+    const parsedBreakSeconds = parseBreakInput(breakSecondsRaw);
+    if (!parsedBreakSeconds.valid) {
+      markInvalid("breakSeconds", parsedBreakSeconds.error);
+    } else if (bpm !== null && !isBreakInputSafe(parsedBreakSeconds, bpm)) {
+      markInvalid(
+        "breakSeconds",
+        "Dieser Ausdruck kann bei einem erreichbaren BPM-Wert null oder negativ werden.",
+      );
+    }
+  }
+
+  const stopwatchSources = getStopwatchSourcesBeforeMetronome(actions, index);
+  const hasDerivedEnd = stopwatchSources.length > 0;
+  const sessionEndEnabled = getBoolean("sessionEndEnabled", defaults.sessionEndEnabled);
+  const sessionEndBeatsRaw = getText("sessionEndBeats", defaults.sessionEndBeats);
+  const parsedSessionEndBeats = parsePositiveInteger(
+    sessionEndBeatsRaw,
+    Number.POSITIVE_INFINITY,
+  );
+  if (sessionEndEnabled && !hasDerivedEnd && parsedSessionEndBeats === null) {
+    markInvalid("sessionEndBeats", "Positive ganze Zahl eingeben.");
+  }
+  const sessionEndBeats = parsedSessionEndBeats ?? sessionEndBeatsRaw;
+  const lockSettings = getBoolean("lockSettings", defaults.lockSettings);
+  const lockBeatsRaw = getText("lockBeats", defaults.lockBeats);
+  const parsedLockBeats = parsePositiveInteger(lockBeatsRaw, Number.POSITIVE_INFINITY);
+  if (lockSettings && !hasDerivedEnd && parsedLockBeats === null) {
+    markInvalid("lockBeats", "Positive ganze Zahl eingeben.");
+  }
+  const lockBeats = parsedLockBeats ?? lockBeatsRaw;
+  if (
+    !hasDerivedEnd &&
+    lockSettings &&
+    sessionEndEnabled &&
+    typeof lockBeats === "number" &&
+    typeof sessionEndBeats === "number" &&
+    lockBeats > sessionEndBeats
+  ) {
+    markInvalid("lockBeats", "Die Sperre darf das automatische Session-Ende nicht überschreiten.");
+  }
+
+  if (errors.length > 0) {
+    return { valid: false, errors };
+  }
+  return {
+    valid: true,
+    errors,
+    settings: {
+      bpm,
+      accentuate,
+      accentRepeat,
+      increaseTempo,
+      increaseBy,
+      increaseAfter,
+      maximum,
+      ...maximumLimits,
+      decreaseBy,
+      decreaseAfter,
+      breaks,
+      breakCount,
+      breakSeconds: breakSecondsRaw,
+      sessionEndEnabled,
+      sessionEndBeats,
+      lockSettings,
+      lockBeats,
+    },
+  };
 }
 
 async function startConfiguredSession() {
-  const validation = validateSettings();
-  if (!validation.valid) {
-    dom.settingsStatus.textContent = "Bitte markierte Einstellungen korrigieren.";
-    showView("settings", true);
-    focusSettingsValidationError(validation.firstInvalid);
+  if (actionEditorMode !== null) {
+    dom.settingsStatus.classList.add("error-status");
+    dom.settingsStatus.textContent = "Aktion zuerst bestätigen oder abbrechen, bevor die Ausführung startet.";
+    dom.actionEditor.scrollIntoView({ behavior: "smooth", block: "start" });
+    dom.actionEditorTitle.focus({ preventScroll: true });
     return false;
   }
 
+  clearAllFieldErrors();
+  dom.actionsError.textContent = "";
+  const validation = validateActionDefinitions(actionDefinitions, {
+    validateMetronomeSettings: validateMetronomeActionSettings,
+    requireMetronome: true,
+  });
+  if (!validation.valid) {
+    const messages = validation.errors.map((error) =>
+      error.index >= 0
+        ? "Aktion " + (error.index + 1) + " (" + (actionDefinitions[error.index]?.name || "ohne Namen") + "): " + error.message
+        : error.message,
+    );
+    dom.actionsError.textContent = messages.join(" ");
+    dom.settingsStatus.textContent = "Bitte Aktionen korrigieren.";
+    dom.settingsStatus.classList.add("error-status");
+    showView("settings", true);
+    dom.actionsFieldset.scrollIntoView({ behavior: "smooth", block: "start" });
+    dom.actionAddButton.focus({ preventScroll: true });
+    return false;
+  }
+
+  actionDefinitions = validation.actions;
+  renderActionTable();
   try {
     await ensureAudioReady();
   } catch (error) {
@@ -1931,231 +2076,42 @@ async function startConfiguredSession() {
       error,
       "Audio konnte nicht initialisiert werden. Audio-Berechtigung des Browsers prüfen und erneut versuchen.",
     );
+    dom.settingsStatus.classList.add("error-status");
     showView("settings", true);
     return false;
   }
 
   dom.settingsStatus.textContent = "";
-  if (validation.settings.preTimers.length > 0) {
-    startPreTimerRun(validation.settings);
-  } else {
-    startRun(validation.settings);
-  }
-  const started = state.phase === "pre-timers" || state.phase === "countdown";
-  if (started) {
-    clearImportError();
-  }
-  return started;
+  dom.settingsStatus.classList.remove("error-status");
+  state.actionPlan = cloneActions(actionDefinitions);
+  state.actionResults = state.actionPlan.map(createPendingActionResult);
+  state.currentActionIndex = -1;
+  state.report = null;
+  startNextAction();
+  clearImportError();
+  return state.phase !== "idle";
 }
 
-function focusSettingsValidationError(target) {
-  if (!target) {
-    return;
-  }
-  if (dom.tempoProgressDialog.contains(target) && !dom.tempoProgressDialog.open) {
-    const trigger =
-      target === dom.decreaseByReverse || target === dom.decreaseAfterReverse
-        ? dom.reverseProgressButton
-        : dom.increaseProgressButton;
-    trigger.focus();
-    return;
-  }
-  target.focus();
-}
-
-function validateSettings() {
-  clearAllFieldErrors();
-  let firstInvalid = null;
-  let valid = true;
-  const errors = [];
-
-  const markInvalid = (fieldId, message) => {
-    valid = false;
-    errors.push({ fieldId, message });
-    setFieldError(fieldId, message);
-    if (!firstInvalid) {
-      firstInvalid = getErrorTarget(fieldId);
-    }
-  };
-
-  const preTimerValidation = validatePreTimerRows(preTimerDefinitions);
-  if (!preTimerValidation.valid) {
-    markInvalid(
-      "pre-timers",
-      preTimerValidation.errors[0]?.message || "Vorlaufzeiten korrigieren.",
-    );
-  }
-  const hasStopwatch = preTimerDefinitions.some(
-    (preTimer) => preTimer.type === PRE_TIMER_TYPES.STOPWATCH,
-  );
-
-  const bpm = parseIntegerField(dom.bpm.value, 20, 300);
-  if (bpm === null) {
-    markInvalid("bpm", "Ganze BPM-Zahl von 20 bis 300 eingeben.");
-  }
-
-  let accentRepeat = DEFAULTS.accentRepeat;
-  if (dom.accentuate.checked) {
-    accentRepeat = parsePositiveInteger(dom.accentRepeat.value, Number.POSITIVE_INFINITY);
-    if (accentRepeat === null) {
-      markInvalid("accent-repeat", "Positive ganze Zahl eingeben.");
-    }
-  }
-
-  const increaseTempo = dom.increaseTempo.checked;
-  let increaseBy = DEFAULTS.increaseBy;
-  let increaseAfter = DEFAULTS.increaseAfter;
-  let maximum = getSelectedValue("maximum") || DEFAULTS.maximum;
-  let maximumLimit = DEFAULTS.maximumLimit;
-  let decreaseBy = DEFAULTS.decreaseBy;
-  let decreaseAfter = DEFAULTS.decreaseAfter;
-  let lockSettings = false;
-  let lockBeats = DEFAULTS.lockBeats;
-
-  if (increaseTempo) {
-    increaseBy = parseIntegerField(dom.increaseBy.value, 1, 20);
-    if (increaseBy === null) {
-      markInvalid("increase-by", "Ganze Zahl von 1 bis 20 eingeben.");
-    }
-
-    increaseAfter = parsePositiveInteger(dom.increaseAfter.value, Number.POSITIVE_INFINITY);
-    if (increaseAfter === null) {
-      markInvalid("increase-after", "Positive ganze Zahl eingeben.");
-    }
-
-    if (maximum !== "none") {
-      const maximumControls = getMaximumControls(maximum);
-      maximumLimit = parseIntegerField(maximumControls.limit.value, 60, 400);
-      if (maximumLimit === null) {
-        markInvalid(
-          maximumControls.limit.id,
-          "Ganzzahliges Limit von 60 bis 400 eingeben.",
-        );
-      } else if (bpm !== null && maximumLimit <= bpm) {
-        markInvalid(
-          maximumControls.limit.id,
-          "Das Limit muss über dem Startwert liegen.",
-        );
-      }
-
-      if (maximum === "reverse") {
-        decreaseBy = parseIntegerField(maximumControls.decreaseBy.value, 1, 50);
-        if (decreaseBy === null) {
-          markInvalid(
-            maximumControls.decreaseBy.id,
-            "Ganze Zahl von 1 bis 50 eingeben.",
-          );
-        }
-
-        decreaseAfter = parsePositiveInteger(
-          maximumControls.decreaseAfter.value,
-          Number.POSITIVE_INFINITY,
-        );
-        if (decreaseAfter === null) {
-          markInvalid(
-            maximumControls.decreaseAfter.id,
-            "Positive ganze Zahl eingeben.",
-          );
-        }
-      }
-    }
-  } else {
-    maximum = "none";
-  }
-
-  lockSettings = hasStopwatch ? false : dom.lockSettings.checked;
-  if (lockSettings) {
-    lockBeats = parsePositiveInteger(dom.lockBeats.value, Number.POSITIVE_INFINITY);
-    if (lockBeats === null) {
-      markInvalid("lock-beats", "Positive ganze Zahl eingeben.");
-    }
-  }
-
-  const breaks = getSelectedValue("breaks") || DEFAULTS.breaks;
-  let breakCount = null;
-  let breakSeconds = null;
-
-  if (breaks === "limited") {
-    const breakCountRaw = dom.breakCount.value.trim();
-    if (breakCountRaw !== "") {
-      breakCount = parsePositiveInteger(breakCountRaw, Number.POSITIVE_INFINITY);
-      if (breakCount === null) {
-        markInvalid("break-count", "Positive ganze Zahl eingeben oder leer lassen.");
-      }
-    }
-
-    const breakSecondsRaw = dom.breakSeconds.value.trim();
-    if (breakSecondsRaw !== "") {
-      const parsedBreakSeconds = parseBreakInput(breakSecondsRaw);
-      if (!parsedBreakSeconds.valid) {
-        markInvalid("break-seconds", parsedBreakSeconds.error);
-      } else if (bpm !== null && !isBreakInputSafe(parsedBreakSeconds, bpm)) {
-        markInvalid(
-          "break-seconds",
-          "Dieser Ausdruck kann bei einem erreichbaren BPM-Wert null oder negativ werden.",
-        );
-      } else {
-        breakSeconds = parsedBreakSeconds;
-      }
-    }
-  }
-
-  const sessionEndEnabled = hasStopwatch ? false : dom.sessionEndEnabled.checked;
-  let sessionEndBeats = DEFAULTS.sessionEndBeats;
-  if (sessionEndEnabled) {
-    sessionEndBeats = parsePositiveInteger(
-      dom.sessionEndBeats.value,
-      Number.POSITIVE_INFINITY,
-    );
-    if (sessionEndBeats === null) {
-      markInvalid("session-end-beats", "Positive ganze Zahl eingeben.");
-    }
-  }
-
-  if (
-    !hasStopwatch &&
-    lockSettings &&
-    sessionEndEnabled &&
-    lockBeats !== null &&
-    sessionEndBeats !== null &&
-    lockBeats > sessionEndBeats
-  ) {
-    markInvalid(
-      "lock-beats",
-      "Die Sperre darf den automatischen Session-Ende-Schwellenwert nicht überschreiten.",
-    );
-  }
-
-  if (!valid) {
-    return { valid: false, firstInvalid, errors };
-  }
-
+function createPendingActionResult(action) {
   return {
-    valid: true,
-    errors,
-    settings: {
-      initialBpm: bpm,
-      accentuate: dom.accentuate.checked,
-      accentRepeat,
-      increaseTempo,
-      increaseBy,
-      increaseAfter,
-      maximum,
-      maximumLimit,
-      decreaseBy,
-      decreaseAfter,
-      breaks,
-      breakCount,
-      breakSeconds,
-      breakSecondsRaw: dom.breakSeconds.value.trim(),
-      lockSettings,
-      lockBeats,
-      sessionEndEnabled,
-      sessionEndBeats,
-      preTimers: clonePreTimers(preTimerDefinitions),
-      hasStopwatch,
-    },
+    id: action.id,
+    type: action.type,
+    name: action.name,
+    status: "not-started",
+    settings: cloneValue(action.settings),
   };
+}
+
+function cloneValue(value) {
+  if (Array.isArray(value)) {
+    return value.map(cloneValue);
+  }
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, nested]) => [key, cloneValue(nested)]),
+    );
+  }
+  return value;
 }
 
 function parseIntegerField(rawValue, min, max) {
@@ -2240,379 +2196,244 @@ async function ensureAudioReady() {
   }
 }
 
-function startPreTimerRun(settings) {
+function startNextAction() {
+  const nextIndex = state.currentActionIndex + 1;
+  if (nextIndex >= state.actionPlan.length) {
+    finalizeActionSequence(false);
+    return;
+  }
+
   cancelTimers();
   state.token += 1;
-  state.phase = "pre-timers";
-  state.settings = settings;
-  state.preTimerRecords = settings.preTimers.map((preTimer) => ({
-    id: preTimer.id,
-    type: preTimer.type,
-    name: preTimer.name,
-    status: "not-started",
-    configuredSeconds:
-      preTimer.type === PRE_TIMER_TYPES.SECONDS ? preTimer.seconds : null,
-    limitSeconds:
-      preTimer.type === PRE_TIMER_TYPES.MANUAL ? preTimer.limitSeconds : null,
-    formula:
-      preTimer.type === PRE_TIMER_TYPES.STOPWATCH ? preTimer.formula : null,
-    rounding:
-      preTimer.type === PRE_TIMER_TYPES.STOPWATCH ? preTimer.rounding : null,
-    roundingThreshold:
-      preTimer.type === PRE_TIMER_TYPES.STOPWATCH
-        ? preTimer.roundingThreshold
-        : null,
-    elapsedSeconds: null,
-    completedBy: null,
-    variables: null,
-    substitution: null,
-    result: null,
-    resultValid: null,
-    invalidReason: null,
-  }));
-  state.preTimerIndex = 0;
-  state.preTimerStartedAt = null;
-  state.preTimerReport = null;
-  state.preTimerEarlyDialogOpen = false;
-  state.report = null;
-  dom.executionMessage.textContent = "";
-  showView("preTimers", true);
-  startNextPreTimer();
+  state.currentActionIndex = nextIndex;
+  const action = state.actionPlan[nextIndex];
+  const result = state.actionResults[nextIndex];
+  result.status = "active";
+  result.startedAt = performance.now();
+  state.activeActionStartedAt = result.startedAt;
+
+  if (action.type === ACTION_TYPES.METRONOME) {
+    startMetronomeAction(action, result);
+    return;
+  }
+  startTimerAction(action);
 }
 
-function startNextPreTimer() {
-  if (state.phase !== "pre-timers" || !state.settings) {
-    return;
-  }
-  if (state.preTimerIndex >= state.settings.preTimers.length) {
-    completePreTimerRun();
-    return;
-  }
+function startTimerAction(action) {
+  state.settings = null;
+  state.activeBreak = null;
+  state.phase = "action-" + action.type;
+  const viewName = action.type === ACTION_TYPES.SECONDS
+    ? "seconds"
+    : action.type === ACTION_TYPES.STOPWATCH
+      ? "stopwatch"
+      : "manual";
+  showView(viewName, true);
+  updateTimerActionUi();
+  state.actionDisplayTimer = window.setInterval(updateTimerActionUi, 250);
 
-  clearTimer("preTimerTimer");
-  clearTimer("preTimerDisplayTimer");
-  const preTimer = state.settings.preTimers[state.preTimerIndex];
-  const record = state.preTimerRecords[state.preTimerIndex];
-  record.status = "active";
-  state.preTimerStartedAt = performance.now();
-  const token = state.token;
-
-  updatePreTimerUi();
-  state.preTimerDisplayTimer = window.setInterval(updatePreTimerUi, 250);
-  if (preTimer.type === PRE_TIMER_TYPES.SECONDS) {
-    state.preTimerTimer = window.setTimeout(() => {
-      if (token !== state.token || state.phase !== "pre-timers") {
+  if (action.type === ACTION_TYPES.SECONDS) {
+    const token = state.token;
+    state.actionTimer = window.setTimeout(() => {
+      if (token !== state.token || state.phase !== "action-sekunden") {
         return;
       }
-      finishPreTimer("auto");
-    }, preTimer.seconds * 1000);
+      finishCurrentTimerAction("auto");
+    }, action.settings.seconds * 1000);
   }
 }
 
-function handlePreTimerContinue() {
-  if (
-    state.phase !== "pre-timers" ||
-    state.preTimerIndex < 0 ||
-    !state.settings
-  ) {
+function updateTimerActionUi() {
+  const action = state.actionPlan[state.currentActionIndex];
+  if (!action || state.activeActionStartedAt === null) {
     return;
   }
 
-  const preTimer = state.settings.preTimers[state.preTimerIndex];
-  if (preTimer.type === PRE_TIMER_TYPES.SECONDS) {
-    const remaining = getActivePreTimerRemainingSeconds();
-    if (remaining > 10) {
-      openPreTimerEarlyDialog(remaining);
-      return;
-    }
-  }
-  finishPreTimer("manual");
-}
-
-function openPreTimerEarlyDialog(remainingSeconds) {
-  if (
-    dom.preTimerEarlyDialog.open ||
-    typeof dom.preTimerEarlyDialog.showModal !== "function"
-  ) {
-    return;
-  }
-  preTimerEarlyDialogTrigger = dom.preTimerContinueButton;
-  state.preTimerEarlyDialogOpen = true;
-  dom.preTimerEarlyDialogMessage.textContent =
-    `Es sind noch ${remainingSeconds} Sekunden übrig. Wirklich vorzeitig fortsetzen?`;
-  dom.preTimerEarlyDialog.showModal();
-  dom.preTimerEarlyConfirm.focus();
-}
-
-function closePreTimerEarlyDialog(saveChanges) {
-  if (!state.preTimerEarlyDialogOpen) {
-    return;
-  }
-  dom.preTimerEarlyDialog.close();
-  const trigger = preTimerEarlyDialogTrigger;
-  preTimerEarlyDialogTrigger = null;
-  state.preTimerEarlyDialogOpen = false;
-  if (!saveChanges) {
-    trigger?.focus();
-  }
-}
-
-function handlePreTimerAbortRequest() {
-  if (
-    state.phase !== "pre-timers" ||
-    dom.preTimerAbortDialog.open ||
-    typeof dom.preTimerAbortDialog.showModal !== "function"
-  ) {
-    return;
-  }
-  preTimerAbortDialogTrigger = dom.preTimerAbortButton;
-  dom.preTimerAbortDialog.showModal();
-  dom.preTimerAbortConfirm.focus();
-}
-
-function closePreTimerAbortDialog(saveChanges) {
-  if (!dom.preTimerAbortDialog.open) {
-    return;
-  }
-  dom.preTimerAbortDialog.close();
-  const trigger = preTimerAbortDialogTrigger;
-  preTimerAbortDialogTrigger = null;
-  if (!saveChanges) {
-    trigger?.focus();
-  }
-}
-
-function abortPreTimerRun() {
-  if (state.phase !== "pre-timers" || !state.settings) {
+  const progress = getActionProgressLabel();
+  const elapsed = getActiveActionElapsedSeconds();
+  if (action.type === ACTION_TYPES.SECONDS) {
+    const remaining = getActiveSecondsRemaining();
+    dom.secondsTitle.textContent = "Sekunden - " + action.name;
+    dom.secondsProgress.textContent = progress;
+    dom.secondsActionName.textContent = action.name;
+    dom.secondsActionOptions.textContent = action.settings.seconds + " Sekunden";
+    dom.secondsClock.textContent = remaining + "s";
+    dom.secondsStatus.textContent = remaining > 0
+      ? "Automatischer Wechsel in " + remaining + " Sekunden möglich."
+      : "Weiter auswählen.";
+    dom.secondsContinueButton.textContent = "Weiter";
     return;
   }
 
-  finalizeActivePreTimer("aborted");
-  clearTimer("preTimerTimer");
-  clearTimer("preTimerDisplayTimer");
-  closePreTimerAbortDialog(true);
-  closePreTimerEarlyDialog(true);
-  state.token += 1;
-  state.phase = "finished";
-  state.preTimerReport = buildPreTimerReport();
-  state.report = {
-    settings: state.settings,
-    beatCount: 0,
-    breakRecords: [],
-    preTimerReport: state.preTimerReport,
-    abortedBeforeExecution: true,
-  };
-  renderReport();
-  showView("report", true);
-}
-
-function finishPreTimer(reason) {
-  if (
-    state.phase !== "pre-timers" ||
-    state.preTimerIndex < 0 ||
-    !state.preTimerRecords[state.preTimerIndex]
-  ) {
+  const isStopwatch = action.type === ACTION_TYPES.STOPWATCH;
+  const title = isStopwatch ? dom.stopwatchTitle : dom.manualTitle;
+  const actionName = isStopwatch ? dom.stopwatchActionName : dom.manualActionName;
+  const options = isStopwatch ? dom.stopwatchActionOptions : dom.manualActionOptions;
+  const clock = isStopwatch ? dom.stopwatchClock : dom.manualClock;
+  const status = isStopwatch ? dom.stopwatchStatus : dom.manualStatus;
+  const continueButton = isStopwatch ? dom.stopwatchContinueButton : dom.manualContinueButton;
+  const progressElement = isStopwatch ? dom.stopwatchProgress : dom.manualProgress;
+  title.textContent = getActionTypeLabel(action.type) + " - " + action.name;
+  progressElement.textContent = progress;
+  actionName.textContent = action.name;
+  options.textContent = isStopwatch
+    ? getPreTimerOptionsSummary({ ...action.settings, type: action.type })
+    : action.settings.limitSeconds === null
+      ? "Ohne Limit"
+      : "Limit: " + action.settings.limitSeconds + " Sekunden";
+  clock.textContent = formatPreTimerDuration(elapsed);
+  if (isStopwatch) {
+    status.textContent = "Weiter auswählen, sobald die Stoppuhr beendet ist.";
+    continueButton.textContent = "Weiter";
     return;
   }
-
-  closePreTimerAbortDialog(true);
-  finalizeActivePreTimer(reason);
-  clearTimer("preTimerTimer");
-  clearTimer("preTimerDisplayTimer");
-  closePreTimerEarlyDialog(true);
-  state.preTimerStartedAt = null;
-  state.preTimerIndex += 1;
-  startNextPreTimer();
-}
-
-function finalizeActivePreTimer(status) {
-  const record = state.preTimerRecords[state.preTimerIndex];
-  if (!record || !state.preTimerStartedAt) {
-    return;
-  }
-  record.status = status === "aborted" ? "active-aborted" : "completed";
-  record.completedBy = status;
-  record.elapsedSeconds = Math.max(
-    0,
-    Math.round((performance.now() - state.preTimerStartedAt) / 1000),
-  );
-}
-
-function completePreTimerRun() {
-  clearTimer("preTimerTimer");
-  clearTimer("preTimerDisplayTimer");
-  closePreTimerAbortDialog(true);
-  state.preTimerReport = buildPreTimerReport();
-  const derivedSettings = {
-    ...state.settings,
-    sessionEndEnabled: state.settings.sessionEndEnabled,
-    sessionEndBeats: state.settings.sessionEndBeats,
-    lockSettings: state.settings.lockSettings,
-    lockBeats: state.settings.lockBeats,
-    preTimerDerivedTotal: null,
-    preTimerNoValidResults: false,
-  };
-
-  if (state.settings.hasStopwatch) {
-    if (state.preTimerReport.validFormulaCount > 0) {
-      derivedSettings.sessionEndEnabled = true;
-      derivedSettings.sessionEndBeats = state.preTimerReport.validFormulaTotal;
-      derivedSettings.lockSettings = true;
-      derivedSettings.lockBeats = state.preTimerReport.validFormulaTotal;
-      derivedSettings.preTimerDerivedTotal = state.preTimerReport.validFormulaTotal;
-    } else {
-      derivedSettings.sessionEndEnabled = false;
-      derivedSettings.lockSettings = false;
-      derivedSettings.preTimerNoValidResults = true;
-    }
-  }
-
-  startRun(derivedSettings, state.preTimerReport);
-}
-
-function buildPreTimerReport() {
-  const records = state.preTimerRecords.map((record) => ({ ...record }));
-  let validFormulaTotal = 0;
-  let validFormulaCount = 0;
-  let invalidFormulaCount = 0;
-
-  records.forEach((record, index) => {
-    if (
-      record.type !== PRE_TIMER_TYPES.STOPWATCH ||
-      record.status !== "completed"
-    ) {
-      return;
-    }
-
-    const variables = getPreTimerFormulaVariables(
-      record.elapsedSeconds,
-      record.rounding,
-      record.roundingThreshold,
-    );
-    const evaluation = evaluatePreTimerFormula(record.formula, variables);
-    record.variables = variables;
-    record.substitution = evaluation.substitution || null;
-    record.resultValid = evaluation.valid;
-    if (evaluation.valid) {
-      record.result = evaluation.result;
-      validFormulaTotal += evaluation.result;
-      validFormulaCount += 1;
-    } else {
-      record.invalidReason = evaluation.error;
-      invalidFormulaCount += 1;
-    }
-    records[index] = record;
-  });
-
-  return {
-    records,
-    validFormulaTotal,
-    validFormulaCount,
-    invalidFormulaCount,
-  };
-}
-
-function getPreTimerExecutionWarning(settings, preTimerReport) {
-  if (!preTimerReport || !settings.hasStopwatch) {
-    return "";
-  }
-  if (preTimerReport.invalidFormulaCount > 0 && preTimerReport.validFormulaCount > 0) {
-    return `Aus Vorlauf: ${preTimerReport.invalidFormulaCount} Formel(n) wurden ignoriert; gültige Ergebnisse ergeben ${preTimerReport.validFormulaTotal} Beats.`;
-  }
-  if (preTimerReport.validFormulaCount === 0) {
-    return "Aus Vorlauf: Kein gültiges Formelergebnis; Session-Ende nicht automatisch und Stopp nicht gesperrt.";
-  }
-  return "";
-}
-
-function updatePreTimerUi() {
-  if (
-    state.phase !== "pre-timers" ||
-    !state.settings ||
-    state.preTimerIndex < 0 ||
-    state.preTimerIndex >= state.settings.preTimers.length
-  ) {
-    return;
-  }
-
-  const preTimer = state.settings.preTimers[state.preTimerIndex];
-  const elapsedSeconds = getActivePreTimerElapsedSeconds();
-  const remainingSeconds = getActivePreTimerRemainingSeconds();
-  dom.preTimersProgress.textContent =
-    `Vorlaufzeit ${state.preTimerIndex + 1} von ${state.settings.preTimers.length}`;
-  dom.preTimerCardType.textContent = getPreTimerTypeLabel(preTimer.type);
-  dom.preTimerCardName.textContent = preTimer.name;
-  dom.preTimerCardOptions.textContent = getPreTimerOptionsSummary(preTimer);
-
-  if (preTimer.type === PRE_TIMER_TYPES.SECONDS) {
-    dom.preTimerClock.textContent = `${remainingSeconds}s`;
-    dom.preTimerStatus.textContent =
-      remainingSeconds > 0
-        ? `Automatischer Wechsel in ${remainingSeconds} Sekunden möglich.`
-        : "Weiter auswählen.";
-    dom.preTimerContinueButton.textContent = "Weiter";
-    return;
-  }
-
-  dom.preTimerClock.textContent = formatPreTimerDuration(elapsedSeconds);
-  if (preTimer.type === PRE_TIMER_TYPES.MANUAL && preTimer.limitSeconds !== null) {
-    const limitRemaining = Math.max(0, preTimer.limitSeconds - elapsedSeconds);
-    dom.preTimerContinueButton.textContent =
-      limitRemaining > 0
-        ? `Weiter (${limitRemaining}s)`
-        : "Weiter (Limit erreicht)";
-    dom.preTimerStatus.textContent =
-      limitRemaining > 0
-        ? `${limitRemaining} Sekunden bis zum konfigurierten Limit.`
-        : "Limit erreicht; Weiter bleibt manuell.";
+  if (action.settings.limitSeconds !== null) {
+    const limitRemaining = Math.max(0, action.settings.limitSeconds - elapsed);
+    continueButton.textContent = limitRemaining > 0
+      ? "Weiter (" + limitRemaining + "s)"
+      : "Weiter (Limit erreicht)";
+    status.textContent = limitRemaining > 0
+      ? limitRemaining + " Sekunden bis zum konfigurierten Limit."
+      : "Limit erreicht; Weiter bleibt manuell.";
   } else {
-    dom.preTimerContinueButton.textContent = "Weiter";
-    dom.preTimerStatus.textContent =
-      preTimer.type === PRE_TIMER_TYPES.STOPWATCH
-        ? "Weiter auswählen, sobald die Stoppuhr beendet ist."
-        : "Weiter auswählen, sobald bereit.";
+    continueButton.textContent = "Weiter";
+    status.textContent = "Weiter auswählen, sobald bereit.";
   }
 }
 
-function getActivePreTimerElapsedSeconds() {
-  if (!state.preTimerStartedAt) {
+function getActionProgressLabel() {
+  return "Aktion " + (state.currentActionIndex + 1) + " von " + state.actionPlan.length;
+}
+
+function getActiveActionElapsedSeconds() {
+  if (state.activeActionStartedAt === null) {
     return 0;
   }
   return Math.max(
     0,
-    Math.round((performance.now() - state.preTimerStartedAt) / 1000),
+    Math.round((performance.now() - state.activeActionStartedAt) / 1000),
   );
 }
 
-function getActivePreTimerRemainingSeconds() {
+function getActiveSecondsRemaining() {
+  const action = state.actionPlan[state.currentActionIndex];
   if (
-    !state.settings ||
-    state.preTimerIndex < 0 ||
-    state.preTimerIndex >= state.settings.preTimers.length
+    action?.type !== ACTION_TYPES.SECONDS ||
+    state.activeActionStartedAt === null
   ) {
-    return 0;
-  }
-  const preTimer = state.settings.preTimers[state.preTimerIndex];
-  if (preTimer.type !== PRE_TIMER_TYPES.SECONDS || !state.preTimerStartedAt) {
     return 0;
   }
   return Math.max(
     0,
     Math.ceil(
-      (state.preTimerStartedAt + preTimer.seconds * 1000 - performance.now()) /
-        1000,
+      (state.activeActionStartedAt + action.settings.seconds * 1000 - performance.now()) / 1000,
     ),
   );
 }
 
-function startRun(settings, preTimerReport = null) {
-  cancelTimers();
+function handleTimerActionContinue() {
+  const action = state.actionPlan[state.currentActionIndex];
+  if (!action || action.type === ACTION_TYPES.METRONOME || state.phase === "finished") {
+    return;
+  }
+  if (action.type === ACTION_TYPES.SECONDS && getActiveSecondsRemaining() > 10) {
+    openSecondsEarlyDialog(getActiveSecondsRemaining());
+    return;
+  }
+  finishCurrentTimerAction("manual");
+}
+
+function openSecondsEarlyDialog(remainingSeconds) {
+  if (dom.secondsEarlyDialog.open || typeof dom.secondsEarlyDialog.showModal !== "function") {
+    return;
+  }
+  secondsEarlyDialogTrigger = document.activeElement;
+  dom.secondsEarlyDialogMessage.textContent =
+    "Es sind noch " + remainingSeconds + " Sekunden übrig. Wirklich vorzeitig fortsetzen?";
+  dom.secondsEarlyDialog.showModal();
+  dom.secondsEarlyConfirm.focus();
+}
+
+function closeSecondsEarlyDialog(continueAction) {
+  if (!dom.secondsEarlyDialog.open) {
+    return;
+  }
+  dom.secondsEarlyDialog.close();
+  const trigger = secondsEarlyDialogTrigger;
+  secondsEarlyDialogTrigger = null;
+  if (continueAction) {
+    finishCurrentTimerAction("manual");
+  } else {
+    trigger?.focus();
+  }
+}
+
+function finishCurrentTimerAction(completedBy) {
+  const action = state.actionPlan[state.currentActionIndex];
+  const result = state.actionResults[state.currentActionIndex];
+  if (!action || !result || result.status !== "active" || action.type === ACTION_TYPES.METRONOME) {
+    return;
+  }
+
+  clearTimer("actionTimer");
+  clearTimer("actionDisplayTimer");
   state.token += 1;
-  state.phase = "countdown";
+  const elapsedSeconds = getActiveActionElapsedSeconds();
+  result.status = "completed";
+  result.elapsedSeconds = elapsedSeconds;
+  result.completedBy = completedBy;
+  if (action.type === ACTION_TYPES.SECONDS) {
+    result.configuredSeconds = action.settings.seconds;
+  } else if (action.type === ACTION_TYPES.MANUAL) {
+    result.limitSeconds = action.settings.limitSeconds;
+  } else {
+    completeStopwatchResult(action, result, elapsedSeconds);
+  }
+  state.activeActionStartedAt = null;
+  startNextAction();
+}
+
+function completeStopwatchResult(action, result, elapsedSeconds) {
+  const settings = action.settings;
+  const variables = getPreTimerFormulaVariables(
+    elapsedSeconds,
+    settings.rounding,
+    settings.roundingThreshold,
+  );
+  const evaluation = evaluatePreTimerFormula(settings.formula, variables);
+  result.formula = settings.formula;
+  result.rounding = settings.rounding;
+  result.roundingThreshold = settings.roundingThreshold;
+  result.variables = variables;
+  result.substitution = evaluation.substitution || null;
+  result.resultValid = evaluation.valid;
+  result.formulaResult = evaluation.valid ? evaluation.result : null;
+  result.invalidReason = evaluation.valid ? null : evaluation.error;
+
+  if (isStaticPreTimerFormula(settings.formula)) {
+    result.appliedBeats = evaluation.valid ? evaluation.result : settings.min;
+    return;
+  }
+  if (!evaluation.valid) {
+    result.appliedBeats = settings.min;
+    return;
+  }
+  result.appliedBeats = Math.max(
+    settings.min,
+    settings.max === null ? evaluation.result : Math.min(settings.max, evaluation.result),
+  );
+  result.clamped = result.appliedBeats !== evaluation.result;
+}
+
+function startMetronomeAction(action, result) {
+  const derived = getDerivedStopwatchEnd(state.currentActionIndex);
+  const settings = createRuntimeMetronomeSettings(action.settings, derived);
+  result.settings = cloneValue(settings);
+  result.derivedEnd = derived
+    ? { total: derived.total, sources: derived.sources.map((source) => source.name) }
+    : null;
   state.settings = settings;
-  state.preTimerReport = preTimerReport;
-  state.preTimerIndex = -1;
-  state.preTimerStartedAt = null;
+  state.phase = "countdown";
   state.beatCount = 0;
   state.currentBpm = settings.initialBpm;
   state.direction = "up";
@@ -2623,47 +2444,82 @@ function startRun(settings, preTimerReport = null) {
   state.breakSessions = 0;
   state.breakRecords = [];
   state.activeBreak = null;
-  state.report = null;
-  dom.executionMessage.textContent = getPreTimerExecutionWarning(
-    settings,
-    preTimerReport,
-  );
-
+  dom.executionTitle.textContent = "Metronom - " + action.name;
+  dom.executionActionName.textContent = action.name;
+  dom.executionProgress.textContent = getActionProgressLabel();
+  dom.executionMessage.textContent = "";
   showView("execution", true);
-  playTone(TONE.countdownFrequency);
+  if (!playTone(TONE.countdownFrequency) || state.phase !== "countdown") {
+    return;
+  }
   updateExecutionUi();
+  scheduleCountdownStep();
+}
 
+function createRuntimeMetronomeSettings(settings, derived) {
+  const breakSeconds = settings.breaks === "limited" && settings.breakSeconds
+    ? parseBreakInput(settings.breakSeconds)
+    : null;
+  const total = derived?.total ?? null;
+  return {
+    initialBpm: settings.bpm,
+    accentuate: settings.accentuate,
+    accentRepeat: settings.accentRepeat,
+    increaseTempo: settings.increaseTempo,
+    increaseBy: settings.increaseBy,
+    increaseAfter: settings.increaseAfter,
+    maximum: settings.maximum,
+    maximumLimit: getMetronomeMaximumLimit(settings),
+    decreaseBy: settings.decreaseBy,
+    decreaseAfter: settings.decreaseAfter,
+    breaks: settings.breaks,
+    breakCount: settings.breaks === "limited" ? settings.breakCount : null,
+    breakSeconds,
+    breakSecondsRaw: settings.breaks === "limited" ? settings.breakSeconds : "",
+    lockSettings: derived ? true : settings.lockSettings,
+    lockBeats: derived ? total : settings.lockBeats,
+    sessionEndEnabled: derived ? true : settings.sessionEndEnabled,
+    sessionEndBeats: derived ? total : settings.sessionEndBeats,
+    derivedEndTotal: total,
+    derivedEndSources: derived?.sources.map((source) => source.name) || [],
+  };
+}
+
+function getDerivedStopwatchEnd(metronomeIndex) {
+  const sources = getStopwatchSourcesBeforeMetronome(state.actionPlan, metronomeIndex);
+  if (sources.length === 0) {
+    return null;
+  }
+  const completedSources = sources.map((source) => {
+    const result = state.actionResults.find((entry) => entry.id === source.id);
+    if (!result || !Number.isSafeInteger(result.appliedBeats) || result.appliedBeats < 1) {
+      throw new Error("A preceding Stoppuhr action has no valid applied beat result.");
+    }
+    return { ...source, appliedBeats: result.appliedBeats };
+  });
+  return {
+    total: completedSources.reduce((total, source) => total + source.appliedBeats, 0),
+    sources: completedSources,
+  };
+}
+
+function scheduleCountdownStep() {
   const token = state.token;
   state.countdownTimer = window.setTimeout(() => {
     if (token !== state.token || state.phase !== "countdown") {
       return;
     }
-
     state.countdownValue -= 1;
-    if (state.countdownValue > 0) {
-      playTone(TONE.countdownFrequency);
-      updateExecutionUi();
-      state.countdownTimer = window.setTimeout(() => {
-        if (token !== state.token || state.phase !== "countdown") {
-          return;
-        }
-        state.countdownValue -= 1;
-        if (state.countdownValue > 0) {
-          playTone(TONE.countdownFrequency);
-          updateExecutionUi();
-          state.countdownTimer = window.setTimeout(() => {
-            if (token !== state.token || state.phase !== "countdown") {
-              return;
-            }
-            beginBeatRun();
-          }, 1000);
-        } else {
-          beginBeatRun();
-        }
-      }, 1000);
-    } else {
+    if (state.countdownValue <= 0) {
       beginBeatRun();
+      return;
     }
+    playTone(TONE.countdownFrequency);
+    if (state.phase !== "countdown") {
+      return;
+    }
+    updateExecutionUi();
+    scheduleCountdownStep();
   }, 1000);
 }
 
@@ -2697,7 +2553,7 @@ function executeBeat() {
     state.beatCount >= state.settings.sessionEndBeats
   ) {
     updateExecutionUi();
-    finalizeRun();
+    finalizeMetronomeAction("automatic");
     return;
   }
   applyTempoProgression();
@@ -2790,25 +2646,83 @@ function handlePause() {
   startBreak();
 }
 
-function handleAbort() {
-  if (state.phase !== "countdown") {
+function handleActionAbortRequest(event) {
+  if (
+    state.currentActionIndex < 0 ||
+    state.currentActionIndex >= state.actionPlan.length ||
+    state.phase === "idle" ||
+    state.phase === "finished" ||
+    dom.actionAbortDialog.open ||
+    typeof dom.actionAbortDialog.showModal !== "function"
+  ) {
     return;
+  }
+
+  const action = state.actionPlan[state.currentActionIndex];
+  actionAbortDialogTrigger = event?.currentTarget || document.activeElement;
+  dom.actionAbortDialogMessage.textContent =
+    `„${action.name}“ und alle folgenden Aktionen werden beendet. Ein Teilbericht wird erstellt.`;
+  dom.actionAbortDialog.showModal();
+  dom.actionAbortConfirm.focus();
+}
+
+function closeActionAbortDialog(confirmAbort) {
+  if (!dom.actionAbortDialog.open) {
+    return;
+  }
+  dom.actionAbortDialog.close();
+  const trigger = actionAbortDialogTrigger;
+  actionAbortDialogTrigger = null;
+  if (confirmAbort) {
+    abortActionSequence();
+  } else {
+    trigger?.focus();
+  }
+}
+
+function abortActionSequence() {
+  const action = state.actionPlan[state.currentActionIndex];
+  const result = state.actionResults[state.currentActionIndex];
+  if (!action || !result || result.status !== "active") {
+    return;
+  }
+
+  if (dom.actionAbortDialog.open) {
+    dom.actionAbortDialog.close();
+  }
+  actionAbortDialogTrigger = null;
+  if (
+    action.type === ACTION_TYPES.METRONOME &&
+    (state.phase === "paused" || state.phase === "resume-countdown")
+  ) {
+    resumeFromBreak("aborted");
+  }
+  result.status = "active-aborted";
+  result.elapsedSeconds = getActiveActionElapsedSeconds();
+  result.settings = cloneValue(
+    action.type === ACTION_TYPES.METRONOME ? state.settings : action.settings,
+  );
+  if (action.type === ACTION_TYPES.METRONOME) {
+    result.beatCount = state.beatCount;
+    result.breakRecords = state.breakRecords.map((record) => ({ ...record }));
+    result.endReason = "aborted";
+  } else if (action.type === ACTION_TYPES.STOPWATCH) {
+    result.formula = action.settings.formula;
+    result.rounding = action.settings.rounding;
+    result.roundingThreshold = action.settings.roundingThreshold;
+  } else if (action.type === ACTION_TYPES.SECONDS) {
+    result.configuredSeconds = action.settings.seconds;
+  } else {
+    result.limitSeconds = action.settings.limitSeconds;
   }
 
   cancelTimers();
   state.token += 1;
-  state.phase = "idle";
+  state.phase = "finished";
   state.settings = null;
   state.activeBreak = null;
-  state.preTimerRecords = [];
-  state.preTimerIndex = -1;
-  state.preTimerStartedAt = null;
-  state.preTimerReport = null;
-  state.report = null;
-  dom.settingsStatus.textContent = "";
-  dom.executionMessage.textContent = "";
-  showView("settings", true);
-  dom.bpm.focus();
+  state.activeActionStartedAt = null;
+  finalizeActionSequence(true);
 }
 
 function startBreak() {
@@ -2958,14 +2872,16 @@ function resumeFromBreak(reason) {
   state.activeBreak.record.ended =
     reason === "timer"
       ? `Automatisch fortgesetzt nach ${elapsedSeconds} Sekunden`
-      : reason === "stopped"
-        ? `Gestoppt nach ${elapsedSeconds} Sekunden`
+      : reason === "ended"
+        ? `Weiter nach ${elapsedSeconds} Sekunden`
+        : reason === "aborted"
+          ? `Abgebrochen nach ${elapsedSeconds} Sekunden`
         : `Manuell fortgesetzt nach ${elapsedSeconds} Sekunden`;
   state.activeBreak = null;
   state.resumeCountdownValue = 0;
   dom.executionMessage.textContent = "";
 
-  if (reason === "stopped") {
+  if (reason === "ended" || reason === "aborted") {
     return;
   }
 
@@ -2974,12 +2890,13 @@ function resumeFromBreak(reason) {
   scheduleNextBeat();
 }
 
-function handleStop() {
-  if (!state.settings || state.phase === "idle" || state.phase === "finished") {
-    return;
-  }
-
-  if (state.phase === "countdown") {
+function handleMetronomeContinue() {
+  if (
+    !state.settings ||
+    (state.phase !== "running" &&
+      state.phase !== "paused" &&
+      state.phase !== "resume-countdown")
+  ) {
     return;
   }
 
@@ -2988,21 +2905,42 @@ function handleStop() {
   }
 
   if (state.phase === "paused" || state.phase === "resume-countdown") {
-    resumeFromBreak("stopped");
+    resumeFromBreak("ended");
   }
 
-  finalizeRun();
+  finalizeMetronomeAction("manual");
 }
 
-function finalizeRun() {
+function finalizeMetronomeAction(endReason) {
+  const result = state.actionResults[state.currentActionIndex];
+  if (!result || result.status !== "active") {
+    return;
+  }
+  result.status = "completed";
+  result.settings = cloneValue(state.settings);
+  result.beatCount = state.beatCount;
+  result.breakRecords = state.breakRecords.map((record) => ({ ...record }));
+  result.endReason = endReason;
+
   cancelTimers();
+  state.token += 1;
+  state.phase = "transition";
+  state.settings = null;
+  state.activeBreak = null;
+  state.activeActionStartedAt = null;
+  startNextAction();
+}
+
+function finalizeActionSequence(aborted) {
+  cancelTimers();
+  state.token += 1;
   state.phase = "finished";
+  state.settings = null;
+  state.activeBreak = null;
+  state.activeActionStartedAt = null;
   state.report = {
-    settings: state.settings,
-    beatCount: state.beatCount,
-    breakRecords: state.breakRecords.map((record) => ({ ...record })),
-    preTimerReport: state.preTimerReport,
-    abortedBeforeExecution: false,
+    actions: cloneValue(state.actionResults),
+    aborted,
   };
   renderReport();
   showView("report", true);
@@ -3103,7 +3041,7 @@ async function copyText(text, focusTarget = dom.copyReportButton) {
 function handleBackToSettings() {
   resetFinishedRun();
   showView("settings", true);
-  dom.bpm.focus();
+  dom.actionAddButton.focus();
 }
 
 function handleBackToPresets() {
@@ -3124,10 +3062,10 @@ function resetFinishedRun() {
   state.phase = "idle";
   state.settings = null;
   state.activeBreak = null;
-  state.preTimerRecords = [];
-  state.preTimerIndex = -1;
-  state.preTimerStartedAt = null;
-  state.preTimerReport = null;
+  state.actionPlan = [];
+  state.actionResults = [];
+  state.currentActionIndex = -1;
+  state.activeActionStartedAt = null;
   state.report = null;
   dom.settingsStatus.textContent = "";
   dom.executionMessage.textContent = "";
@@ -3137,7 +3075,8 @@ function resetFinishedRun() {
 }
 
 function updateExecutionUi() {
-  if (!state.settings) {
+  const action = state.actionPlan[state.currentActionIndex];
+  if (!state.settings || action?.type !== ACTION_TYPES.METRONOME) {
     return;
   }
 
@@ -3147,6 +3086,9 @@ function updateExecutionUi() {
   const isRunning = state.phase === "running";
   const isBreakActive = isPaused || isResumeCountdown;
 
+  dom.executionTitle.textContent = "Metronom - " + action.name;
+  dom.executionActionName.textContent = action.name;
+  dom.executionProgress.textContent = getActionProgressLabel();
   dom.executionPhase.textContent = isCountdown
     ? "Start"
     : isResumeCountdown
@@ -3164,9 +3106,8 @@ function updateExecutionUi() {
     "single-action",
     isCountdown || state.settings.breaks === "none",
   );
-  dom.abortButton.hidden = !isCountdown;
+  dom.abortButton.hidden = false;
   dom.pauseButton.hidden = state.settings.breaks === "none" || isCountdown;
-  dom.stopButton.hidden = isCountdown;
   dom.pauseButton.disabled = !isRunning && !isBreakActive;
   dom.pauseButton.classList.toggle(
     "over-limit",
@@ -3218,10 +3159,12 @@ function updateExecutionUi() {
 
   const stopLocked =
     state.settings.lockSettings && state.beatCount < state.settings.lockBeats;
-  dom.stopButton.disabled = stopLocked;
-  dom.stopButton.textContent = stopLocked
-    ? `Stopp (für ${state.settings.lockBeats - state.beatCount} Beats gesperrt)`
-    : "Stopp";
+  dom.continueMetronomeButton.disabled = isCountdown || stopLocked;
+  dom.continueMetronomeButton.textContent = isCountdown
+    ? "Weiter (Start)"
+    : stopLocked
+      ? `Weiter (für ${state.settings.lockBeats - state.beatCount} Beats gesperrt)`
+      : "Weiter";
 }
 
 function getPauseLabel() {
@@ -3278,316 +3221,365 @@ function getNextBpm() {
 }
 
 function renderReport() {
-  const report = state.report;
-  const settings = report.settings;
-
   dom.reportStatus.textContent = "";
   dom.reportStatus.classList.remove("error-status");
   resetReportCopyFeedback();
-  dom.reportTotalBeats.textContent = String(report.beatCount);
-  dom.reportBpm.textContent = formatBpm(settings);
-
-  dom.reportBreaks.textContent = formatBreaks(settings);
-  dom.reportBreaksRow.hidden = settings.breaks === "none";
-  dom.reportSessionEnd.textContent = report.abortedBeforeExecution
-    ? "Abgebrochen vor Ausführung"
-    : formatSessionEnd(settings);
-  dom.reportBreaksTitle.textContent = formatReportBreaksTitle(settings);
-  dom.reportPreTimersCard.hidden = !report.preTimerReport;
-  dom.reportPreTimersTableBody.replaceChildren();
-  if (report.preTimerReport) {
-    report.preTimerReport.records.forEach((record) => {
-      const row = document.createElement("tr");
-      appendReportCell(row, getPreTimerTypeLabel(record.type));
-      appendReportCell(row, record.name);
-      appendReportCell(
-        row,
-        record.status === "not-started"
-          ? "—"
-          : formatPreTimerDuration(record.elapsedSeconds),
-        "report-pre-timer-duration",
-      );
-      appendReportCell(
-        row,
-        formatPreTimerReportOptions(record),
-        "report-pre-timer-options",
-      );
-      appendReportCell(row, formatPreTimerReportStatus(record));
-      dom.reportPreTimersTableBody.append(row);
-    });
-    if (report.preTimerReport.invalidFormulaCount > 0) {
-      dom.reportStatus.classList.add("error-status");
-      dom.reportStatus.textContent = getPreTimerExecutionWarning(
-        settings,
-        report.preTimerReport,
-      );
-    }
-  }
-  if (report.abortedBeforeExecution) {
-    dom.reportStatus.textContent = "Vorlaufzeiten abgebrochen; Ausführung nicht gestartet.";
-  }
-
-  dom.breakTableBody.replaceChildren();
-  dom.reportNoBreaks.hidden = report.breakRecords.length > 0;
-  dom.breakTableWrapper.hidden = report.breakRecords.length === 0;
-
-  report.breakRecords.forEach((record) => {
-    const row = dom.breakRowTemplate.content.cloneNode(true);
-    row.querySelector('[data-cell="number"]').textContent = String(record.number);
-    row.querySelector('[data-cell="beat"]').textContent = String(record.beat);
-    row.querySelector('[data-cell="bpm"]').textContent = String(record.bpm);
-    row.querySelector('[data-cell="allowance"]').textContent = record.overLimit
-      ? "Überschritten"
-      : "Eingehalten";
-    row.querySelector('[data-cell="ended"]').textContent = record.ended;
-    dom.breakTableBody.append(row);
+  dom.actionReportSections.replaceChildren();
+  state.report.actions.forEach((actionResult) => {
+    dom.actionReportSections.append(renderActionReportSection(actionResult));
   });
 }
 
-function appendReportCell(row, text, className = "") {
-  const cell = document.createElement("td");
-  if (className) {
-    cell.className = className;
+function renderActionReportSection(actionResult) {
+  const section = document.createElement("section");
+  section.className = "report-card action-report-section";
+  const heading = document.createElement("h3");
+  heading.textContent = getActionTypeLabel(actionResult.type) + " - " + actionResult.name;
+  section.append(heading);
+
+  if (actionResult.status === "not-started") {
+    appendReportDetail(section, "Status", "Nicht gestartet");
+    return section;
   }
-  cell.textContent = text;
-  row.append(cell);
+  if (actionResult.status === "active-aborted") {
+    appendReportDetail(section, "Status", "Aktiv abgebrochen");
+  } else {
+    appendReportDetail(section, "Status", getActionCompletionLabel(actionResult));
+  }
+
+  if (actionResult.type === ACTION_TYPES.METRONOME) {
+    renderMetronomeActionReport(section, actionResult);
+  } else if (actionResult.type === ACTION_TYPES.SECONDS) {
+    appendReportDetail(section, "Dauer", actionResult.elapsedSeconds + " Sekunden");
+    appendReportDetail(section, "Konfiguriert", actionResult.configuredSeconds + " Sekunden");
+  } else if (actionResult.type === ACTION_TYPES.STOPWATCH) {
+    renderStopwatchActionReport(section, actionResult);
+  } else {
+    appendReportDetail(section, "Dauer", formatPreTimerDuration(actionResult.elapsedSeconds) + " (mm:ss)");
+    appendReportDetail(
+      section,
+      "Limit",
+      actionResult.limitSeconds === null ? "Ohne Limit" : actionResult.limitSeconds + " Sekunden",
+    );
+  }
+  return section;
 }
 
-function formatPreTimerReportOptions(record) {
-  if (record.type === PRE_TIMER_TYPES.SECONDS) {
-    return `Dauer: ${record.configuredSeconds} Sekunden`;
+function appendReportDetail(section, label, value) {
+  let details = section.querySelector(".report-details");
+  if (!details) {
+    details = document.createElement("dl");
+    details.className = "report-details";
+    section.append(details);
   }
-  if (record.type === PRE_TIMER_TYPES.MANUAL) {
-    return record.limitSeconds === null
-      ? "Ohne Limit"
-      : `Limit: ${record.limitSeconds} Sekunden`;
-  }
-
-  const rounding = getPreTimerRoundingLabel(record.rounding);
-  const threshold =
-    record.rounding === PRE_TIMER_ROUNDING.ROUND
-      ? `; Schwelle: ${record.roundingThreshold ?? 30}s`
-      : "";
-  const calculation =
-    record.status === "completed"
-      ? record.resultValid
-        ? `Berechnung: ${record.formula} -> ${
-            record.substitution
-          } = ${record.result}`
-        : `Berechnung: ${record.formula} -> ${
-            record.substitution || "nicht berechnet"
-          }`
-      : `Formel: ${record.formula}`;
-  return `${calculation}; Rundung: ${rounding}${threshold}`;
+  const row = document.createElement("div");
+  const term = document.createElement("dt");
+  const description = document.createElement("dd");
+  term.textContent = label;
+  description.textContent = String(value);
+  row.append(term, description);
+  details.append(row);
 }
 
-function formatPreTimerReportStatus(record) {
-  if (record.status === "not-started") {
-    return "Nicht gestartet";
+function renderMetronomeActionReport(section, actionResult) {
+  const settings = getMetronomeDisplaySettings(actionResult.settings);
+  appendReportDetail(section, "Beats", actionResult.beatCount + "x");
+  appendReportDetail(section, "Tempo", formatBpm(settings));
+  appendReportDetail(
+    section,
+    "Betonung",
+    settings.accentuate ? "Alle " + settings.accentRepeat + " Beats" : "Aus",
+  );
+  appendReportDetail(section, "Tempoverlauf", formatMetronomeTempoProgression(settings));
+  appendReportDetail(section, "Pausen", formatBreaks(settings));
+  appendReportDetail(section, "Ende", formatSessionEnd(settings));
+  appendReportDetail(
+    section,
+    "Weiter-Sperre",
+    settings.lockSettings ? "Bis " + settings.lockBeats + " Beats" : "Keine",
+  );
+  if (actionResult.derivedEnd) {
+    appendReportDetail(
+      section,
+      "Stoppuhr-Aktionen",
+      actionResult.derivedEnd.sources.join(", ") + " = " + actionResult.derivedEnd.total + " Beats",
+    );
   }
-  if (record.status === "active-aborted") {
-    return "Aktiv abgebrochen";
+  renderMetronomeBreaks(section, actionResult.breakRecords || []);
+}
+
+function renderMetronomeBreaks(section, breakRecords) {
+  const breaks = document.createElement("div");
+  breaks.className = "report-breaks";
+  const heading = document.createElement("h4");
+  heading.textContent = "Pausen gebraucht";
+  breaks.append(heading);
+  if (breakRecords.length === 0) {
+    const empty = document.createElement("p");
+    empty.textContent = "Keine Pausen gebraucht";
+    breaks.append(empty);
+    section.append(breaks);
+    return;
   }
-  if (record.type === PRE_TIMER_TYPES.STOPWATCH) {
-    return record.resultValid
-      ? `Gültig: ${record.result}`
-      : `Ignoriert: ${record.invalidReason}`;
+
+  const wrapper = document.createElement("div");
+  wrapper.className = "table-wrapper";
+  const table = document.createElement("table");
+  table.className = "report-table";
+  const header = document.createElement("thead");
+  const headerRow = document.createElement("tr");
+  ["Nr.", "Beat", "BPM", "Limit", "Beendet"].forEach((label) => {
+    const cell = document.createElement("th");
+    cell.scope = "col";
+    cell.textContent = label;
+    headerRow.append(cell);
+  });
+  header.append(headerRow);
+  const body = document.createElement("tbody");
+  breakRecords.forEach((record) => {
+    const row = document.createElement("tr");
+    appendReportCell(row, String(record.number));
+    appendReportCell(row, String(record.beat));
+    appendReportCell(row, String(record.bpm));
+    appendReportCell(row, record.overLimit ? "Überschritten" : "Eingehalten");
+    appendReportCell(row, record.ended);
+    body.append(row);
+  });
+  table.append(header, body);
+  wrapper.append(table);
+  breaks.append(wrapper);
+  section.append(breaks);
+}
+
+function renderStopwatchActionReport(section, actionResult) {
+  const settings = actionResult.settings;
+  appendReportDetail(section, "Dauer", formatPreTimerDuration(actionResult.elapsedSeconds) + " (mm:ss)");
+  appendReportDetail(section, "Formel", actionResult.formula || settings.formula);
+  appendReportDetail(section, "Rundung", formatStopwatchRounding(settings));
+  appendReportDetail(section, "Begrenzung", formatStopwatchBounds(settings));
+  if (actionResult.status === "completed") {
+    const formulaText = actionResult.resultValid
+      ? (actionResult.substitution || actionResult.formula) +
+        " = " + actionResult.formulaResult + " Beats"
+      : "Ungültig: " + (actionResult.invalidReason || "Ergebnis nicht berechenbar");
+    appendReportDetail(section, "Formelergebnis", formulaText);
+    appendReportDetail(section, "Für nächstes Metronom angewendet", actionResult.appliedBeats + " Beats");
+    if (actionResult.clamped) {
+      appendReportDetail(section, "Anpassung", "Ergebnis auf den konfigurierten Bereich begrenzt.");
+    } else if (!actionResult.resultValid && !isStaticPreTimerFormula(actionResult.formula)) {
+      appendReportDetail(section, "Fallback", "Mindestwert " + actionResult.appliedBeats + " Beats verwendet.");
+    }
   }
-  if (record.type === PRE_TIMER_TYPES.SECONDS && record.completedBy === "auto") {
-    return "Automatisch fortgesetzt";
+}
+
+function getActionCompletionLabel(actionResult) {
+  if (actionResult.type === ACTION_TYPES.METRONOME) {
+    return actionResult.endReason === "automatic" ? "Automatisch beendet" : "Manuell beendet";
+  }
+  if (actionResult.type === ACTION_TYPES.SECONDS) {
+    return actionResult.completedBy === "auto" ? "Automatisch fortgesetzt" : "Manuell fortgesetzt";
   }
   return "Manuell fortgesetzt";
 }
 
 function buildReportText(report) {
-  const settings = report.settings;
-  const lines = [
-    "Metronom-Bericht",
-    `Gesamtzahl Beats: ${report.beatCount}`,
-    `BPM: ${formatBpm(settings)}`,
-  ];
-
-  if (settings.breaks !== "none") {
-    lines.push(`Pausen: ${formatBreaks(settings)}`);
-  }
-  lines.push(
-    `Session-Ende: ${
-      report.abortedBeforeExecution
-        ? "Abgebrochen vor Ausführung"
-        : formatSessionEnd(settings)
-    }`,
-  );
-
-  if (report.preTimerReport) {
-    lines.push(
-      "",
-      "Vorlaufzeiten:",
-      ...report.preTimerReport.records.map(
-        (record) => `- ${formatPreTimerLongLine(record)}`,
-      ),
-    );
-  }
-
-  lines.push("", formatReportBreaksHeading(settings));
-
-  if (report.breakRecords.length === 0) {
-    lines.push("Keine Pausen verwendet.");
-  } else {
-    report.breakRecords.forEach((record) => {
-      lines.push(
-        `- ${record.number}. Beat: ${record.beat}; BPM: ${record.bpm}; ` +
-          `Limit: ${record.overLimit ? "Überschritten" : "Eingehalten"}; ` +
-          `Beendet: ${record.ended}`,
-      );
-    });
-  }
-
-  return lines.join("\n");
+  return report.actions.map((actionResult) => {
+    const heading = "**" + getActionTypeLabel(actionResult.type) + " - " + actionResult.name + "**";
+    return [heading, ...getActionReportLines(actionResult)].join("\n");
+  }).join("\n\n");
 }
 
 function buildShortReportText(report) {
-  const settings = report.settings;
-  const parts = [`${report.beatCount}x`, formatShortBpm(settings)];
-  const progression = formatShortProgression(settings);
-  const lines = [parts.join("; ")];
-
-  if (progression) {
-    lines[0] += `; ${progression}`;
-  }
-  if (report.preTimerReport) {
-    lines.push(
-      "Vorlaufzeiten:",
-      ...report.preTimerReport.records.map(
-        (record) => `- ${formatPreTimerShortLine(record)}`,
-      ),
-    );
-  }
-  if (report.breakRecords.length === 0) {
-    lines[0] += "; Keine Pausen verwendet";
-  } else {
-    lines[0] += "; Pausen bei:";
-    lines.push(
-      ...report.breakRecords.map((record) => {
-        const bpm = settings.increaseTempo ? `, ${record.bpm} BPM` : "";
-        return `- ${record.beat} (${record.durationSeconds}s${bpm})`;
-      }),
-    );
-  }
-
-  return lines.join("\n");
+  return report.actions.map((actionResult) => {
+    const heading = "**" + actionResult.name + "**";
+    const lines = [heading, getActionShortLine(actionResult)];
+    if (actionResult.type === ACTION_TYPES.METRONOME) {
+      lines.push(formatShortBreakList(actionResult.breakRecords || []));
+    }
+    return lines.join("\n");
+  }).join("\n\n");
 }
 
-function formatPreTimerLongLine(record) {
-  const prefix = `${record.name} (${getPreTimerTypeLabel(record.type)})`;
-  if (record.status === "not-started") {
-    return `${prefix}: Nicht gestartet`;
+function getActionReportLines(actionResult) {
+  if (actionResult.status === "not-started") {
+    return ["Status: Nicht gestartet"];
   }
-  if (record.status === "active-aborted") {
-    if (record.type === PRE_TIMER_TYPES.STOPWATCH) {
-      return `${prefix}: ${formatPreTimerDuration(
-        record.elapsedSeconds,
-      )}; Aktiv abgebrochen; Formel nicht berechnet`;
+  const status = actionResult.status === "active-aborted"
+    ? "Aktiv abgebrochen"
+    : getActionCompletionLabel(actionResult);
+  if (actionResult.type === ACTION_TYPES.METRONOME) {
+    const settings = getMetronomeDisplaySettings(actionResult.settings);
+    const lines = [
+      "Status: " + status,
+      "Beats: " + (actionResult.beatCount ?? 0) + "x",
+      "Tempo: " + formatBpm(settings),
+      "Betonung: " + (settings.accentuate ? "alle " + settings.accentRepeat + " Beats" : "aus"),
+      "Tempoverlauf: " + formatMetronomeTempoProgression(settings),
+      "Pausen: " + formatBreaks(settings),
+      "Ende: " + formatSessionEnd(settings),
+      "Weiter-Sperre: " + (settings.lockSettings ? "bis " + settings.lockBeats + " Beats" : "keine"),
+    ];
+    if (actionResult.derivedEnd) {
+      lines.push(
+        "Aus Stoppuhr: " + actionResult.derivedEnd.sources.join(", ") +
+          " = " + actionResult.derivedEnd.total + " Beats",
+      );
     }
-    return `${prefix}: ${formatPreTimerDuration(
-      record.elapsedSeconds,
-    )}; Aktiv abgebrochen`;
-  }
-
-  const elapsed = formatPreTimerDuration(record.elapsedSeconds);
-  if (record.type === PRE_TIMER_TYPES.SECONDS) {
-    if (record.completedBy === "auto") {
-      return `${prefix}: ${elapsed}; automatisch fortgesetzt`;
+    lines.push("Pausen gebraucht:");
+    const records = actionResult.breakRecords || [];
+    if (records.length === 0) {
+      lines.push("Keine Pausen gebraucht");
+    } else {
+      records.forEach((record) => {
+        lines.push(
+          "- " + record.number + ". Beat " + record.beat + "; " + record.bpm +
+            " BPM; " + record.ended +
+            (record.overLimit ? "; Limit überschritten" : "; Limit eingehalten"),
+        );
+      });
     }
-    return `${prefix}: ${elapsed}; konfiguriertes Minimum ${formatPreTimerDuration(
-      record.configuredSeconds,
-    )}; manuell fortgesetzt`;
+    return lines;
   }
-  if (record.type === PRE_TIMER_TYPES.MANUAL) {
-    const limit =
-      record.limitSeconds === null
-        ? ""
-        : `; Limit ${formatPreTimerDuration(record.limitSeconds)}`;
-    return `${prefix}: ${elapsed}${limit}; manuell fortgesetzt`;
+  if (actionResult.type === ACTION_TYPES.SECONDS) {
+    return [
+      "Status: " + status,
+      "Dauer: " + actionResult.elapsedSeconds + " Sekunden (konfiguriert: " + actionResult.configuredSeconds + " Sekunden)",
+    ];
   }
+  if (actionResult.type === ACTION_TYPES.STOPWATCH) {
+    const settings = actionResult.settings;
+    const lines = [
+      "Status: " + status,
+      "Dauer: " + formatPreTimerDuration(actionResult.elapsedSeconds) + " (mm:ss)",
+      "Formel: " + (actionResult.formula || settings.formula),
+      "Rundung: " + getPreTimerRoundingLabel(actionResult.rounding) +
+        (actionResult.rounding === PRE_TIMER_ROUNDING.ROUND
+          ? " ab " + (actionResult.roundingThreshold ?? 30) + " Sekunden"
+          : ""),
+      "Begrenzung: " + formatStopwatchBounds(settings),
+    ];
+    if (actionResult.status === "completed") {
+      lines.push(
+        actionResult.resultValid
+          ? "Formelergebnis: " + (actionResult.substitution || actionResult.formula) +
+            " = " + actionResult.formulaResult + " Beats"
+          : "Formelergebnis ungültig: " + (actionResult.invalidReason || "nicht berechenbar"),
+        "Angewendet: " + actionResult.appliedBeats + " Beats" +
+          (actionResult.clamped ? " (begrenzt)" : ""),
+      );
+      if (!actionResult.resultValid && !isStaticPreTimerFormula(actionResult.formula)) {
+        lines.push("Fallback: Mindestwert " + actionResult.appliedBeats + " Beats verwendet.");
+      }
+    }
+    return lines;
+  }
+  return [
+    "Status: " + status,
+    "Dauer: " + formatPreTimerDuration(actionResult.elapsedSeconds) + " (mm:ss)",
+    "Limit: " + (actionResult.limitSeconds === null ? "Ohne Limit" : actionResult.limitSeconds + " Sekunden"),
+  ];
+}
 
-  const rounding = getPreTimerRoundingLabel(record.rounding);
-  const threshold =
-    record.rounding === PRE_TIMER_ROUNDING.ROUND
-      ? ` ab ${record.roundingThreshold ?? 30}s`
+function getActionShortLine(actionResult) {
+  const status = actionResult.status === "not-started"
+    ? "Nicht gestartet"
+    : actionResult.status === "active-aborted"
+      ? "Aktiv abgebrochen"
+      : getActionCompletionLabel(actionResult);
+  if (actionResult.type === ACTION_TYPES.METRONOME) {
+    const settings = getMetronomeDisplaySettings(actionResult.settings);
+    const parameters = [
+      "Status: " + status,
+      actionResult.beatCount === undefined ? "" : "Beats: " + actionResult.beatCount + "x",
+      "Starttempo: " + settings.initialBpm + " BPM",
+      "Betonung: " + (settings.accentuate ? "alle " + settings.accentRepeat + " Beats" : "aus"),
+      "Tempoverlauf: " + formatMetronomeTempoProgression(settings),
+      "Pausen: " + formatBreaks(settings),
+      "Ende: " + formatSessionEnd(settings),
+      "Weiter-Sperre: " + (settings.lockSettings ? "bis " + settings.lockBeats + " Beats" : "keine"),
+    ].filter(Boolean);
+    return parameters.join("; ");
+  }
+  if (actionResult.type === ACTION_TYPES.SECONDS) {
+    const settings = actionResult.settings;
+    const elapsed = actionResult.elapsedSeconds === undefined
+      ? ""
+      : "Dauer: " + actionResult.elapsedSeconds + "s; ";
+    return elapsed + "Konfiguriert: " +
+      (actionResult.configuredSeconds ?? settings.seconds) + "s; " + status;
+  }
+  if (actionResult.type === ACTION_TYPES.STOPWATCH) {
+    const settings = actionResult.settings;
+    const outcome = actionResult.status === "completed"
+      ? actionResult.resultValid
+        ? "Ergebnis " + actionResult.formulaResult + ", angewendet " + actionResult.appliedBeats + " Beats"
+        : "Ungültig, Fallback " + actionResult.appliedBeats + " Beats"
       : "";
-  if (record.resultValid) {
-    return `${prefix}: ${elapsed}; ${record.formula} -> ${
-      record.substitution
-    }=${record.result}; Rundung: ${rounding}${threshold}`;
+    const elapsed = actionResult.elapsedSeconds === undefined
+      ? ""
+      : "Dauer: " + formatPreTimerDuration(actionResult.elapsedSeconds) + "; ";
+    return elapsed + "Formel: " + (actionResult.formula || settings.formula) +
+      "; Rundung: " + formatStopwatchRounding(settings) +
+      "; Begrenzung: " + formatStopwatchBounds(settings) +
+      (outcome ? "; " + outcome : "") + "; " + status;
   }
-  return `${prefix}: ${elapsed}; ${record.formula} -> ${
-    record.substitution || "nicht berechnet"
-  }; ignoriert: ${record.invalidReason}`;
+  const settings = actionResult.settings;
+  const elapsed = actionResult.elapsedSeconds === undefined
+    ? ""
+    : "Dauer: " + formatPreTimerDuration(actionResult.elapsedSeconds) + "; ";
+  return elapsed + "Limit: " +
+    ((actionResult.limitSeconds ?? settings.limitSeconds) === null
+      ? "ohne"
+      : (actionResult.limitSeconds ?? settings.limitSeconds) + "s") +
+    "; " + status;
 }
 
-function formatPreTimerShortLine(record) {
-  if (record.status === "not-started") {
-    return `${record.name}: Nicht gestartet`;
+function formatShortBreakList(breakRecords) {
+  if (breakRecords.length === 0) {
+    return "Keine Pausen gebraucht";
   }
-  if (record.status === "active-aborted") {
-    return `${record.name}: Aktiv abgebrochen`;
-  }
-
-  const elapsed = formatPreTimerDuration(record.elapsedSeconds);
-  if (record.type === PRE_TIMER_TYPES.SECONDS) {
-    return record.completedBy === "auto"
-      ? `${record.name}: ${elapsed}`
-      : `${record.name}: ${elapsed} (konfiguriert ${formatPreTimerDuration(
-          record.configuredSeconds,
-        )})`;
-  }
-  if (record.type === PRE_TIMER_TYPES.MANUAL) {
-    const limit =
-      record.limitSeconds === null
-        ? ""
-        : ` (Limit ${formatPreTimerDuration(record.limitSeconds)})`;
-    return `${record.name}: ${elapsed}${limit}`;
-  }
-  if (record.resultValid) {
-    return `${record.name}: ${elapsed}; ${record.formula}=${record.result}`;
-  }
-  return `${record.name}: ${elapsed}; ${record.formula}=ungültig (ignoriert)`;
+  return "Pausen gebraucht bei: " + breakRecords.map((record) => {
+    const duration = record.durationSeconds === null ? "aktiv" : record.durationSeconds + "s";
+    return record.beat + " (" + duration + ", " + record.bpm + " BPM)";
+  }).join(", ");
 }
 
-function formatShortBpm(settings) {
-  if (settings.maximum === "none") {
-    return `${settings.initialBpm} BPM`;
-  }
-  return `${settings.initialBpm} - ${settings.maximumLimit} BPM`;
-}
-
-function formatShortProgression(settings) {
+function formatMetronomeTempoProgression(settings) {
+  settings = getMetronomeDisplaySettings(settings);
   if (!settings.increaseTempo) {
-    return "";
+    return "Aus";
   }
-
-  let progression = `+${settings.increaseBy}/${settings.increaseAfter}`;
-  if (settings.maximum === "reverse") {
-    progression += ` -${settings.decreaseBy}/${settings.decreaseAfter}`;
+  const increase = "+" + settings.increaseBy + " BPM alle " + settings.increaseAfter + " Beats";
+  if (settings.maximum === "none") {
+    return increase + "; unbegrenzt";
   }
-  return progression;
+  if (settings.maximum === "stick") {
+    return increase + "; bei " + settings.maximumLimit + " BPM halten";
+  }
+  if (settings.maximum === "reset") {
+    return increase + "; bei " + settings.maximumLimit + " BPM zurücksetzen";
+  }
+  return increase + "; bei " + settings.maximumLimit + " BPM umkehren; -" +
+    settings.decreaseBy + " BPM alle " + settings.decreaseAfter + " Beats";
 }
 
-function formatReportBreaksHeading(settings) {
-  if (settings.breaks !== "limited" || !settings.breakSecondsRaw) {
-    return `${REPORT_BREAKS_HEADING}:`;
-  }
-  return `${REPORT_BREAKS_HEADING} (max ${settings.breakSecondsRaw}s):`;
+function formatStopwatchRounding(settings) {
+  return getPreTimerRoundingLabel(settings.rounding) +
+    (settings.rounding === PRE_TIMER_ROUNDING.ROUND
+      ? " ab " + (settings.roundingThreshold ?? 30) + " Sekunden"
+      : "");
 }
 
-function formatReportBreaksTitle(settings) {
-  if (settings.breaks !== "limited" || !settings.breakSecondsRaw) {
-    return REPORT_BREAKS_HEADING;
+function formatStopwatchBounds(settings) {
+  if (isStaticPreTimerFormula(settings.formula)) {
+    return "Keine (statische Zahl)";
   }
-  return `${REPORT_BREAKS_HEADING} (max ${settings.breakSecondsRaw}s)`;
+  return "Min " + settings.min + "; Max " +
+    (settings.max === null ? "unbegrenzt" : settings.max);
 }
 
 function formatBpm(settings) {
+  settings = getMetronomeDisplaySettings(settings);
   if (!settings.increaseTempo) {
     return `${settings.initialBpm} BPM`;
   }
@@ -3606,6 +3598,7 @@ function formatBpm(settings) {
 }
 
 function formatBreaks(settings) {
+  settings = getMetronomeDisplaySettings(settings);
   if (settings.breaks === "none") {
     return "Keine";
   }
@@ -3622,19 +3615,24 @@ function formatBreaks(settings) {
 }
 
 function formatSessionEnd(settings) {
-  if (settings.preTimerDerivedTotal !== null && settings.preTimerDerivedTotal !== undefined) {
-    return `Aus Vorlauf: Nach ${settings.preTimerDerivedTotal} Beats; Aus Vorlauf: Stopp gesperrt bis ${settings.preTimerDerivedTotal} Beats`;
-  }
-  if (settings.preTimerNoValidResults) {
-    return "Aus Vorlauf: Kein automatisches Session-Ende; Stopp nicht gesperrt";
+  settings = getMetronomeDisplaySettings(settings);
+  if (settings.derivedEndTotal !== null && settings.derivedEndTotal !== undefined) {
+    return `Aus Stoppuhr: Nach ${settings.derivedEndTotal} Beats; Weiter gesperrt bis ${settings.derivedEndTotal} Beats`;
   }
   const sessionEnd = settings.sessionEndEnabled
     ? `Nach ${settings.sessionEndBeats} Beats`
-    : "Manueller Stopp";
+    : "Manuelles Weiter";
   if (!settings.lockSettings) {
     return sessionEnd;
   }
   return `${sessionEnd}; Einstellungen gesperrt, bis ${settings.lockBeats} Beats vergangen sind`;
+}
+
+function getMetronomeDisplaySettings(settings) {
+  if (settings && Object.prototype.hasOwnProperty.call(settings, "initialBpm")) {
+    return settings;
+  }
+  return createRuntimeMetronomeSettings(settings || createDefaultMetronomeSettings(), null);
 }
 
 function playTone(frequency) {
@@ -3671,17 +3669,18 @@ function handleAudioFailure(error) {
   state.phase = "idle";
   state.settings = null;
   state.activeBreak = null;
-  state.preTimerRecords = [];
-  state.preTimerIndex = -1;
-  state.preTimerStartedAt = null;
-  state.preTimerReport = null;
+  state.actionPlan = [];
+  state.actionResults = [];
+  state.currentActionIndex = -1;
+  state.activeActionStartedAt = null;
   dom.executionMessage.textContent = getErrorMessage(
     error,
     "Audio wurde unerwartet beendet. Zu den Einstellungen zurückkehren und erneut versuchen.",
   );
   dom.settingsStatus.textContent = dom.executionMessage.textContent;
+  dom.settingsStatus.classList.add("error-status");
   showView("settings", true);
-  dom.bpm.focus();
+  dom.actionAddButton.focus();
 }
 
 function showExecutionError(message) {
@@ -3702,7 +3701,9 @@ function showView(name, moveFocus) {
   const headings = {
     presets: dom.presetsTitle,
     settings: dom.settingsTitle,
-    preTimers: dom.preTimersTitle,
+    seconds: dom.secondsTitle,
+    stopwatch: dom.stopwatchTitle,
+    manual: dom.manualTitle,
     execution: dom.executionTitle,
     report: dom.reportTitle,
   };
@@ -3752,7 +3753,6 @@ function setFieldError(fieldId, message) {
     error.textContent = message;
   }
   target?.setAttribute("aria-invalid", "true");
-  syncProgressButtonError(fieldId);
 }
 
 function clearFieldError(fieldId) {
@@ -3765,7 +3765,6 @@ function clearFieldError(fieldId) {
     error.textContent = "";
   }
   target?.removeAttribute("aria-invalid");
-  syncProgressButtonError(fieldId);
 }
 
 function clearAllFieldErrors() {
@@ -3788,43 +3787,16 @@ function getErrorTarget(fieldId) {
   if (fieldId === "breaks") {
     return document.getElementById("breaks-none")?.closest("fieldset");
   }
-  if (fieldId === "pre-timers") {
-    return dom.preTimersFieldset;
-  }
   return null;
-}
-
-function syncProgressButtonError(fieldId) {
-  const increaseFields = new Set(["increase-by", "increase-after"]);
-  const reverseFields = new Set([
-    "decrease-by-reverse",
-    "decrease-after-reverse",
-  ]);
-  const button = increaseFields.has(fieldId)
-    ? dom.increaseProgressButton
-    : reverseFields.has(fieldId)
-      ? dom.reverseProgressButton
-      : null;
-  if (!button) {
-    return;
-  }
-
-  const relatedFields = increaseFields.has(fieldId)
-    ? increaseFields
-    : reverseFields;
-  const hasError = [...relatedFields].some(
-    (name) => document.getElementById(`${name}-error`)?.textContent,
-  );
-  button.toggleAttribute("aria-invalid", Boolean(hasError));
 }
 
 function clearTimer(timerName) {
   const timer = state[timerName];
-  if (timer === null) {
+  if (timer === null || timer === undefined) {
     return;
   }
 
-  if (timerName === "breakDisplayTimer" || timerName === "preTimerDisplayTimer") {
+  if (timerName === "breakDisplayTimer" || timerName === "actionDisplayTimer") {
     window.clearInterval(timer);
   } else {
     window.clearTimeout(timer);
@@ -3838,8 +3810,8 @@ function cancelTimers() {
   clearTimer("beatTimer");
   clearTimer("breakTimer");
   clearTimer("breakDisplayTimer");
-  clearTimer("preTimerTimer");
-  clearTimer("preTimerDisplayTimer");
+  clearTimer("actionTimer");
+  clearTimer("actionDisplayTimer");
 }
 
 function getErrorMessage(error, fallback) {

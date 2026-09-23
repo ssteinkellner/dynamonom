@@ -81,6 +81,172 @@
             <pre id="import-error-text" class="import-error-text"></pre>
           </fieldset>
 
+          <fieldset id="actions-fieldset">
+            <legend>Aktionen</legend>
+
+            <div class="table-wrapper actions-table-wrapper">
+              <table id="actions-table">
+                <caption class="visually-hidden">Konfigurierte Aktionen in Ausführungsreihenfolge</caption>
+                <colgroup>
+                  <col class="action-type-column" />
+                  <col class="action-name-column" />
+                  <col class="action-options-column" />
+                  <col class="action-controls-column" />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th scope="col"><span class="action-type-heading">Typ</span></th>
+                    <th scope="col">Name</th>
+                    <th scope="col">Optionen</th>
+                    <th scope="col" class="action-column">
+                      <span class="visually-hidden">Aktion hinzufügen</span>
+                      <button
+                        id="action-add-button"
+                        class="secondary-button icon-button"
+                        type="button"
+                        aria-label="Aktion hinzufügen"
+                        title="Aktion hinzufügen"
+                      >
+                        +
+                      </button>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody id="actions-table-body"></tbody>
+              </table>
+            </div>
+            <p id="actions-empty-message" class="status">Noch keine Aktionen konfiguriert.</p>
+            <p id="actions-error" class="field-error"></p>
+          </fieldset>
+
+          <section
+            id="action-editor"
+            class="action-editor"
+            aria-labelledby="action-editor-title"
+            hidden
+          >
+            <h2 id="action-editor-title" tabindex="-1"></h2>
+
+            <div id="action-type-field" class="field" hidden>
+              <div class="input-wrapper">
+                <label for="action-type">Aktionstyp</label>
+                <select id="action-type" name="action-type" aria-describedby="action-type-description action-type-error">
+                  <option value="">Typ auswählen</option>
+                  <option value="metronom">Metronom</option>
+                  <option value="sekunden">Sekunden</option>
+                  <option value="stoppuhr">Stoppuhr</option>
+                  <option value="manuell">Manuell</option>
+                </select>
+                <p id="action-type-description" class="field-help"></p>
+                <p id="action-type-error" class="field-error"></p>
+              </div>
+            </div>
+
+            <div id="action-name-field" class="field" hidden>
+              <div class="input-wrapper">
+                <label for="action-name">
+                  Name<span class="required-marker" aria-hidden="true"> *</span>
+                </label>
+                <input id="action-name" name="action-name" type="text" autocomplete="off" aria-describedby="action-name-error" />
+                <p id="action-name-error" class="field-error"></p>
+              </div>
+            </div>
+
+            <div id="action-seconds-fields" class="action-type-fields" hidden>
+              <div class="field">
+                <div class="input-wrapper">
+                  <label for="action-seconds">
+                    Dauer in Sekunden<span class="required-marker" aria-hidden="true"> *</span>
+                  </label>
+                  <input id="action-seconds" name="action-seconds" type="number" inputmode="numeric" min="1" max="600" step="1" aria-describedby="action-seconds-error" />
+                  <p id="action-seconds-error" class="field-error"></p>
+                </div>
+              </div>
+            </div>
+
+            <div id="action-stopwatch-fields" class="action-type-fields" hidden>
+              <div class="field">
+                <div class="input-wrapper">
+                  <label for="action-formula">
+                    Formel<span class="required-marker" aria-hidden="true"> *</span>
+                  </label>
+                  <input
+                    id="action-formula"
+                    name="action-formula"
+                    type="text"
+                    autocomplete="off"
+                    spellcheck="false"
+                    aria-describedby="action-formula-help action-formula-error"
+                  />
+                  <div id="action-formula-placeholders" class="formula-placeholder-list" aria-label="Formelbausteine">
+                    <button class="formula-placeholder" type="button" draggable="true" data-action-formula-placeholder="minuten">minuten</button>
+                    <button class="formula-placeholder" type="button" draggable="true" data-action-formula-placeholder="summe-minuten">summe-minuten</button>
+                    <button class="formula-placeholder" type="button" draggable="true" data-action-formula-placeholder="sekunden">sekunden</button>
+                    <button class="formula-placeholder" type="button" draggable="true" data-action-formula-placeholder="rest-sekunden">rest-sekunden</button>
+                  </div>
+                  <p id="action-formula-help" class="field-help">
+                    Unterstützt werden minuten, summe-minuten, sekunden und rest-sekunden sowie ganze Zahlen und +, -, *, /, Klammern.
+                  </p>
+                  <p id="action-formula-error" class="field-error"></p>
+                </div>
+              </div>
+
+              <div class="field">
+                <div class="input-wrapper">
+                  <label for="action-rounding">
+                    Minutenrundung<span class="required-marker" aria-hidden="true"> *</span>
+                  </label>
+                  <select id="action-rounding" name="action-rounding" aria-describedby="action-rounding-error">
+                    <option value="floor">Abrunden</option>
+                    <option value="ceil">Aufrunden</option>
+                    <option value="round">Runden</option>
+                  </select>
+                  <p id="action-rounding-error" class="field-error"></p>
+                </div>
+              </div>
+
+              <div id="action-rounding-threshold-field" class="field" hidden>
+                <div class="input-wrapper">
+                  <label for="action-rounding-threshold">Aufrunden ab Rest-Sekunden (optional)</label>
+                  <input id="action-rounding-threshold" name="action-rounding-threshold" type="number" inputmode="numeric" min="0" max="60" step="1" aria-describedby="action-rounding-threshold-error" />
+                  <p id="action-rounding-threshold-error" class="field-error"></p>
+                </div>
+              </div>
+
+              <div id="action-formula-bounds" class="formula-bounds">
+                <p class="field-help">Ergebnisse werden auf diesen Beat-Bereich begrenzt. Ungültige Ergebnisse verwenden den Mindestwert.</p>
+                <div class="formula-bounds-fields">
+                  <div class="field">
+                    <div class="input-wrapper">
+                      <label for="action-min">
+                        Min (Beats)<span class="required-marker" aria-hidden="true"> *</span>
+                      </label>
+                      <input id="action-min" name="action-min" type="number" inputmode="numeric" min="1" step="1" value="10" aria-describedby="action-min-error" />
+                      <p id="action-min-error" class="field-error"></p>
+                    </div>
+                  </div>
+                  <div class="field">
+                    <div class="input-wrapper">
+                      <label for="action-max">Max (Beats, optional)</label>
+                      <input id="action-max" name="action-max" type="number" inputmode="numeric" min="1" step="1" aria-describedby="action-max-error" />
+                      <p id="action-max-error" class="field-error"></p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div id="action-manual-fields" class="action-type-fields" hidden>
+              <div class="field">
+                <div class="input-wrapper">
+                  <label for="action-limit-seconds">Limit Sekunden (optional)</label>
+                  <input id="action-limit-seconds" name="action-limit-seconds" type="number" inputmode="numeric" min="1" max="600" step="1" aria-describedby="action-limit-seconds-error" />
+                  <p id="action-limit-seconds-error" class="field-error"></p>
+                </div>
+              </div>
+            </div>
+
+            <div id="metronome-action-fields" hidden>
           <fieldset>
             <legend>Tempo</legend>
 
@@ -142,15 +308,16 @@
                   <span>Tempo erhöhen</span>
                 </label>
 
-                <button
-                  id="increase-progress-button"
-                  class="secondary-button progress-summary-button"
-                  type="button"
-                  aria-haspopup="dialog"
-                  aria-controls="tempo-progress-dialog"
-                >
-                  um 1 BPM alle 10 Beats *
-                </button>
+                <div class="inline-input-wrapper tempo-progress-fields">
+                  <label for="increase-by">Erhöhen um (BPM)<span class="required-marker" aria-hidden="true"> *</span></label>
+                  <input id="increase-by" name="increase-by" type="number" inputmode="numeric" min="1" max="20" step="1" value="1" aria-describedby="increase-by-error" />
+                  <span id="increase-by-error" class="field-error"></span>
+                </div>
+                <div class="inline-input-wrapper tempo-progress-fields">
+                  <label for="increase-after">Erhöhen alle (Beats)<span class="required-marker" aria-hidden="true"> *</span></label>
+                  <input id="increase-after" name="increase-after" type="number" inputmode="numeric" min="1" step="1" value="10" aria-describedby="increase-after-error" />
+                  <span id="increase-after-error" class="field-error"></span>
+                </div>
               </div>
 
               <div id="increase-options" class="option-details">
@@ -251,15 +418,16 @@
                           <span id="maximum-limit-reverse-error" class="field-error"></span>
                         </div>
 
-                        <button
-                          id="reverse-progress-button"
-                          class="secondary-button progress-summary-button"
-                          type="button"
-                          aria-haspopup="dialog"
-                          aria-controls="tempo-progress-dialog"
-                        >
-                          um 1 BPM alle 10 Beats *
-                        </button>
+                        <div class="inline-input-wrapper tempo-progress-fields">
+                          <label for="decrease-by-reverse">Verringern um (BPM)<span class="required-marker" aria-hidden="true"> *</span></label>
+                          <input id="decrease-by-reverse" name="decrease-by-reverse" type="number" inputmode="numeric" min="1" max="50" step="1" value="1" aria-describedby="decrease-by-reverse-error" />
+                          <span id="decrease-by-reverse-error" class="field-error"></span>
+                        </div>
+                        <div class="inline-input-wrapper tempo-progress-fields">
+                          <label for="decrease-after-reverse">Verringern alle (Beats)<span class="required-marker" aria-hidden="true"> *</span></label>
+                          <input id="decrease-after-reverse" name="decrease-after-reverse" type="number" inputmode="numeric" min="1" step="1" value="10" aria-describedby="decrease-after-reverse-error" />
+                          <span id="decrease-after-reverse-error" class="field-error"></span>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -267,46 +435,6 @@
                 </fieldset>
               </div>
             </div>
-          </fieldset>
-
-          <fieldset id="pre-timers-fieldset">
-            <legend>Vorlaufzeiten</legend>
-
-            <div class="table-wrapper pre-timers-table-wrapper">
-              <table id="pre-timers-table">
-                <caption class="visually-hidden">Konfigurierte Vorlaufzeiten</caption>
-                <colgroup>
-                  <col class="pre-timer-type-column" />
-                  <col class="pre-timer-name-column" />
-                  <col class="pre-timer-options-column" />
-                  <col class="pre-timer-actions-column" />
-                </colgroup>
-                <thead>
-                  <tr>
-                    <th scope="col">
-                      <span class="pre-timer-type-heading">Typ</span>
-                    </th>
-                    <th scope="col">Name</th>
-                    <th scope="col">Optionen</th>
-                    <th scope="col" class="action-column">
-                      <span class="visually-hidden">Aktionen</span>
-                      <button
-                        id="pre-timer-add-button"
-                        class="secondary-button icon-button"
-                        type="button"
-                        aria-label="Vorlaufzeit hinzufügen"
-                        title="Vorlaufzeit hinzufügen"
-                      >
-                        +
-                      </button>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody id="pre-timers-table-body"></tbody>
-              </table>
-            </div>
-            <p id="pre-timers-empty-message" class="status">Noch keine Vorlaufzeiten konfiguriert.</p>
-            <p id="pre-timers-error" class="field-error"></p>
           </fieldset>
 
           <fieldset>
@@ -378,7 +506,7 @@
           </fieldset>
 
           <fieldset>
-            <legend>Session-Ende</legend>
+            <legend>Ende</legend>
 
             <div
               id="session-end-option-card"
@@ -443,6 +571,25 @@
               </div>
             </div>
           </fieldset>
+          <p id="derived-end-message" class="field-help" hidden></p>
+            </div>
+
+            <div class="button-row action-editor-actions">
+              <button id="action-editor-cancel" class="secondary-button" type="button">Abbrechen</button>
+              <button id="action-editor-save" class="primary-button" type="button">Bestätigen</button>
+            </div>
+          </section>
+
+          <fieldset id="global-settings-fieldset">
+            <legend>Globale Einstellungen</legend>
+            <div class="field export-option">
+              <label class="checkbox-label" for="hide-progress">
+                <input id="hide-progress" name="hide-progress" type="checkbox" aria-describedby="hide-progress-help" />
+                <span>Fortschritt ausblenden</span>
+              </label>
+              <p id="hide-progress-help" class="field-help">Blendet die Aktionsposition während der Ausführung aus.</p>
+            </div>
+          </fieldset>
 
           <fieldset>
             <legend>Einstellungen exportieren</legend>
@@ -480,396 +627,95 @@
         </form>
 
         <dialog
-          id="tempo-progress-dialog"
+          id="action-delete-dialog"
           class="progress-dialog"
-          aria-labelledby="tempo-progress-dialog-title"
+          aria-labelledby="action-delete-dialog-title"
         >
           <div class="progress-dialog-content">
-            <h3 id="tempo-progress-dialog-title">Tempodynamik festlegen</h3>
-            <p class="field-help required-field-legend">
-              <span class="required-marker" aria-hidden="true">*</span> Pflichtfeld
-            </p>
-
-            <div id="increase-progress-fields" class="progress-dialog-fields">
-              <div class="field">
-                <div class="input-wrapper">
-                  <label for="increase-by">
-                    Erhöhen um (BPM)<span class="required-marker" aria-hidden="true"> *</span>
-                  </label>
-                  <input
-                    id="increase-by"
-                    name="increase-by"
-                    type="number"
-                    inputmode="numeric"
-                    min="1"
-                    max="20"
-                    step="1"
-                    value="1"
-                    aria-describedby="increase-by-error"
-                  />
-                  <p id="increase-by-error" class="field-error"></p>
-                </div>
-              </div>
-
-              <div class="field">
-                <div class="input-wrapper">
-                  <label for="increase-after">
-                    Erhöhen alle (Beats)<span class="required-marker" aria-hidden="true"> *</span>
-                  </label>
-                  <input
-                    id="increase-after"
-                    name="increase-after"
-                    type="number"
-                    inputmode="numeric"
-                    min="1"
-                    step="1"
-                    value="10"
-                    aria-describedby="increase-after-error"
-                  />
-                  <p id="increase-after-error" class="field-error"></p>
-                </div>
-              </div>
-            </div>
-
-            <div id="reverse-progress-fields" class="progress-dialog-fields" hidden>
-              <div class="field">
-                <div class="input-wrapper">
-                  <label for="decrease-by-reverse">
-                    Verringern um (BPM)<span class="required-marker" aria-hidden="true"> *</span>
-                  </label>
-                  <input
-                    id="decrease-by-reverse"
-                    name="decrease-by-reverse"
-                    type="number"
-                    inputmode="numeric"
-                    min="1"
-                    max="50"
-                    step="1"
-                    value="1"
-                    aria-describedby="decrease-by-reverse-error"
-                  />
-                  <p id="decrease-by-reverse-error" class="field-error"></p>
-                </div>
-              </div>
-
-              <div class="field">
-                <div class="input-wrapper">
-                  <label for="decrease-after-reverse">
-                    Verringern alle (Beats)<span class="required-marker" aria-hidden="true"> *</span>
-                  </label>
-                  <input
-                    id="decrease-after-reverse"
-                    name="decrease-after-reverse"
-                    type="number"
-                    inputmode="numeric"
-                    min="1"
-                    step="1"
-                    value="10"
-                    aria-describedby="decrease-after-reverse-error"
-                  />
-                  <p id="decrease-after-reverse-error" class="field-error"></p>
-                </div>
-              </div>
-            </div>
-
+            <h3 id="action-delete-dialog-title">Aktion löschen?</h3>
+            <p id="action-delete-dialog-message"></p>
             <div class="button-row progress-dialog-actions">
-              <button id="progress-dialog-cancel" class="secondary-button" type="button">
-                Abbrechen
-              </button>
-              <button id="progress-dialog-save" class="primary-button" type="button">Speichern</button>
+              <button id="action-delete-cancel" class="secondary-button" type="button">Abbrechen</button>
+              <button id="action-delete-confirm" class="danger-button" type="button">Löschen</button>
             </div>
           </div>
         </dialog>
 
         <dialog
-          id="pre-timer-dialog"
+          id="action-discard-dialog"
           class="progress-dialog"
-          aria-labelledby="pre-timer-dialog-title"
+          aria-labelledby="action-discard-dialog-title"
         >
           <div class="progress-dialog-content">
-            <h3 id="pre-timer-dialog-title">Vorlaufzeit hinzufügen</h3>
-            <p class="field-help required-field-legend">
-              <span class="required-marker" aria-hidden="true">*</span> Pflichtfeld
-            </p>
-
-            <form id="pre-timer-form" novalidate>
-              <div class="field">
-                <div class="input-wrapper">
-                  <label for="pre-timer-type">
-                    Typ<span class="required-marker" aria-hidden="true"> *</span>
-                  </label>
-                  <select
-                    id="pre-timer-type"
-                    name="pre-timer-type"
-                    aria-describedby="pre-timer-type-error"
-                  >
-                    <option value="sekunden">Sekunden</option>
-                    <option value="stoppuhr">Stoppuhr</option>
-                    <option value="manuell">Manuell</option>
-                  </select>
-                  <p id="pre-timer-type-error" class="field-error"></p>
-                </div>
-              </div>
-
-              <div class="field">
-                <div class="input-wrapper">
-                  <label for="pre-timer-name">
-                    Name<span class="required-marker" aria-hidden="true"> *</span>
-                  </label>
-                  <input
-                    id="pre-timer-name"
-                    name="pre-timer-name"
-                    type="text"
-                    autocomplete="off"
-                    maxlength="120"
-                    aria-describedby="pre-timer-name-error"
-                  />
-                  <p id="pre-timer-name-error" class="field-error"></p>
-                </div>
-              </div>
-
-              <div id="pre-timer-seconds-fields" class="pre-timer-dialog-fields">
-                <div class="field">
-                  <div class="input-wrapper">
-                    <label for="pre-timer-seconds">
-                      Sekunden<span class="required-marker" aria-hidden="true"> *</span>
-                    </label>
-                    <input
-                      id="pre-timer-seconds"
-                      name="pre-timer-seconds"
-                      type="number"
-                      inputmode="numeric"
-                      min="1"
-                      max="600"
-                      step="1"
-                      value="10"
-                      aria-describedby="pre-timer-seconds-error"
-                    />
-                    <p id="pre-timer-seconds-error" class="field-error"></p>
-                  </div>
-                </div>
-              </div>
-
-              <div id="pre-timer-stopwatch-fields" class="pre-timer-dialog-fields" hidden>
-                <div class="field">
-                  <div class="input-wrapper">
-                    <label for="pre-timer-formula">
-                      Formel<span class="required-marker" aria-hidden="true"> *</span>
-                    </label>
-                    <input
-                      id="pre-timer-formula"
-                      name="pre-timer-formula"
-                      type="text"
-                      autocomplete="off"
-                      spellcheck="false"
-                      placeholder="z. B. sekunden*3"
-                      aria-describedby="pre-timer-formula-help pre-timer-formula-error"
-                    />
-                    <div
-                      id="pre-timer-formula-placeholders"
-                      class="formula-placeholder-list"
-                      role="group"
-                      aria-label="Formel-Platzhalter"
-                    >
-                      <button
-                        class="formula-placeholder"
-                        type="button"
-                        draggable="true"
-                        data-pre-timer-placeholder="minuten"
-                      >
-                        minuten
-                      </button>
-                      <button
-                        class="formula-placeholder"
-                        type="button"
-                        draggable="true"
-                        data-pre-timer-placeholder="summe-minuten"
-                      >
-                        summe-minuten
-                      </button>
-                      <button
-                        class="formula-placeholder"
-                        type="button"
-                        draggable="true"
-                        data-pre-timer-placeholder="sekunden"
-                      >
-                        sekunden
-                      </button>
-                      <button
-                        class="formula-placeholder"
-                        type="button"
-                        draggable="true"
-                        data-pre-timer-placeholder="rest-sekunden"
-                      >
-                        rest-sekunden
-                      </button>
-                    </div>
-                    <p id="pre-timer-formula-help" class="field-help">
-                      Platzhalter anklicken oder in das Eingabefeld ziehen. Erlaubt sind Zahlen,
-                      +, -, *, / und Klammern.
-                    </p>
-                    <p id="pre-timer-formula-error" class="field-error"></p>
-                  </div>
-                </div>
-
-                <div class="field">
-                  <div class="input-wrapper">
-                    <label for="pre-timer-rounding">
-                      Minutenrundung<span class="required-marker" aria-hidden="true"> *</span>
-                    </label>
-                    <select
-                      id="pre-timer-rounding"
-                      name="pre-timer-rounding"
-                      aria-describedby="pre-timer-rounding-error"
-                    >
-                      <option value="floor">Abrunden</option>
-                      <option value="ceil">Aufrunden</option>
-                      <option value="round">Runden</option>
-                    </select>
-                    <p id="pre-timer-rounding-error" class="field-error"></p>
-                  </div>
-                </div>
-
-                <div id="pre-timer-rounding-threshold-field" class="field" hidden>
-                  <div class="input-wrapper">
-                    <label for="pre-timer-rounding-threshold">Aufrunden ab Rest-Sekunden (optional)</label>
-                    <input
-                      id="pre-timer-rounding-threshold"
-                      name="pre-timer-rounding-threshold"
-                      type="number"
-                      inputmode="numeric"
-                      min="0"
-                      max="60"
-                      step="1"
-                      placeholder="Standard: 30"
-                      aria-describedby="pre-timer-rounding-threshold-help pre-timer-rounding-threshold-error"
-                    />
-                    <p id="pre-timer-rounding-threshold-help" class="field-help">
-                      Leer bedeutet 30 Sekunden. Ein exakter Minutenwert wird nicht aufgerundet.
-                    </p>
-                    <p id="pre-timer-rounding-threshold-error" class="field-error"></p>
-                  </div>
-                </div>
-              </div>
-
-              <div id="pre-timer-manual-fields" class="pre-timer-dialog-fields" hidden>
-                <div class="field">
-                  <div class="input-wrapper">
-                    <label for="pre-timer-limit-seconds">Limit Sekunden (optional)</label>
-                    <input
-                      id="pre-timer-limit-seconds"
-                      name="pre-timer-limit-seconds"
-                      type="number"
-                      inputmode="numeric"
-                      min="1"
-                      max="600"
-                      step="1"
-                      placeholder="Optional"
-                      aria-describedby="pre-timer-limit-seconds-error"
-                    />
-                    <p id="pre-timer-limit-seconds-error" class="field-error"></p>
-                  </div>
-                </div>
-              </div>
-
-              <div class="button-row progress-dialog-actions">
-                <button id="pre-timer-dialog-cancel" class="secondary-button" type="button">
-                  Abbrechen
-                </button>
-                <button id="pre-timer-dialog-save" class="primary-button" type="submit">
-                  Speichern
-                </button>
-              </div>
-            </form>
-          </div>
-        </dialog>
-
-        <dialog
-          id="pre-timer-delete-dialog"
-          class="progress-dialog"
-          aria-labelledby="pre-timer-delete-dialog-title"
-        >
-          <div class="progress-dialog-content">
-            <h3 id="pre-timer-delete-dialog-title">Vorlaufzeit löschen?</h3>
-            <p id="pre-timer-delete-dialog-message"></p>
+            <h3 id="action-discard-dialog-title">Änderungen verwerfen?</h3>
+            <p id="action-discard-dialog-message">Nicht bestätigte Änderungen gehen verloren.</p>
             <div class="button-row progress-dialog-actions">
-              <button id="pre-timer-delete-cancel" class="secondary-button" type="button">
-                Abbrechen
-              </button>
-              <button id="pre-timer-delete-confirm" class="danger-button" type="button">
-                Löschen
-              </button>
+              <button id="action-discard-stay" class="secondary-button" type="button">Weiter bearbeiten</button>
+              <button id="action-discard-confirm" class="danger-button" type="button">Verwerfen</button>
             </div>
           </div>
         </dialog>
       </section>
 
-      <section id="pre-timers-view" class="view" aria-labelledby="pre-timers-title" hidden>
+      <section id="seconds-view" class="view" aria-labelledby="seconds-title" hidden>
         <header class="view-header">
-          <h2 id="pre-timers-title" tabindex="-1">Vorlaufzeiten</h2>
-          <p id="pre-timers-progress"></p>
+          <h2 id="seconds-title" tabindex="-1">Sekunden</h2>
+          <p id="seconds-progress" class="action-progress"></p>
         </header>
-
-        <div id="pre-timer-card" class="execution-card pre-timer-card">
-          <p id="pre-timer-card-type" class="eyebrow"></p>
-          <h3 id="pre-timer-card-name"></h3>
-          <p id="pre-timer-card-options" class="pre-timer-card-options"></p>
-          <strong id="pre-timer-clock" class="pre-timer-clock" aria-live="off">0:00</strong>
+        <div class="execution-card action-execution-card">
+          <p class="eyebrow">Sekunden</p>
+          <h3 id="seconds-action-name"></h3>
+          <p id="seconds-action-options" class="action-options-summary"></p>
+          <strong id="seconds-clock" class="action-clock" aria-live="off">10s</strong>
         </div>
-
-        <p id="pre-timer-status" class="status" role="status" aria-live="off"></p>
-
-        <div class="button-row pre-timer-actions">
-          <button id="pre-timer-abort-button" class="secondary-button" type="button">
-            Abbrechen
-          </button>
-          <button id="pre-timer-continue-button" class="primary-button" type="button">
-            Weiter
-          </button>
+        <p id="seconds-status" class="status" role="status" aria-live="off"></p>
+        <div class="button-row action-execution-actions">
+          <button class="secondary-button" type="button" data-abort-sequence>Abbrechen</button>
+          <button id="seconds-continue-button" class="primary-button" type="button">Weiter</button>
         </div>
+      </section>
 
-        <dialog
-          id="pre-timer-abort-dialog"
-          class="progress-dialog"
-          aria-labelledby="pre-timer-abort-dialog-title"
-        >
-          <div class="progress-dialog-content">
-            <h3 id="pre-timer-abort-dialog-title">Vorlaufzeiten abbrechen?</h3>
-            <p>Die laufende Vorlaufzeit wird abgebrochen und ein Teilbericht erstellt.</p>
-            <div class="button-row progress-dialog-actions">
-              <button id="pre-timer-abort-cancel" class="secondary-button" type="button">
-                Weiter
-              </button>
-              <button id="pre-timer-abort-confirm" class="danger-button" type="button">
-                Abbrechen
-              </button>
-            </div>
-          </div>
-        </dialog>
+      <section id="stopwatch-view" class="view" aria-labelledby="stopwatch-title" hidden>
+        <header class="view-header">
+          <h2 id="stopwatch-title" tabindex="-1">Stoppuhr</h2>
+          <p id="stopwatch-progress" class="action-progress"></p>
+        </header>
+        <div class="execution-card action-execution-card">
+          <p class="eyebrow">Stoppuhr</p>
+          <h3 id="stopwatch-action-name"></h3>
+          <p id="stopwatch-action-options" class="action-options-summary"></p>
+          <strong id="stopwatch-clock" class="action-clock" aria-live="off">0:00</strong>
+        </div>
+        <p id="stopwatch-status" class="status" role="status" aria-live="off"></p>
+        <div class="button-row action-execution-actions">
+          <button class="secondary-button" type="button" data-abort-sequence>Abbrechen</button>
+          <button id="stopwatch-continue-button" class="primary-button" type="button">Weiter</button>
+        </div>
+      </section>
 
-        <dialog
-          id="pre-timer-early-dialog"
-          class="progress-dialog"
-          aria-labelledby="pre-timer-early-dialog-title"
-        >
-          <div class="progress-dialog-content">
-            <h3 id="pre-timer-early-dialog-title">Vorlaufzeit vorzeitig fortsetzen?</h3>
-            <p id="pre-timer-early-dialog-message"></p>
-            <div class="button-row progress-dialog-actions">
-              <button id="pre-timer-early-cancel" class="secondary-button" type="button">
-                Warten
-              </button>
-              <button id="pre-timer-early-confirm" class="primary-button" type="button">
-                Weiter
-              </button>
-            </div>
-          </div>
-        </dialog>
+      <section id="manual-view" class="view" aria-labelledby="manual-title" hidden>
+        <header class="view-header">
+          <h2 id="manual-title" tabindex="-1">Manuell</h2>
+          <p id="manual-progress" class="action-progress"></p>
+        </header>
+        <div class="execution-card action-execution-card">
+          <p class="eyebrow">Manuell</p>
+          <h3 id="manual-action-name"></h3>
+          <p id="manual-action-options" class="action-options-summary"></p>
+          <strong id="manual-clock" class="action-clock" aria-live="off">0:00</strong>
+        </div>
+        <p id="manual-status" class="status" role="status" aria-live="off"></p>
+        <div class="button-row action-execution-actions">
+          <button class="secondary-button" type="button" data-abort-sequence>Abbrechen</button>
+          <button id="manual-continue-button" class="primary-button" type="button">Weiter</button>
+        </div>
       </section>
 
       <section id="execution-view" class="view" aria-labelledby="execution-title" hidden>
         <header class="view-header">
           <h2 id="execution-title" tabindex="-1">Metronom</h2>
+          <p id="execution-action-name" class="action-name"></p>
+          <p id="execution-progress" class="action-progress"></p>
         </header>
 
         <div class="execution-card">
@@ -894,9 +740,9 @@
         <p id="execution-message" class="status error-status" role="alert"></p>
 
         <div id="execution-actions" class="button-row">
-          <button id="abort-button" class="secondary-button" type="button" hidden>Abbrechen</button>
+          <button id="abort-button" class="secondary-button" type="button">Abbrechen</button>
           <button id="pause-button" class="secondary-button" type="button">Pause</button>
-          <button id="stop-button" class="danger-button" type="button">Stopp</button>
+          <button id="continue-metronome-button" class="primary-button" type="button">Weiter</button>
         </div>
       </section>
 
@@ -912,66 +758,7 @@
           aria-live="polite"
         ></p>
 
-        <div class="report-card">
-          <h3>Zusammenfassung</h3>
-          <dl class="report-list">
-            <div>
-              <dt>Gesamtzahl Beats</dt>
-              <dd id="report-total-beats">0</dd>
-            </div>
-            <div>
-              <dt>BPM</dt>
-              <dd id="report-bpm">-</dd>
-            </div>
-            <div id="report-breaks-row">
-              <dt>Pausen</dt>
-              <dd id="report-breaks">-</dd>
-            </div>
-            <div>
-              <dt>Session-Ende</dt>
-              <dd id="report-session-end">-</dd>
-            </div>
-          </dl>
-        </div>
-
-        <div id="report-pre-timers-card" class="report-card" hidden>
-          <h3>Vorlaufzeiten</h3>
-          <div class="table-wrapper report-pre-timers-table-wrapper">
-            <table id="report-pre-timers-table" class="report-pre-timers-table">
-              <caption class="visually-hidden">Auswertung der Vorlaufzeiten</caption>
-              <thead>
-                <tr>
-                  <th scope="col">Typ</th>
-                  <th scope="col">Name</th>
-                  <th scope="col">Dauer</th>
-                  <th scope="col">Optionen</th>
-                  <th scope="col">Status</th>
-                </tr>
-              </thead>
-              <tbody id="report-pre-timers-table-body"></tbody>
-            </table>
-          </div>
-        </div>
-
-        <div class="report-card">
-          <h3 id="report-breaks-title">gebrauchte Pausen</h3>
-          <p id="report-no-breaks" class="status">Keine Pausen verwendet.</p>
-          <div id="break-table-wrapper" class="table-wrapper" hidden>
-            <table>
-              <caption class="visually-hidden">Während der Ausführung verwendete Pausen</caption>
-              <thead>
-                <tr>
-                  <th scope="col">#</th>
-                  <th scope="col">Beat</th>
-                  <th scope="col">BPM</th>
-                  <th scope="col">Limit</th>
-                  <th scope="col">Beendet</th>
-                </tr>
-              </thead>
-              <tbody id="break-table-body"></tbody>
-            </table>
-          </div>
-        </div>
+        <div id="action-report-sections" class="action-report-sections"></div>
 
         <div class="report-actions">
           <div class="report-action-row report-copy-actions">
@@ -1002,16 +789,37 @@
           readonly
         ></textarea>
       </section>
+
+      <dialog
+        id="action-abort-dialog"
+        class="progress-dialog"
+        aria-labelledby="action-abort-dialog-title"
+      >
+        <div class="progress-dialog-content">
+          <h3 id="action-abort-dialog-title">Aktionen abbrechen?</h3>
+          <p id="action-abort-dialog-message">Die laufende Aktion und alle folgenden Aktionen werden beendet. Ein Teilbericht wird erstellt.</p>
+          <div class="button-row progress-dialog-actions">
+            <button id="action-abort-cancel" class="secondary-button" type="button">Weiter</button>
+            <button id="action-abort-confirm" class="danger-button" type="button">Abbrechen</button>
+          </div>
+        </div>
+      </dialog>
+
+      <dialog
+        id="seconds-early-dialog"
+        class="progress-dialog"
+        aria-labelledby="seconds-early-dialog-title"
+      >
+        <div class="progress-dialog-content">
+          <h3 id="seconds-early-dialog-title">Aktion vorzeitig fortsetzen?</h3>
+          <p id="seconds-early-dialog-message"></p>
+          <div class="button-row progress-dialog-actions">
+            <button id="seconds-early-cancel" class="secondary-button" type="button">Warten</button>
+            <button id="seconds-early-confirm" class="primary-button" type="button">Weiter</button>
+          </div>
+        </div>
+      </dialog>
     </main>
 
-    <template id="break-row-template">
-      <tr>
-        <td data-cell="number"></td>
-        <td data-cell="beat"></td>
-        <td data-cell="bpm"></td>
-        <td data-cell="allowance"></td>
-        <td data-cell="ended"></td>
-      </tr>
-    </template>
   </body>
 </html>

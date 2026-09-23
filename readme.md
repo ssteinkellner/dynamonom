@@ -1,313 +1,125 @@
-# TODOs
+# Metronom
+
+## TODO
+
 copilot please ignore this section.
+
 - add "Lock abort" for exports
 
-
-# Metronome
-
-This metronome is a single-page application with five views:
-
-- Presets
-- Settings
-- Pre-timers
-- Execution
-- Report
-
-Only one view is visible at a time. Presets is the initial view. The application
-is implemented with plain JavaScript, with all markup in `index.html` and all
-behavior in `metronome.js`. Preset definitions are kept in `presets.js`.
+This is a browser-based metronome and ordered action runner. The application
+uses plain JavaScript, with markup in `src/index.html`, behavior in
+`src/metronome.js`, action data helpers in `src/action-model.js`, and built-in
+presets in `src/presets.js`.
 
 ## Local development and phone installation
 
-The project uses Vite with `src` as its application root. Install the
-development dependency and start the LAN-accessible server with:
+The project uses Vite with `src` as its application root:
 
 ```text
 npm install
 npm run dev
 ```
 
-Vite listens on port `5173` on all network interfaces. On a phone connected to
-the same network, open `http://<computer-ip>:5173`. The computer's firewall
-must allow incoming connections on that port.
+Vite listens on port `5173` on all network interfaces. A phone on the same
+network can open `http://<computer-ip>:5173`; the computer's firewall must
+allow incoming connections on that port. The app includes a web app manifest,
+icons, standalone display metadata, and a service worker for offline caching.
+Browsers may require HTTPS for a full installation prompt; over local HTTP, use
+the browser's **Add to Home Screen** action when available. To run a production
+preview, use `npm run build` followed by `npm run preview`.
 
-The app includes a web app manifest, generated icons, standalone display
-metadata, and a service worker for offline caching. Browsers may require HTTPS
-before offering a full PWA installation prompt; over local HTTP, use the
-browser's **Add to Home Screen** action if it is available. The Vite preview
-server is also available with `npm run build` followed by `npm run preview`.
+## Presets and settings
 
-## View "Presets"
+The **Metronom - Voreinstellungen** view is shown on page load. Its single
+vertical card contains the Import field, preset buttons, and **Manuell**.
+Selecting a preset loads its ordered actions; presets with `autoStart: true`
+start immediately. **Manuell** opens Settings.
 
-The Presets view opens when the page loads. Its single vertical card contains
-the Import field, the available preset buttons, and **Manuell**. Presets are
-generated from the dictionary in `presets.js`. Each entry supplies a base
-`label`, a `values` object using the settings names from the form, and
-optionally an `autoStart` Boolean. A missing `autoStart` is treated as `false`.
-Auto-start presets start immediately; other presets apply their values and
-open Settings. If an auto-start preset cannot start, Settings opens with the
-validation or audio error. **Manuell** opens Settings with the current form values.
-Settings also has a **Zurück zu Voreinstellungen** action that preserves the
-form and import state.
+The Settings view contains an ordered **Aktionen** table. Drag rows or use
+Alt+Arrow keys to reorder them. Add an action with the plus button; choosing
+its type opens its editor below the table. Action names are required and
+unique, ignoring case. Editing is transactional: **Bestätigen** saves the
+draft, **Abbrechen** discards it, and errors keep the editor open. Changing
+actions, leaving Settings, starting, or exporting is blocked or confirmed as
+appropriate while a draft is unresolved. The table can be empty while editing,
+but starting requires at least one **Metronom** action.
 
-The Import field accepts a bare URL parameter list, a list with a leading
-`?`, or a full URL. It is processed when text is pasted or Enter is pressed;
-editing Settings never updates the Import field. Every import starts from
-application defaults, then applies valid supplied values. Omitted switches
-and radio selections use their defaults. BPM and every required field active
-under the resulting configuration must be present in the import; missing
-active required values are invalid even when a usable default is displayed.
-This includes the accent interval, active tempo progression and maximum
-values, enabled Lock/Session-End thresholds, and valid pre-timer definitions
-when a pre-timer payload is supplied.
-Optional and inactive settings use their defaults.
+**Globale Einstellungen** includes the unchecked-by-default **Fortschritt
+ausblenden** option. Progress is otherwise shown as **Aktion n von N** on
+each execution view.
 
-The optional `auto-start` parameter accepts `true`, `false`, `1`, or `0`.
-A complete, valid import with `auto-start=true` starts immediately, including
-when supplied in the initial page URL. A valid import without auto-start opens
-Settings. Invalid imports apply valid supplied fields over defaults, retain the
-original text, and open Settings with a **Fehlerhafter Import** section that
-lists the issues and displays the imported text exactly. Unknown parameters
-are ignored when recognized settings are present; an import with no recognized
-settings is invalid. Manual Start remains available when the displayed form
-values pass validation. A successful import clears the Import field.
+### Action types
 
-## View "Settings"
+- **Metronom** has separate **Tempo**, **Pausen**, and **Ende** sections. Each
+  metronome action starts with a fresh 3-2-1 countdown and resets its beat,
+  tempo, and pause counters. **Weiter** ends that action and stays disabled
+  until its configured lock threshold; an automatic Ende advances to the next
+  action.
+- **Sekunden** accepts a whole-number duration from 1 to 600 seconds and
+  advances automatically when it expires. Continuing more than 10 seconds
+  early requires confirmation.
+- **Stoppuhr** counts elapsed time until **Weiter**. Its formula supports
+  `minuten`, `summe-minuten`, `sekunden`, and `rest-sekunden`, whole-number
+  literals, `+`, `-`, `*`, `/`, parentheses, and whitespace. Minute rounding
+  is configured per action as floor, ceil, or round (30 seconds by default).
+  A single integer literal has no Min/Max bounds. Other formulas use a
+  required minimum (default 10 beats) and an optional maximum. Valid results
+  are clamped to those bounds; an invalid runtime result uses that action's
+  minimum.
+- **Manuell** waits for **Weiter**. An optional 1-600 second limit is shown
+  while running but never advances the action automatically.
 
-The settings view configures the run. Dependent settings are kept visible in
-bordered option cards. When a parent checkbox or radio option is inactive, its
-dependent inputs remain visible but are disabled. Values are preserved when
-switching options. Checkbox cards keep their controls on one compact horizontal
-value row below the checkbox label; long value rows can be scrolled
-horizontally on narrow screens. Each field uses a vertical input wrapper for
-its label, input, hint, and validation message. The Increase tempo card places
-its checkbox and two primary values in one row, then stacks the Maximum groups
-below a separator. Inputs within each group remain side by side.
-Required fields are marked with `*` in Settings and the associated dialogs.
-The markers remain visible while conditional controls are disabled. The
-`* Pflichtfeld` note explains the marker; optional break values and manual
-pre-timer limits are not marked.
+Stoppuhr results since the previous Metronom are applied to the next
+Metronom: each result is bounded or falls back independently, then the values
+are summed to determine both automatic Ende and the Weiter lock. When such a
+Stoppuhr group precedes a Metronom, that action's manual Ende and lock controls
+are disabled with a note naming the source actions. Stoppuhren after the final
+Metronom remain report-only.
 
-### Pre-timers
+### Settings import and export
 
-The **Vorlaufzeiten** table appears between Tempo and Pausen. Rows are ordered
-by drag and drop, and that order controls the pre-timer sequence and reports.
-Names are required and unique after trimming and case-folding. Each row can be
-edited in a dialog and deleted after confirmation. The table is included in
-presets and settings exports as a versioned `pre-timers` JSON parameter.
-The edit dialog presents **Typ** before **Name**. Stopwatch formulas show the
-supported placeholders as boxed controls below the formula field; clicking a
-placeholder or dragging it into the field inserts it at the current caret (or
-at the end when no caret is available). Scrolling over a focused number input
-first removes focus so the value is not changed by the wheel.
+The Import field accepts a bare query string, one prefixed with `?`, or a full
+URL. It is processed when text is pasted or Enter is pressed. The versioned
+format requires `version=1`, an explicit `auto-start=true|false`, and an
+`actions` JSON array. `hide-progress=true` is optional and defaults to false.
+Each action contains a type, name, and settings object; local action IDs are
+generated when imported. Legacy flat settings and the former `pre-timers`
+payload are not supported.
 
-The available types are:
-
-- **Sekunden**: whole seconds from 1-600. The row shows **Weiter** immediately;
-  clicking early requires confirmation while more than 10 seconds remain. If
-  the user does not continue early, the row advances automatically at its
-  configured time.
-- **Stoppuhr**: a required arithmetic formula using `minuten`,
-  `summe-minuten`, `sekunden`, and `rest-sekunden`. Only whole-number literals,
-  `+`, `-`, `*`, `/`, parentheses, and whitespace are accepted. Formula
-  results must be positive safe integers. Minute rounding is configured per
-  row as floor, ceil, or round; round defaults to a 30-second threshold.
-- **Manuell**: **Weiter** remains manual. An optional 1-600 second limit is
-  displayed on the button but never advances the row automatically.
-
-When at least one Stoppuhr pre-timer exists, the Session-Ende and Lock settings
-are disabled. After the pre-timer sequence, valid Stoppuhr formula results are
-summed and used as both the automatic session-end and stop-lock beat values.
-Invalid runtime results are ignored and reported; if none are valid, execution
-continues without a derived limit and with Stop unlocked.
-
-### Settings export
-
-The Settings export section contains an **Auto-Start** checkbox and two copy
-actions. **Only settings** copies the bare parameter list, while **Whole URL**
-copies the current page URL with its query replaced by the settings and its
-path and hash preserved. When Auto-Start is checked, both formats include
-`auto-start=true`; otherwise the parameter is omitted. Export actions copy to
-the clipboard; paste the copied text into the Import field on Presets.
-Settings feedback, including clipboard confirmations, remains visible while
-scrolling.
-
-When the pre-timer table is non-empty, exports include its complete ordered
-`pre-timers` payload. Missing or explicitly empty payloads clear the table on
-import. Invalid payload versions or row definitions are rejected without
-partially applying the pre-timer list, while other valid settings in that
-import can still be applied. Whole URLs longer than 2000 characters are
-copied completely with a warning.
-
-### BPM (beats per minute)
-
-Whole-number input.
-
-- Default: 120
-- Allowed starting range: 20-300
-
-### Accentuate every N beats
-
-Inline checkbox and whole-number input, enabled by default. When enabled, the
-first beat and every configured interval are accented.
-
-- Default: 10
-- Minimum: 1
-
-### Increase tempo
-
-Inline checkbox and a summary button phrased **by N BPM every N beats**,
-enabled by default. Activating the button opens a shared dialog for the two
-values. Save validates and applies the values; Cancel restores the previous
-values. The button remains visible but disabled when its parent option is
-unchecked.
-
-- Increase by: default 1 BPM, allowed range 1-20
-- Increase after: default 10 beats, minimum 1
-
-#### Maximum
-
-Radio options. Each option has its own bordered card and preserves its own
-values. The options are phrased inline as **Limit at N**, **Reset at N**, and
-**Reverse at N**, followed by a summary button for the decrease values.
-
-- **None**: tempo increases without a configured limit.
-- **Limit at N**: the tempo holds at the configured limit.
-- **Reset at N**: the next beat uses the initial BPM after the limit is
-  reached.
-- **Reverse at N**: the tempo reaches the limit, then decreases before
-  cycling again. Its summary button opens the same two-value dialog for the
-  decrease amount and interval.
-
-Limit inputs accept whole numbers from 60-400 and must be greater than the
-starting BPM. Reverse values use the following defaults:
-
-- Decrease By: 1 BPM, allowed range 1-50
-- Decrease After: 10 beats, minimum 1
-
-### Breaks
-
-Radio options. Each option is displayed in its own bordered card.
-
-- **None**: the Pause control is unavailable during execution.
-- **Unlimited**: pauses are allowed without a count limit.
-- **Limited**: Count and Seconds remain visible in the Limited card and are
-  active when Limited is selected. The Limited option stays vertically
-  organized while Count and Seconds share one horizontal value row.
-
-Count accepts a blank value or a positive whole number. Seconds accepts a
-positive whole number, or an expression such as `BPM/2`, `BPM+5`, `BPM-2`, or
-`BPM*1.5`.
-
-### Session end
-
-The unchecked-by-default option is phrased **End session automatically after N
-beats**. Its value remains visible and is disabled until the checkbox is
-selected.
-
-When a Stoppuhr pre-timer exists, the Session-Ende and Lock controls are
-disabled together. Their manually entered values are preserved and become
-available again after all Stoppuhr rows are removed. Derived values are
-reported with the **Aus Vorlauf:** prefix.
-
-- Default value: 100 beats
-- Minimum: 1 beat
-- Counts completed audible metronome beats only
-- The session ends immediately after the configured beat, even when the
-  manual Stop button is still locked
-
-#### Lock
-
-The unchecked-by-default option is phrased **Lock Stop until N beats**. Its
-value remains visible and is disabled until Lock is selected.
-
-- Default: unchecked
-- Default threshold: 10 beats
-- When automatic session end is also enabled, Lock must be less than or equal
-  to the automatic end threshold
-
-### Start
-
-The Settings export section appears before the bottom action row. **Zurück zu
-Voreinstellungen** preserves the current form. **Start** validates the active
-settings and navigates to the Pre-timers or Execution view.
-
-## View "Execution"
-
-When pre-timers are configured, Execution starts after the last pre-timer and
-keeps the existing 3, 2, 1 countdown and tones. With no pre-timers, Settings
-continues directly to the same Execution countdown.
-
-The view starts with a visible 3, 2, 1 countdown and three tones separated by
-one second. It then executes the configured tempo.
-
-During the initial countdown, **Abort** cancels the run immediately and returns
-to Settings without creating a report. Form values are preserved. Stop is
-available after the first beat starts.
-
-The view displays:
-
-- During startup, **Starting in** and Initial BPM in the two metric cards
-- After startup, Current BPM and the next BPM change
-- The next BPM change and its beat countdown when tempo progression is active
-- Completed beat count
-- Pause and Stop controls
-
-For a timed break, the final available seconds are announced with the same
-countdown tone used at startup. A 3-second-or-longer break announces 3, 2, 1;
-shorter breaks announce every available second without extending the break.
-The user can still resume manually during this countdown.
-The countdown value is shown inside the Resume button while it is active.
-
-## View "Report"
-
-The report displays:
-
-- A summary of the effective settings
-- An ordered **Vorlaufzeiten** table with columns for type, name, actual
-  duration, options, and status. Stopwatch options include the formula,
-  substitution, result, and ignored-result reason.
-- A combined BPM summary with the starting BPM, progression, and maximum
-  information
-- Total completed beats
-- Each break's beat number, active BPM, allowance status, and end reason
-
-The summary omits settings configured as **None**. When Lock is enabled, its
-`Settings locked until N beats are passed` text is combined into the **Session
-end** value, which also reports whether the session ended manually or
-automatically after a configured number of beats.
-
-The Ended column records durations for breaks, such as
-`Auto-resumed after 30 seconds` or `Manually resumed after 5 seconds`.
-When a break time limit is configured, the report's break section is labeled
-`Breaks used (max Ns):` with the configured limit.
-
-The **Copy to clipboard** button copies all report information as labeled plain
-text. Vorlaufzeiten and Pausen item lines are prefixed with `- `; headings and
-summary lines are not. Each item is separated by a newline, with a separate
-newline-delimited section for break records. The button announces success or
-failure and returns to its normal label after a successful copy. Report
-feedback, including the clipboard confirmation, remains visible while
-scrolling.
-
-The **Copy short to Clipboard** button copies a compact summary with the total
-beat count, BPM range, and progression tokens on the first line. When breaks
-were used, `Pausen bei:` is added, followed by one beat and used
-actual elapsed duration per line. The duration is measured when the break is
-resumed or stopped, rather than copied from the configured maximum. For
-example:
+For example, the query has this shape (the browser-encoded value of `actions`
+is longer):
 
 ```text
-Pausen bei:
-- 45 (30s)
-- 71 (5s)
+version=1&auto-start=false&actions=[{"type":"metronom","name":"Metronom","settings":{...}}]
 ```
 
-The short report also includes one compact line per pre-timer in table order.
+The export controls copy either the parameter list or the current page URL with
+its query replaced by the settings. Auto-Start is explicit in both formats;
+the progress option is included only when enabled. Export is blocked until an
+open action editor is confirmed or canceled. A copied import with
+`auto-start=true` starts immediately when valid; an import with false opens
+Settings. Invalid data is retained and shown in an import-error section, and
+manual Start remains available after the actions are corrected.
 
-The report actions are arranged in two rows: the copy buttons first, then
-**Zurück zu Voreinstellungen**, **Zurück zu Einstellungen**, and
-**Wiederholen**. The short-copy and repeat actions use the primary style.
-**Wiederholen** immediately starts a fresh run with the same configured
-settings and pre-timer sequence. Both Back actions preserve the form values.
-The buttons wrap or stack on narrow screens.
+## Execution and reports
+
+Actions run in table order, each in its own view. **Abbrechen** is available
+on every action view; after confirmation, the report contains all actions,
+marks the current one aborted, and marks later actions as not started.
+
+The report has one section per action, in execution order, titled
+`<action type> - <action name>`. Metronome sections include tempo, pauses,
+ending/lock details, and used breaks; Stoppuhr sections include the formula,
+rounding, bounds, and applied result.
+
+The long-copy report follows the UI and separates sections with headings such
+as `**Metronom - Warm-up**`. The short-copy report uses `**<action name>**`
+followed by one compact line containing that action's parameters and outcome.
+For each Metronom, the next line is exactly **Keine Pausen gebraucht** when
+there were no breaks, or starts with **Pausen gebraucht bei:** followed by the
+used break list.
+
+Report buttons are arranged in two rows: the copy actions first, then **Zurück
+zu Voreinstellungen**, **Zurück zu Einstellungen**, and **Wiederholen**.
+**Kurzbericht in Zwischenablage kopieren** and **Wiederholen** use the primary
+style. Repeat starts a fresh sequence with the configured actions.
