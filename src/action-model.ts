@@ -203,6 +203,11 @@ export function createDefaultAction(
 ): ManualAction;
 export function createDefaultAction(
   type: ActionType,
+  actions: readonly Action[],
+  metronomeSettings?: MetronomeSettings,
+): Action;
+export function createDefaultAction(
+  type: ActionType,
   actions: readonly Action[] = [],
   metronomeSettings?: MetronomeSettings,
 ): Action {

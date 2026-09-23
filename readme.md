@@ -8,9 +8,11 @@ copilot please ignore this section.
 
 This is a browser-based metronome and ordered action runner. The application
 uses Vite with markup in `src/index.html`; its current controller is
-`src/metronome.js`, while action/timer models and built-in presets are typed
-modules in `src/action-model.ts`, `src/pre-timer-model.ts`, and
-`src/presets.ts`.
+`src/metronome.js`. Action/timer models, metronome validation, built-in presets,
+and the Pinia session store are typed modules in `src/action-model.ts`,
+`src/pre-timer-model.ts`, `src/models/metronome-settings.ts`,
+`src/presets.ts`, and `src/stores/metronome.ts`; audio/timer resources are
+managed by `src/services/session-engine.ts`.
 
 ## Local development and phone installation
 
