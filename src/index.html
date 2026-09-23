@@ -18,10 +18,52 @@
 
   <body>
     <main id="app">
-      <section id="settings-view" class="view" aria-labelledby="settings-title">
+      <section id="presets-view" class="view" aria-labelledby="presets-title">
+        <header class="view-header">
+          <h1 id="presets-title" tabindex="-1">Metronom - Voreinstellungen</h1>
+        </header>
+
+        <div class="report-card presets-card">
+          <div class="presets-card-content">
+            <div id="settings-import-wrapper" class="settings-import-wrapper">
+              <label class="visually-hidden" for="settings-import">
+                Einstellungen importieren
+              </label>
+              <input
+                id="settings-import"
+                class="settings-import-input"
+                type="text"
+                inputmode="url"
+                autocomplete="off"
+                spellcheck="false"
+                placeholder="Importieren"
+                aria-describedby="settings-import-error"
+              />
+              <span id="settings-import-error" class="field-error"></span>
+            </div>
+
+            <div
+              id="preset-list"
+              class="preset-list"
+              role="group"
+              aria-label="Verfügbare Voreinstellungen"
+            ></div>
+            <p id="preset-status" class="status preset-status" role="alert" aria-live="polite" hidden></p>
+            <button id="manual-button" class="secondary-button" type="button">
+              Manuell
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section id="settings-view" class="view" aria-labelledby="settings-title" hidden>
         <header class="view-header">
           <h1 id="settings-title" tabindex="-1">Metronom-Einstellungen</h1>
         </header>
+
+        <p class="field-help required-field-legend">
+          <span class="required-marker" aria-hidden="true">*</span> Pflichtfeld
+        </p>
 
         <p
           id="settings-status"
@@ -31,32 +73,12 @@
         ></p>
 
         <form id="settings-form" novalidate>
-          <fieldset>
-            <legend>Voreinstellungen</legend>
-
-            <div
-              id="preset-list"
-              class="preset-row"
-              role="group"
-              aria-label="Voreinstellungen importieren und verfügbare Voreinstellungen"
-            >
-              <div id="settings-import-wrapper" class="settings-import-wrapper">
-                <label class="visually-hidden" for="settings-import">
-                  Einstellungen importieren
-                </label>
-                <input
-                  id="settings-import"
-                  class="settings-import-input"
-                  type="text"
-                  inputmode="url"
-                  autocomplete="off"
-                  spellcheck="false"
-                  placeholder="Importieren"
-                  aria-describedby="settings-import-error"
-                />
-                <span id="settings-import-error" class="field-error"></span>
-              </div>
-            </div>
+          <fieldset id="import-error-panel" class="import-error-panel" hidden>
+            <legend>Fehlerhafter Import</legend>
+            <p id="import-error-summary" class="error-status" role="alert"></p>
+            <ul id="import-error-list" class="import-error-list"></ul>
+            <p class="field-help import-error-label">Importierter Text</p>
+            <pre id="import-error-text" class="import-error-text"></pre>
           </fieldset>
 
           <fieldset>
@@ -64,7 +86,9 @@
 
             <div class="field">
               <div class="input-wrapper">
-                <label for="bpm">Beats pro Minute (BPM)</label>
+                <label for="bpm">
+                  Beats pro Minute (BPM)<span class="required-marker" aria-hidden="true"> *</span>
+                </label>
                 <input
                   id="bpm"
                   name="bpm"
@@ -102,7 +126,9 @@
                   <span id="accent-repeat-error" class="field-error"></span>
                 </div>
 
-                <span class="inline-option-text">Beat</span>
+                <span class="inline-option-text">
+                  Beat<span class="required-marker" aria-hidden="true"> *</span>
+                </span>
               </div>
             </div>
 
@@ -123,7 +149,7 @@
                   aria-haspopup="dialog"
                   aria-controls="tempo-progress-dialog"
                 >
-                  um 1 BPM alle 10 Beats
+                  um 1 BPM alle 10 Beats *
                 </button>
               </div>
 
@@ -144,7 +170,9 @@
                       <div class="maximum-option-row">
                         <label class="radio-label" for="maximum-stick">
                           <input id="maximum-stick" name="maximum" type="radio" value="stick" />
-                          <span>Begrenzen auf</span>
+                          <span>
+                            Begrenzen auf<span class="required-marker" aria-hidden="true"> *</span>
+                          </span>
                         </label>
 
                         <div class="inline-input-wrapper">
@@ -171,7 +199,9 @@
                       <div class="maximum-option-row">
                         <label class="radio-label" for="maximum-reset">
                           <input id="maximum-reset" name="maximum" type="radio" value="reset" />
-                          <span>Zurücksetzen bei</span>
+                          <span>
+                            Zurücksetzen bei<span class="required-marker" aria-hidden="true"> *</span>
+                          </span>
                         </label>
 
                         <div class="inline-input-wrapper">
@@ -198,7 +228,9 @@
                       <div class="maximum-option-row">
                         <label class="radio-label" for="maximum-reverse">
                           <input id="maximum-reverse" name="maximum" type="radio" value="reverse" />
-                          <span>Umkehren bei</span>
+                          <span>
+                            Umkehren bei<span class="required-marker" aria-hidden="true"> *</span>
+                          </span>
                         </label>
 
                         <div class="inline-input-wrapper">
@@ -226,7 +258,7 @@
                           aria-haspopup="dialog"
                           aria-controls="tempo-progress-dialog"
                         >
-                          um 1 BPM alle 10 Beats
+                          um 1 BPM alle 10 Beats *
                         </button>
                       </div>
                     </div>
@@ -375,7 +407,9 @@
                   <span id="session-end-beats-error" class="field-error"></span>
                 </div>
 
-                <span class="inline-option-text">Beats</span>
+                <span class="inline-option-text">
+                  Beats<span class="required-marker" aria-hidden="true"> *</span>
+                </span>
               </div>
             </div>
 
@@ -403,7 +437,9 @@
                   <span id="lock-beats-error" class="field-error"></span>
                 </div>
 
-                <span class="inline-option-text">Beats</span>
+                <span class="inline-option-text">
+                  Beats<span class="required-marker" aria-hidden="true"> *</span>
+                </span>
               </div>
             </div>
           </fieldset>
@@ -435,7 +471,10 @@
             </div>
           </fieldset>
 
-          <div class="button-row settings-actions single-action">
+          <div class="button-row settings-actions">
+            <button id="settings-back-presets-button" class="secondary-button" type="button">
+              Zurück zu Voreinstellungen
+            </button>
             <button id="start-button" class="primary-button" type="submit">Start</button>
           </div>
         </form>
@@ -447,11 +486,16 @@
         >
           <div class="progress-dialog-content">
             <h3 id="tempo-progress-dialog-title">Tempodynamik festlegen</h3>
+            <p class="field-help required-field-legend">
+              <span class="required-marker" aria-hidden="true">*</span> Pflichtfeld
+            </p>
 
             <div id="increase-progress-fields" class="progress-dialog-fields">
               <div class="field">
                 <div class="input-wrapper">
-                  <label for="increase-by">Erhöhen um (BPM)</label>
+                  <label for="increase-by">
+                    Erhöhen um (BPM)<span class="required-marker" aria-hidden="true"> *</span>
+                  </label>
                   <input
                     id="increase-by"
                     name="increase-by"
@@ -469,7 +513,9 @@
 
               <div class="field">
                 <div class="input-wrapper">
-                  <label for="increase-after">Erhöhen alle (Beats)</label>
+                  <label for="increase-after">
+                    Erhöhen alle (Beats)<span class="required-marker" aria-hidden="true"> *</span>
+                  </label>
                   <input
                     id="increase-after"
                     name="increase-after"
@@ -488,7 +534,9 @@
             <div id="reverse-progress-fields" class="progress-dialog-fields" hidden>
               <div class="field">
                 <div class="input-wrapper">
-                  <label for="decrease-by-reverse">Verringern um (BPM)</label>
+                  <label for="decrease-by-reverse">
+                    Verringern um (BPM)<span class="required-marker" aria-hidden="true"> *</span>
+                  </label>
                   <input
                     id="decrease-by-reverse"
                     name="decrease-by-reverse"
@@ -506,7 +554,9 @@
 
               <div class="field">
                 <div class="input-wrapper">
-                  <label for="decrease-after-reverse">Verringern alle (Beats)</label>
+                  <label for="decrease-after-reverse">
+                    Verringern alle (Beats)<span class="required-marker" aria-hidden="true"> *</span>
+                  </label>
                   <input
                     id="decrease-after-reverse"
                     name="decrease-after-reverse"
@@ -538,11 +588,16 @@
         >
           <div class="progress-dialog-content">
             <h3 id="pre-timer-dialog-title">Vorlaufzeit hinzufügen</h3>
+            <p class="field-help required-field-legend">
+              <span class="required-marker" aria-hidden="true">*</span> Pflichtfeld
+            </p>
 
             <form id="pre-timer-form" novalidate>
               <div class="field">
                 <div class="input-wrapper">
-                  <label for="pre-timer-type">Typ</label>
+                  <label for="pre-timer-type">
+                    Typ<span class="required-marker" aria-hidden="true"> *</span>
+                  </label>
                   <select
                     id="pre-timer-type"
                     name="pre-timer-type"
@@ -558,7 +613,9 @@
 
               <div class="field">
                 <div class="input-wrapper">
-                  <label for="pre-timer-name">Name</label>
+                  <label for="pre-timer-name">
+                    Name<span class="required-marker" aria-hidden="true"> *</span>
+                  </label>
                   <input
                     id="pre-timer-name"
                     name="pre-timer-name"
@@ -574,7 +631,9 @@
               <div id="pre-timer-seconds-fields" class="pre-timer-dialog-fields">
                 <div class="field">
                   <div class="input-wrapper">
-                    <label for="pre-timer-seconds">Sekunden</label>
+                    <label for="pre-timer-seconds">
+                      Sekunden<span class="required-marker" aria-hidden="true"> *</span>
+                    </label>
                     <input
                       id="pre-timer-seconds"
                       name="pre-timer-seconds"
@@ -594,7 +653,9 @@
               <div id="pre-timer-stopwatch-fields" class="pre-timer-dialog-fields" hidden>
                 <div class="field">
                   <div class="input-wrapper">
-                    <label for="pre-timer-formula">Formel</label>
+                    <label for="pre-timer-formula">
+                      Formel<span class="required-marker" aria-hidden="true"> *</span>
+                    </label>
                     <input
                       id="pre-timer-formula"
                       name="pre-timer-formula"
@@ -653,7 +714,9 @@
 
                 <div class="field">
                   <div class="input-wrapper">
-                    <label for="pre-timer-rounding">Minutenrundung</label>
+                    <label for="pre-timer-rounding">
+                      Minutenrundung<span class="required-marker" aria-hidden="true"> *</span>
+                    </label>
                     <select
                       id="pre-timer-rounding"
                       name="pre-timer-rounding"
@@ -910,14 +973,26 @@
           </div>
         </div>
 
-        <div class="button-row report-actions">
-          <button id="copy-report-button" class="secondary-button" type="button">
-            In Zwischenablage kopieren
-          </button>
-          <button id="copy-short-report-button" class="secondary-button" type="button">
-            Kurzbericht in Zwischenablage kopieren
-          </button>
-          <button id="back-button" class="primary-button" type="button">Zurück zu den Einstellungen</button>
+        <div class="report-actions">
+          <div class="report-action-row report-copy-actions">
+            <button id="copy-report-button" class="secondary-button" type="button">
+              In Zwischenablage kopieren
+            </button>
+            <button id="copy-short-report-button" class="primary-button" type="button">
+              Kurzbericht in Zwischenablage kopieren
+            </button>
+          </div>
+          <div class="report-action-row report-navigation-actions">
+            <button id="back-presets-button" class="secondary-button" type="button">
+              Zurück zu Voreinstellungen
+            </button>
+            <button id="back-button" class="secondary-button" type="button">
+              Zurück zu Einstellungen
+            </button>
+            <button id="repeat-button" class="primary-button" type="button">
+              Wiederholen
+            </button>
+          </div>
         </div>
         <textarea
           id="clipboard-buffer"

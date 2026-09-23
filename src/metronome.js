@@ -55,6 +55,7 @@ const PRE_TIMER_FORMULA_PLACEHOLDERS = new Set([
 ]);
 
 const views = {
+  presets: document.getElementById("presets-view"),
   settings: document.getElementById("settings-view"),
   preTimers: document.getElementById("pre-timers-view"),
   execution: document.getElementById("execution-view"),
@@ -62,11 +63,17 @@ const views = {
 };
 
 const dom = {
+  presetsTitle: document.getElementById("presets-title"),
+  presetStatus: document.getElementById("preset-status"),
+  manualButton: document.getElementById("manual-button"),
   settingsForm: document.getElementById("settings-form"),
   settingsTitle: document.getElementById("settings-title"),
   settingsStatus: document.getElementById("settings-status"),
+  importErrorPanel: document.getElementById("import-error-panel"),
+  importErrorSummary: document.getElementById("import-error-summary"),
+  importErrorList: document.getElementById("import-error-list"),
+  importErrorText: document.getElementById("import-error-text"),
   presetList: document.getElementById("preset-list"),
-  settingsImportWrapper: document.getElementById("settings-import-wrapper"),
   settingsImport: document.getElementById("settings-import"),
   settingsImportError: document.getElementById("settings-import-error"),
   preTimersFieldset: document.getElementById("pre-timers-fieldset"),
@@ -123,6 +130,9 @@ const dom = {
   exportAutoStart: document.getElementById("export-auto-start"),
   exportSettingsButton: document.getElementById("export-settings-button"),
   exportUrlButton: document.getElementById("export-url-button"),
+  settingsBackPresetsButton: document.getElementById(
+    "settings-back-presets-button",
+  ),
   bpm: document.getElementById("bpm"),
   accentuate: document.getElementById("accentuate"),
   accentOptionCard: document.getElementById("accent-option-card"),
@@ -204,7 +214,9 @@ const dom = {
   copyReportButton: document.getElementById("copy-report-button"),
   copyShortReportButton: document.getElementById("copy-short-report-button"),
   clipboardBuffer: document.getElementById("clipboard-buffer"),
+  backPresetsButton: document.getElementById("back-presets-button"),
   backButton: document.getElementById("back-button"),
+  repeatButton: document.getElementById("repeat-button"),
 };
 
 const state = {
@@ -243,7 +255,7 @@ let progressDialogMode = null;
 let progressDialogTrigger = null;
 let progressDialogSnapshot = null;
 let autoStartImportInProgress = false;
-let lastAutoStartImportText = null;
+let settingsImportPasteTimer = null;
 let preTimerDefinitions = [];
 let preTimerDialogMode = null;
 let preTimerDialogEditingId = null;
@@ -299,8 +311,7 @@ function init() {
   }
   bindEvents();
   syncSettingsVisibility();
-  showView("settings", false);
-  dom.bpm.focus();
+  showView("presets", false);
   if (initialParameters) {
     void handleSettingsImport(initialParameters);
   }
@@ -308,8 +319,31 @@ function init() {
 
 function bindEvents() {
   dom.settingsForm.addEventListener("submit", handleStart);
-  dom.settingsImport.addEventListener("input", () => {
+  dom.settingsImport.addEventListener("paste", () => {
+    if (settingsImportPasteTimer !== null) {
+      window.clearTimeout(settingsImportPasteTimer);
+    }
+    settingsImportPasteTimer = window.setTimeout(() => {
+      settingsImportPasteTimer = null;
+      void handleSettingsImport(dom.settingsImport.value);
+    }, 0);
+  });
+  dom.settingsImport.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") {
+      return;
+    }
+    event.preventDefault();
+    if (settingsImportPasteTimer !== null) {
+      window.clearTimeout(settingsImportPasteTimer);
+      settingsImportPasteTimer = null;
+    }
     void handleSettingsImport(dom.settingsImport.value);
+  });
+  dom.manualButton.addEventListener("click", () => {
+    showView("settings", true);
+  });
+  dom.settingsBackPresetsButton.addEventListener("click", () => {
+    showView("presets", true);
   });
   dom.exportSettingsButton.addEventListener("click", () => {
     void handleExportSettings(
@@ -428,6 +462,8 @@ function bindEvents() {
   dom.copyReportButton.addEventListener("click", handleCopyReport);
   dom.copyShortReportButton.addEventListener("click", handleCopyShortReport);
   dom.backButton.addEventListener("click", handleBackToSettings);
+  dom.backPresetsButton.addEventListener("click", handleBackToPresets);
+  dom.repeatButton.addEventListener("click", handleRepeatRun);
 
   document.querySelectorAll('input[name="maximum"]').forEach((input) => {
     input.addEventListener("change", syncSettingsVisibility);
@@ -444,11 +480,13 @@ function bindEvents() {
 
   dom.settingsForm.addEventListener("input", (event) => {
     const control = event.target;
-    if (control === dom.settingsImport) {
-      return;
-    }
-    if (control instanceof HTMLInputElement) {
+    if (control instanceof HTMLInputElement || control instanceof HTMLSelectElement) {
       clearFieldError(control.id);
+      if (control.name === "maximum") {
+        clearFieldError("maximum");
+      } else if (control.name === "breaks") {
+        clearFieldError("breaks");
+      }
     }
     dom.settingsStatus.classList.remove("error-status");
     dom.settingsStatus.textContent = "";
@@ -1128,14 +1166,14 @@ function closePreTimerDeleteDialog(saveChanges) {
 }
 
 function updateProgressButtonLabels() {
-  dom.increaseProgressButton.textContent = formatProgressSummary(
+  dom.increaseProgressButton.textContent = `${formatProgressSummary(
     dom.increaseBy.value,
     dom.increaseAfter.value,
-  );
-  dom.reverseProgressButton.textContent = formatProgressSummary(
+  )} *`;
+  dom.reverseProgressButton.textContent = `${formatProgressSummary(
     dom.decreaseByReverse.value,
     dom.decreaseAfterReverse.value,
-  );
+  )} *`;
 }
 
 function formatProgressSummary(amount, interval) {
@@ -1258,13 +1296,14 @@ function closeProgressDialog(saveChanges) {
 
 function renderPresets() {
   const presets = window.METRONOME_PRESETS;
+  dom.presetList.replaceChildren();
+  setPresetStatus("");
   if (!presets || typeof presets !== "object") {
     console.error("Metronome presets are unavailable.");
-    dom.settingsStatus.textContent = "Voreinstellungen konnten nicht geladen werden.";
+    setPresetStatus("Voreinstellungen konnten nicht geladen werden.");
     return;
   }
 
-  dom.presetList.replaceChildren(dom.settingsImportWrapper);
   let addedPreset = false;
   const invalidPresetMessages = [];
 
@@ -1302,16 +1341,21 @@ function renderPresets() {
   });
 
   if (invalidPresetMessages.length > 0) {
-    dom.settingsStatus.classList.add("error-status");
-    dom.settingsStatus.textContent = invalidPresetMessages.join(" ");
+    setPresetStatus(invalidPresetMessages.join(" "));
   }
 
   if (!addedPreset) {
     console.error("No valid metronome presets are configured.");
     if (invalidPresetMessages.length === 0) {
-      dom.settingsStatus.textContent = "Keine gültigen Voreinstellungen verfügbar.";
+      setPresetStatus("Keine gültigen Voreinstellungen verfügbar.");
     }
   }
+}
+
+function setPresetStatus(message) {
+  dom.presetStatus.textContent = message;
+  dom.presetStatus.hidden = !message;
+  dom.presetStatus.classList.toggle("error-status", Boolean(message));
 }
 
 function getPresetDefinitionError(preset) {
@@ -1419,91 +1463,92 @@ function buildSettingsUrl(parameterList) {
 }
 
 async function handleSettingsImport(parameterText) {
-  const rawText = String(parameterText).trim();
+  if (autoStartImportInProgress) {
+    return false;
+  }
+
+  const importedText = String(parameterText);
+  const rawText = importedText.trim();
+  clearImportError();
+  clearAllFieldErrors();
   clearFieldError("settings-import");
   dom.settingsStatus.classList.remove("error-status");
   dom.settingsStatus.textContent = "";
-
-  if (!rawText) {
-    lastAutoStartImportText = null;
-    return;
-  }
+  resetSettingsToDefaults();
+  syncSettingsVisibility();
 
   const parsed = parseSettingsParameters(rawText);
   if (!parsed.valid) {
-    lastAutoStartImportText = null;
-    if (parsed.autoStartProvided) {
-      showAutoStartImportError(
-        parsed.parseError || "Die Auto-Start-URL konnte nicht gelesen werden.",
-      );
-    }
+    const issues = [];
+    addImportIssue(
+      issues,
+      null,
+      parsed.parseError || "Die importierten Einstellungen konnten nicht gelesen werden.",
+    );
+    getMissingRequiredImportSettings(parsed.providedSettings).forEach((name) => {
+      addImportIssue(issues, name, "Pflichtfeld fehlt im Import.");
+    });
+    showImportError(importedText, issues);
+    showView("settings", true);
     return;
   }
 
-  if (parsed.preTimersError) {
-    lastAutoStartImportText = null;
-    showPreTimerImportError(parsed.preTimersError);
-    return;
-  }
-
-  parsed.values.preTimers = parsed.preTimersProvided ? parsed.values.preTimers : [];
-  applySettingsParameters(parsed.values);
+  const importedValues = {
+    ...parsed.values,
+    preTimers:
+      parsed.preTimersProvided && !parsed.preTimersError
+        ? parsed.values.preTimers
+        : [],
+  };
+  applySettingsParameters(importedValues);
   syncSettingsVisibility();
 
-  if (!parsed.autoStartProvided || parsed.autoStart === false) {
-    lastAutoStartImportText = null;
-    return;
+  const validation = validateSettings();
+  const issues = [];
+
+  parsed.invalidSettings.forEach(({ name, message }) => {
+    addImportIssue(issues, name, message);
+  });
+
+  if (parsed.preTimersError) {
+    addImportIssue(issues, "pre-timers", parsed.preTimersError);
   }
 
-  if (parsed.autoStart === null) {
-    lastAutoStartImportText = null;
-    if (parsed.invalidSettings.length > 0) {
-      showAutoStartImportErrors(
-        parsed.invalidSettings,
-        `Auto-Start wurde nicht ausgeführt. ${parsed.autoStartError}`,
-      );
-    } else {
-      showAutoStartImportError(parsed.autoStartError);
-      dom.settingsImport.focus();
-    }
-    return;
+  if (parsed.autoStartError) {
+    addImportIssue(issues, "auto-start", parsed.autoStartError);
   }
 
   if (!parsed.foundSettings) {
-    lastAutoStartImportText = null;
-    showAutoStartImportError(
-      "Für Auto-Start müssen gültige Einstellungen angegeben werden.",
-    );
-    dom.settingsImport.focus();
-    return;
+    addImportIssue(issues, null, "Der Import enthält keine bekannten Einstellungen.");
   }
 
-  if (!parsed.foundBpm) {
-    lastAutoStartImportText = null;
-    showAutoStartImportError(
-      "Für Auto-Start muss ein gültiger BPM-Wert angegeben werden.",
-    );
-    dom.settingsImport.focus();
-    return;
+  getMissingRequiredImportSettings(parsed.providedSettings).forEach((name) => {
+    addImportIssue(issues, name, "Pflichtfeld fehlt im Import.");
+  });
+
+  validation.errors.forEach(({ fieldId, message }) => {
+    addImportIssue(issues, fieldId, message);
+  });
+
+  if (issues.length > 0) {
+    showImportError(importedText, issues);
+    showView("settings", true);
+    return false;
   }
 
-  if (parsed.invalidSettings.length > 0) {
-    lastAutoStartImportText = null;
-    showAutoStartImportErrors(parsed.invalidSettings);
-    return;
+  dom.settingsImport.value = "";
+  if (parsed.autoStart === true) {
+    autoStartImportInProgress = true;
+    try {
+      const started = await startConfiguredSession();
+      return started;
+    } finally {
+      autoStartImportInProgress = false;
+    }
   }
 
-  if (lastAutoStartImportText === rawText || autoStartImportInProgress) {
-    return;
-  }
-
-  lastAutoStartImportText = rawText;
-  autoStartImportInProgress = true;
-  try {
-    await startConfiguredSession();
-  } finally {
-    autoStartImportInProgress = false;
-  }
+  showView("settings", true);
+  return true;
 }
 
 function parseSettingsParameters(rawText) {
@@ -1521,7 +1566,7 @@ function parseSettingsParameters(rawText) {
       return {
         valid: false,
         foundSettings: false,
-        autoStartProvided: rawText.includes(`${AUTO_START_PARAMETER}=`),
+        providedSettings: new Set(),
         parseError: "Die importierte URL ist ungültig.",
       };
     }
@@ -1534,18 +1579,19 @@ function parseSettingsParameters(rawText) {
     return {
       valid: false,
       foundSettings: false,
-      autoStartProvided: parameterText.includes(`${AUTO_START_PARAMETER}=`),
+      providedSettings: new Set(),
       parseError: "Die importierten Einstellungen konnten nicht gelesen werden.",
     };
   }
 
   const values = {};
   const invalidSettings = [];
+  const providedSettings = new Set();
   let foundSettings = false;
-  const foundBpm = parameters.has("bpm");
 
   Object.keys(TEXT_SETTING_CONTROLS).forEach((name) => {
     if (parameters.has(name)) {
+      providedSettings.add(name);
       foundSettings = true;
       const importedValue = getValidTextSettingValue(name, parameters.get(name));
       if (importedValue.valid) {
@@ -1563,6 +1609,7 @@ function parseSettingsParameters(rawText) {
     if (!parameters.has(name)) {
       return;
     }
+    providedSettings.add(name);
     foundSettings = true;
     const parsed = parseBooleanParameter(parameters.get(name));
     if (parsed !== null) {
@@ -1579,6 +1626,7 @@ function parseSettingsParameters(rawText) {
     if (!parameters.has(name)) {
       return;
     }
+    providedSettings.add(name);
     foundSettings = true;
     const value = parameters.get(name);
     if (allowedValues.has(value)) {
@@ -1594,6 +1642,7 @@ function parseSettingsParameters(rawText) {
   const preTimersProvided = parameters.has("pre-timers");
   let preTimersError = null;
   if (preTimersProvided) {
+    providedSettings.add("pre-timers");
     foundSettings = true;
     const parsedPreTimers = deserializePreTimerPayload(parameters.get("pre-timers"));
     if (parsedPreTimers.valid) {
@@ -1612,12 +1661,11 @@ function parseSettingsParameters(rawText) {
     return {
       valid: true,
       foundSettings,
+      providedSettings,
       values,
       invalidSettings,
-      foundBpm,
       preTimersProvided,
       preTimersError,
-      autoStartProvided: true,
       autoStart: null,
       autoStartError: "Auto-Start muss true, false, 1 oder 0 sein.",
     };
@@ -1626,12 +1674,11 @@ function parseSettingsParameters(rawText) {
   return {
     valid: true,
     foundSettings,
+    providedSettings,
     values,
     invalidSettings,
-    foundBpm,
     preTimersProvided,
     preTimersError,
-    autoStartProvided,
     autoStart: parsedAutoStart,
   };
 }
@@ -1729,28 +1776,93 @@ function applySettingsParameters(values) {
   }
 }
 
-function showAutoStartImportErrors(
-  invalidSettings,
-  message = "Auto-Start wurde nicht ausgeführt. Bitte markierte Einstellungen korrigieren.",
-) {
-  clearAllFieldErrors();
-  invalidSettings.forEach(({ name, message }) => {
-    setFieldError(name, message);
+function getMissingRequiredImportSettings(providedSettings) {
+  const requiredSettings = ["bpm"];
+  const maximum = getSelectedValue("maximum") || DEFAULTS.maximum;
+  const hasStopwatch = preTimerDefinitions.some(
+    (preTimer) => preTimer.type === PRE_TIMER_TYPES.STOPWATCH,
+  );
+
+  if (dom.accentuate.checked) {
+    requiredSettings.push("accent-repeat");
+  }
+
+  if (dom.increaseTempo.checked) {
+    requiredSettings.push("increase-by", "increase-after");
+    if (maximum !== "none") {
+      requiredSettings.push(`maximum-limit-${maximum}`);
+    }
+    if (maximum === "reverse") {
+      requiredSettings.push("decrease-by-reverse", "decrease-after-reverse");
+    }
+  }
+
+  if (!hasStopwatch && dom.sessionEndEnabled.checked) {
+    requiredSettings.push("session-end-beats");
+  }
+  if (!hasStopwatch && dom.lockSettings.checked) {
+    requiredSettings.push("lock-beats");
+  }
+
+  return requiredSettings.filter((name) => !providedSettings.has(name));
+}
+
+function addImportIssue(issues, fieldId, message) {
+  if (fieldId) {
+    setFieldError(fieldId, message);
+  }
+  issues.push({ fieldId, message });
+}
+
+function getImportFieldLabel(fieldId) {
+  const labels = {
+    "accent-repeat": "Betonungsintervall",
+    accentuate: "Betonung",
+    "auto-start": "Auto-Start",
+    bpm: "BPM",
+    breaks: "Pausen",
+    "break-count": "Pausenanzahl",
+    "break-seconds": "Pausendauer",
+    "decrease-after-reverse": "Intervall für Tempo-Umkehr",
+    "decrease-by-reverse": "Verringerung bei Tempo-Umkehr",
+    "increase-after": "Tempo-Erhöhungsintervall",
+    "increase-by": "Tempo-Erhöhung",
+    "increase-tempo": "Tempo erhöhen",
+    "lock-beats": "Stop-Sperre",
+    "lock-settings": "Stop-Sperre",
+    maximum: "Maximum",
+    "maximum-limit-reverse": "Umkehrlimit",
+    "maximum-limit-reset": "Zurücksetzlimit",
+    "maximum-limit-stick": "Tempolimit",
+    "pre-timers": "Vorlaufzeiten",
+    "session-end-beats": "Session-Ende",
+    "session-end-enabled": "Automatisches Session-Ende",
+  };
+  return labels[fieldId] || fieldId;
+}
+
+function showImportError(importedText, issues) {
+  dom.importErrorSummary.textContent =
+    "Der Import ist unvollständig oder ungültig. Prüfen Sie die Hinweise und korrigieren Sie die Einstellungen; ein manueller Start ist möglich, sobald die Werte gültig sind.";
+  dom.importErrorList.replaceChildren();
+  issues.forEach(({ fieldId, message }) => {
+    const item = document.createElement("li");
+    item.textContent = fieldId
+      ? `${getImportFieldLabel(fieldId)}: ${message}`
+      : message;
+    dom.importErrorList.append(item);
   });
-  showAutoStartImportError(message);
-  getErrorTarget(invalidSettings[0].name)?.focus();
+  dom.importErrorText.textContent = importedText;
+  dom.importErrorPanel.hidden = false;
+  setFieldError("settings-import", "Importfehler; Details in den Einstellungen.");
 }
 
-function showAutoStartImportError(message) {
-  setFieldError("settings-import", message);
-  dom.settingsStatus.classList.add("error-status");
-  dom.settingsStatus.textContent = message;
-}
-
-function showPreTimerImportError(message) {
-  setFieldError("pre-timers", message);
-  dom.settingsStatus.classList.add("error-status");
-  dom.settingsStatus.textContent = message;
+function clearImportError() {
+  dom.importErrorPanel.hidden = true;
+  dom.importErrorSummary.textContent = "";
+  dom.importErrorList.replaceChildren();
+  dom.importErrorText.textContent = "";
+  clearFieldError("settings-import");
 }
 
 async function handleStart(event) {
@@ -1762,12 +1874,13 @@ async function handlePresetClick(preset) {
   clearAllFieldErrors();
   dom.settingsStatus.classList.remove("error-status");
   dom.settingsStatus.textContent = "";
-  lastAutoStartImportText = null;
   applyPreset(preset.values);
   syncSettingsVisibility();
   if (preset.autoStart === true) {
     await startConfiguredSession();
+    return;
   }
+  showView("settings", true);
 }
 
 function applyPreset(values) {
@@ -1798,12 +1911,17 @@ function applyPreset(values) {
   setInputValue(dom.lockBeats, values.lockBeats);
 }
 
+function resetSettingsToDefaults() {
+  applyPreset(DEFAULTS);
+}
+
 async function startConfiguredSession() {
   const validation = validateSettings();
   if (!validation.valid) {
     dom.settingsStatus.textContent = "Bitte markierte Einstellungen korrigieren.";
-    validation.firstInvalid?.focus();
-    return;
+    showView("settings", true);
+    focusSettingsValidationError(validation.firstInvalid);
+    return false;
   }
 
   try {
@@ -1813,7 +1931,8 @@ async function startConfiguredSession() {
       error,
       "Audio konnte nicht initialisiert werden. Audio-Berechtigung des Browsers prüfen und erneut versuchen.",
     );
-    return;
+    showView("settings", true);
+    return false;
   }
 
   dom.settingsStatus.textContent = "";
@@ -1822,15 +1941,37 @@ async function startConfiguredSession() {
   } else {
     startRun(validation.settings);
   }
+  const started = state.phase === "pre-timers" || state.phase === "countdown";
+  if (started) {
+    clearImportError();
+  }
+  return started;
+}
+
+function focusSettingsValidationError(target) {
+  if (!target) {
+    return;
+  }
+  if (dom.tempoProgressDialog.contains(target) && !dom.tempoProgressDialog.open) {
+    const trigger =
+      target === dom.decreaseByReverse || target === dom.decreaseAfterReverse
+        ? dom.reverseProgressButton
+        : dom.increaseProgressButton;
+    trigger.focus();
+    return;
+  }
+  target.focus();
 }
 
 function validateSettings() {
   clearAllFieldErrors();
   let firstInvalid = null;
   let valid = true;
+  const errors = [];
 
   const markInvalid = (fieldId, message) => {
     valid = false;
+    errors.push({ fieldId, message });
     setFieldError(fieldId, message);
     if (!firstInvalid) {
       firstInvalid = getErrorTarget(fieldId);
@@ -1986,11 +2127,12 @@ function validateSettings() {
   }
 
   if (!valid) {
-    return { valid: false, firstInvalid };
+    return { valid: false, firstInvalid, errors };
   }
 
   return {
     valid: true,
+    errors,
     settings: {
       initialBpm: bpm,
       accentuate: dom.accentuate.checked,
@@ -2959,6 +3101,24 @@ async function copyText(text, focusTarget = dom.copyReportButton) {
 }
 
 function handleBackToSettings() {
+  resetFinishedRun();
+  showView("settings", true);
+  dom.bpm.focus();
+}
+
+function handleBackToPresets() {
+  resetFinishedRun();
+  showView("presets", true);
+}
+
+async function handleRepeatRun() {
+  if (!state.report) {
+    return;
+  }
+  await startConfiguredSession();
+}
+
+function resetFinishedRun() {
   cancelTimers();
   state.token += 1;
   state.phase = "idle";
@@ -2974,8 +3134,6 @@ function handleBackToSettings() {
   dom.reportStatus.textContent = "";
   dom.reportStatus.classList.remove("error-status");
   resetReportCopyFeedback();
-  showView("settings", true);
-  dom.bpm.focus();
 }
 
 function updateExecutionUi() {
@@ -3541,15 +3699,14 @@ function showView(name, moveFocus) {
     return;
   }
 
-  const heading =
-    name === "settings"
-      ? dom.settingsTitle
-      : name === "preTimers"
-        ? dom.preTimersTitle
-      : name === "execution"
-        ? dom.executionTitle
-        : dom.reportTitle;
-  heading.focus();
+  const headings = {
+    presets: dom.presetsTitle,
+    settings: dom.settingsTitle,
+    preTimers: dom.preTimersTitle,
+    execution: dom.executionTitle,
+    report: dom.reportTitle,
+  };
+  headings[name]?.focus();
 }
 
 function setOptionCardState(card, active) {
@@ -3595,6 +3752,7 @@ function setFieldError(fieldId, message) {
     error.textContent = message;
   }
   target?.setAttribute("aria-invalid", "true");
+  syncProgressButtonError(fieldId);
 }
 
 function clearFieldError(fieldId) {
@@ -3607,6 +3765,7 @@ function clearFieldError(fieldId) {
     error.textContent = "";
   }
   target?.removeAttribute("aria-invalid");
+  syncProgressButtonError(fieldId);
 }
 
 function clearAllFieldErrors() {
@@ -3633,6 +3792,30 @@ function getErrorTarget(fieldId) {
     return dom.preTimersFieldset;
   }
   return null;
+}
+
+function syncProgressButtonError(fieldId) {
+  const increaseFields = new Set(["increase-by", "increase-after"]);
+  const reverseFields = new Set([
+    "decrease-by-reverse",
+    "decrease-after-reverse",
+  ]);
+  const button = increaseFields.has(fieldId)
+    ? dom.increaseProgressButton
+    : reverseFields.has(fieldId)
+      ? dom.reverseProgressButton
+      : null;
+  if (!button) {
+    return;
+  }
+
+  const relatedFields = increaseFields.has(fieldId)
+    ? increaseFields
+    : reverseFields;
+  const hasError = [...relatedFields].some(
+    (name) => document.getElementById(`${name}-error`)?.textContent,
+  );
+  button.toggleAttribute("aria-invalid", Boolean(hasError));
 }
 
 function clearTimer(timerName) {

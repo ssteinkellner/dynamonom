@@ -1,21 +1,21 @@
 # TODOs
 copilot please ignore this section.
-- extract view "presets"
 - add "Lock abort" for exports
 
 
 # Metronome
 
-This metronome is a single-page application with four views:
+This metronome is a single-page application with five views:
 
+- Presets
 - Settings
 - Pre-timers
 - Execution
 - Report
 
-Only one view is visible at a time. The application is implemented with plain
-JavaScript, with all markup in `index.html` and all behavior in
-`metronome.js`. Preset definitions are kept in `presets.js`.
+Only one view is visible at a time. Presets is the initial view. The application
+is implemented with plain JavaScript, with all markup in `index.html` and all
+behavior in `metronome.js`. Preset definitions are kept in `presets.js`.
 
 ## Local development and phone installation
 
@@ -37,6 +37,41 @@ before offering a full PWA installation prompt; over local HTTP, use the
 browser's **Add to Home Screen** action if it is available. The Vite preview
 server is also available with `npm run build` followed by `npm run preview`.
 
+## View "Presets"
+
+The Presets view opens when the page loads. Its single vertical card contains
+the Import field, the available preset buttons, and **Manuell**. Presets are
+generated from the dictionary in `presets.js`. Each entry supplies a base
+`label`, a `values` object using the settings names from the form, and
+optionally an `autoStart` Boolean. A missing `autoStart` is treated as `false`.
+Auto-start presets start immediately; other presets apply their values and
+open Settings. If an auto-start preset cannot start, Settings opens with the
+validation or audio error. **Manuell** opens Settings with the current form values.
+Settings also has a **Zurück zu Voreinstellungen** action that preserves the
+form and import state.
+
+The Import field accepts a bare URL parameter list, a list with a leading
+`?`, or a full URL. It is processed when text is pasted or Enter is pressed;
+editing Settings never updates the Import field. Every import starts from
+application defaults, then applies valid supplied values. Omitted switches
+and radio selections use their defaults. BPM and every required field active
+under the resulting configuration must be present in the import; missing
+active required values are invalid even when a usable default is displayed.
+This includes the accent interval, active tempo progression and maximum
+values, enabled Lock/Session-End thresholds, and valid pre-timer definitions
+when a pre-timer payload is supplied.
+Optional and inactive settings use their defaults.
+
+The optional `auto-start` parameter accepts `true`, `false`, `1`, or `0`.
+A complete, valid import with `auto-start=true` starts immediately, including
+when supplied in the initial page URL. A valid import without auto-start opens
+Settings. Invalid imports apply valid supplied fields over defaults, retain the
+original text, and open Settings with a **Fehlerhafter Import** section that
+lists the issues and displays the imported text exactly. Unknown parameters
+are ignored when recognized settings are present; an import with no recognized
+settings is invalid. Manual Start remains available when the displayed form
+values pass validation. A successful import clears the Import field.
+
 ## View "Settings"
 
 The settings view configures the run. Dependent settings are kept visible in
@@ -48,6 +83,10 @@ horizontally on narrow screens. Each field uses a vertical input wrapper for
 its label, input, hint, and validation message. The Increase tempo card places
 its checkbox and two primary values in one row, then stacks the Maximum groups
 below a separator. Inputs within each group remain side by side.
+Required fields are marked with `*` in Settings and the associated dialogs.
+The markers remain visible while conditional controls are disabled. The
+`* Pflichtfeld` note explains the marker; optional break values and manual
+pre-timer limits are not marked.
 
 ### Pre-timers
 
@@ -82,41 +121,23 @@ summed and used as both the automatic session-end and stop-lock beat values.
 Invalid runtime results are ignored and reported; if none are valid, execution
 continues without a derived limit and with Stop unlocked.
 
-### Presets
+### Settings export
 
-Preset buttons are generated from the dictionary in `presets.js`. Clicking a
-preset either starts the session or only fills the settings form, depending on
-its optional top-level `autoStart` Boolean. A missing `autoStart` is treated as
-`false`. The `label` is action-neutral; the renderer adds the **Start** prefix
-and uses the primary button style only when `autoStart` is `true`. Each preset
-entry supplies a base `label`, a `values` object using the settings names from
-the form, and optionally `autoStart`. Add or remove presets by editing the
-dictionary in `presets.js`.
+The Settings export section contains an **Auto-Start** checkbox and two copy
+actions. **Only settings** copies the bare parameter list, while **Whole URL**
+copies the current page URL with its query replaced by the settings and its
+path and hash preserved. When Auto-Start is checked, both formats include
+`auto-start=true`; otherwise the parameter is omitted. Export actions copy to
+the clipboard; paste the copied text into the Import field on Presets.
+Settings feedback, including clipboard confirmations, remains visible while
+scrolling.
 
-The **Import** field accepts a bare URL parameter list, a list with a leading
-`?`, or a full URL. Settings are applied as the text changes. Unparseable
-strings and invalid values remain ignored without a message unless the import
-explicitly requests auto-start. The optional `auto-start` parameter accepts
-`true`, `false`, `1`, or `0`. An import with `auto-start=true` starts as soon
-as the complete input is valid, including when it is present in the initial
-page URL. Auto-start imports require at least one recognized setting and every
-recognized setting supplied in the URL to be valid; invalid fields are marked
-and the session does not start. Unknown parameters are ignored when recognized
-settings are present.
-
-The **Settings export** section contains an **Auto-Start** checkbox and two
-copy actions. **Only settings** copies the bare parameter list, while **Whole
-URL** copies the current page URL with its query replaced by the settings and
-its path and hash preserved. When Auto-Start is checked, both formats include
-`auto-start=true`; otherwise the parameter is omitted. Export actions copy only
-to the clipboard and do not replace the Import field. Settings feedback,
-including clipboard confirmations, remains visible while scrolling.
-
-When the table is non-empty, exports include the complete ordered
+When the pre-timer table is non-empty, exports include its complete ordered
 `pre-timers` payload. Missing or explicitly empty payloads clear the table on
 import. Invalid payload versions or row definitions are rejected without
-partially applying the pre-timer list. Whole URLs longer than 2000 characters
-are copied completely with a warning.
+partially applying the pre-timer list, while other valid settings in that
+import can still be applied. Whole URLs longer than 2000 characters are
+copied completely with a warning.
 
 ### BPM (beats per minute)
 
@@ -207,8 +228,9 @@ value remains visible and is disabled until Lock is selected.
 
 ### Start
 
-The Settings export section appears before Start. Start validates the active
-settings and navigates to the Execution view.
+The Settings export section appears before the bottom action row. **Zurück zu
+Voreinstellungen** preserves the current form. **Start** validates the active
+settings and navigates to the Pre-timers or Execution view.
 
 ## View "Execution"
 
@@ -283,5 +305,9 @@ Pausen bei:
 
 The short report also includes one compact line per pre-timer in table order.
 
-The **Back to settings** button returns to the Settings view while preserving
-the form values for another run.
+The report actions are arranged in two rows: the copy buttons first, then
+**Zurück zu Voreinstellungen**, **Zurück zu Einstellungen**, and
+**Wiederholen**. The short-copy and repeat actions use the primary style.
+**Wiederholen** immediately starts a fresh run with the same configured
+settings and pre-timer sequence. Both Back actions preserve the form values.
+The buttons wrap or stack on narrow screens.

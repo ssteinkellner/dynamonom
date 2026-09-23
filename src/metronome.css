@@ -199,6 +199,16 @@ label {
   color: var(--danger);
 }
 
+.required-marker {
+  color: var(--danger);
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.required-field-legend {
+  margin: 0 0 1rem;
+}
+
 .field-error {
   min-height: 1.25rem;
   margin: 0.3rem 0 0;
@@ -436,30 +446,32 @@ label {
   gap: 0.2rem;
 }
 
-.preset-row {
+.presets-card-content {
   display: flex;
-  flex-wrap: nowrap;
-  align-items: flex-start;
-  gap: 0.75rem;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 1rem;
   min-width: 0;
-  overflow-x: auto;
-  overflow-y: auto;
 }
 
-.preset-row > .primary-button,
-.preset-row > .secondary-button {
-  flex: 0 0 auto;
-  width: auto;
+.preset-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.preset-list > button {
+  width: 100%;
   margin-top: 0;
-  white-space: nowrap;
+  white-space: normal;
 }
 
 .settings-import-wrapper {
   display: flex;
-  flex: 0 0 12rem;
   flex-direction: column;
   gap: 0.35rem;
-  min-width: 12rem;
+  min-width: 0;
 }
 
 .settings-import-input {
@@ -469,6 +481,42 @@ label {
 
 .settings-import-wrapper > .field-error {
   margin: 0;
+}
+
+.preset-status {
+  margin: 0;
+}
+
+.import-error-summary {
+  margin: 0;
+}
+
+.import-error-list {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0.75rem 0;
+  padding-left: 1.25rem;
+}
+
+.import-error-label {
+  margin-bottom: 0;
+}
+
+.import-error-text {
+  max-height: 12rem;
+  margin: 0.35rem 0 0;
+  overflow: auto;
+  border: 0.1rem solid var(--border);
+  border-radius: 0.5rem;
+  padding: 0.75rem;
+  color: var(--text);
+  background: var(--surface-muted);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+button[aria-invalid="true"] {
+  border-color: var(--danger);
 }
 
 .export-option {
@@ -595,19 +643,31 @@ label {
 }
 
 .settings-actions {
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr);
+  grid-template-columns: 1fr;
 }
 
 .report-actions {
-  display: flex;
-  flex-wrap: nowrap;
-  align-items: stretch;
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1rem;
 }
 
-.report-actions > button {
-  flex: 1 1 0;
-  width: auto;
+.report-action-row {
+  display: grid;
+  gap: 0.75rem;
   min-width: 0;
+}
+
+.report-copy-actions {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.report-navigation-actions {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.report-action-row .primary-button {
+  margin-top: 0;
 }
 
 .report-card h3 {
@@ -851,12 +911,22 @@ th {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .button-row.settings-actions {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr);
+  }
+
   .progress-dialog-fields {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .button-row {
     align-items: stretch;
+  }
+}
+
+@media (max-width: 37.999rem) {
+  .report-navigation-actions {
+    grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
   }
 }
 
