@@ -7,9 +7,10 @@ copilot please ignore this section.
 - add "Lock abort" for exports
 
 This is a browser-based metronome and ordered action runner. The application
-uses plain JavaScript, with markup in `src/index.html`, behavior in
-`src/metronome.js`, action data helpers in `src/action-model.js`, and built-in
-presets in `src/presets.js`.
+uses Vite with markup in `src/index.html`; its current controller is
+`src/metronome.js`, while action/timer models and built-in presets are typed
+modules in `src/action-model.ts`, `src/pre-timer-model.ts`, and
+`src/presets.ts`.
 
 ## Local development and phone installation
 

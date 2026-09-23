@@ -1,17 +1,21 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
+import type { Action } from "../src/action-model.ts";
 import {
   ACTION_TYPES,
   createDefaultAction,
   parseActionsPayload,
   serializeActionsPayload,
   validateActionDefinitions,
-} from "../src/action-model.js";
+} from "../src/action-model.ts";
 import {
   PRE_TIMER_ROUNDING,
   PRE_TIMER_TYPES,
+  evaluatePreTimerFormula,
+  getPreTimerFormulaVariables,
   normalizePreTimerDefinition,
-} from "../src/pre-timer-model.js";
+  parsePreTimerFormula,
+} from "../src/pre-timer-model.ts";
 
 test("duplicate action names report the original row after invalid rows", () => {
   const validation = validateActionDefinitions([
@@ -40,6 +44,7 @@ test("duplicate action names report the original row after invalid rows", () => 
   const duplicateError = validation.errors.find(
     (error) => error.index === 3 && error.field === "name",
   );
+  assert.ok(duplicateError);
   assert.match(duplicateError.message, /"Alpha"/);
   assert.doesNotMatch(duplicateError.message, /"Beta"/);
 });
@@ -56,15 +61,20 @@ test("imported action IDs are discarded and generated locally", () => {
     ]),
   );
 
-  assert.equal(parsed.valid, true);
-  assert.equal("id" in parsed.actions[0], false);
+  if (!parsed.valid) {
+    throw new Error(parsed.error);
+  }
+  const importedAction = parsed.actions[0];
+  assert.ok(importedAction && typeof importedAction === "object");
+  assert.equal("id" in importedAction, false);
+
   const validation = validateActionDefinitions(parsed.actions);
   assert.equal(validation.valid, true);
-  assert.notEqual(validation.actions[0].id, "remote-id");
+  assert.notEqual(validation.actions[0]?.id, "remote-id");
 });
 
 test("action exports omit local IDs and preserve ordered action settings", () => {
-  const actions = [
+  const actions: Action[] = [
     {
       id: "local-id",
       type: ACTION_TYPES.SECONDS,
@@ -83,11 +93,7 @@ test("action exports omit local IDs and preserve ordered action settings", () =>
 });
 
 test("default Stoppuhr actions have a usable dynamic result range", () => {
-  const action = createDefaultAction(
-    ACTION_TYPES.STOPWATCH,
-    [],
-    { bpm: 120 },
-  );
+  const action = createDefaultAction(ACTION_TYPES.STOPWATCH, []);
 
   assert.equal(action.settings.min, 10);
   assert.equal(action.settings.max, null);
@@ -112,9 +118,15 @@ test("dynamic stopwatch formulas validate their beat bounds", () => {
   });
 
   assert.equal(valid.valid, true);
+  if (!valid.valid || valid.value.type !== PRE_TIMER_TYPES.STOPWATCH) {
+    throw new Error("Expected a normalized stopwatch action.");
+  }
   assert.equal(valid.value.min, 5);
   assert.equal(valid.value.max, 20);
   assert.equal(invalid.valid, false);
+  if (invalid.valid) {
+    throw new Error("Expected invalid stopwatch bounds.");
+  }
   assert.ok(invalid.errors.max);
 });
 
@@ -127,5 +139,35 @@ test("a static stopwatch formula must be a positive safe integer", () => {
   });
 
   assert.equal(validation.valid, false);
+  if (validation.valid) {
+    throw new Error("Expected an invalid static formula.");
+  }
   assert.ok(validation.errors.formula);
+});
+
+test("stopwatch formulas honor operator precedence and minute rounding", () => {
+  const variables = getPreTimerFormulaVariables(
+    150,
+    PRE_TIMER_ROUNDING.ROUND,
+    30,
+  );
+  const result = evaluatePreTimerFormula(
+    "summe-minuten + minuten * 2 + rest-sekunden",
+    variables,
+  );
+
+  if (!result.valid) {
+    throw new Error(result.error);
+  }
+  assert.equal(result.result, 42);
+});
+
+test("stopwatch formulas reject incomplete expressions", () => {
+  const result = parsePreTimerFormula("minuten +");
+
+  assert.equal(result.valid, false);
+  if (result.valid) {
+    throw new Error("Expected the formula to be rejected.");
+  }
+  assert.match(result.error, /unvollständig/);
 });

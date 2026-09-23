@@ -1,6 +1,17 @@
-"use strict";
+import type { MetronomeAction } from "./action-model.ts";
 
-window.METRONOME_PRESETS = Object.freeze({
+export type PresetActionDefinition = Omit<MetronomeAction, "id">;
+
+export interface MetronomePreset {
+  label: string;
+  autoStart: boolean;
+  hideProgress: boolean;
+  values: {
+    actions: readonly PresetActionDefinition[];
+  };
+}
+
+export const METRONOME_PRESETS = Object.freeze({
   "120-150-2x10": Object.freeze({
     label: "120-150 : 2x10",
     autoStart: true,
@@ -69,4 +80,6 @@ window.METRONOME_PRESETS = Object.freeze({
       ]),
     }),
   }),
-});
+} satisfies Record<string, MetronomePreset>);
+
+export type PresetId = keyof typeof METRONOME_PRESETS;

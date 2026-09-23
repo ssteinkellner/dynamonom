@@ -9,7 +9,7 @@ import {
   parseActionsPayload,
   serializeActionsPayload,
   validateActionDefinitions,
-} from "./action-model.js";
+} from "./action-model.ts";
 import {
   PRE_TIMER_ROUNDING,
   evaluatePreTimerFormula,
@@ -18,7 +18,7 @@ import {
   getPreTimerOptionsSummary,
   getPreTimerRoundingLabel,
   isStaticPreTimerFormula,
-} from "./pre-timer-model.js";
+} from "./pre-timer-model.ts";
 
 "use strict";
 
