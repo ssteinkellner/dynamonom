@@ -10,8 +10,7 @@
     "noEmit": true,
     "skipLibCheck": true,
     "allowImportingTsExtensions": true,
-    "allowJs": true,
-    "checkJs": false,
+    "allowJs": false,
     "verbatimModuleSyntax": true,
     "isolatedModules": true,
     "jsx": "preserve"
