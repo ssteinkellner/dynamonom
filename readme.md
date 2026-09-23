@@ -28,6 +28,12 @@ Browsers may require HTTPS for a full installation prompt; over local HTTP, use
 the browser's **Add to Home Screen** action when available. To run a production
 preview, use `npm run build` followed by `npm run preview`.
 
+## Tests and typechecking
+
+Run the test suite with `npm test` (or use `npm run test:watch` while
+developing). Run strict TypeScript checks with `npm run typecheck`; production
+builds run the same check before Vite bundles the app.
+
 ## Presets and settings
 
 The **Metronom - Voreinstellungen** view is shown on page load. Its single
