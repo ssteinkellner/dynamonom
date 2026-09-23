@@ -1,4 +1,7 @@
+import { ACTION_TYPES } from "./action-model.ts";
 import type { MetronomeAction } from "./action-model.ts";
+import { createNumericFormulaInput } from "./formula-model.ts";
+import { createDefaultMetronomeSettings } from "./models/metronome-settings.ts";
 
 export type PresetActionDefinition = Omit<MetronomeAction, "id">;
 
@@ -11,6 +14,48 @@ export interface MetronomePreset {
   };
 }
 
+function presetAction(
+  values: {
+    bpm: number;
+    increaseBy: number;
+    maximumLimit: number;
+    breakCount: number;
+    breakSeconds: number;
+  },
+): PresetActionDefinition {
+  const settings = createDefaultMetronomeSettings();
+  return {
+    type: ACTION_TYPES.METRONOME,
+    name: "Metronom",
+    settings: {
+      ...settings,
+      bpm: createNumericFormulaInput(values.bpm, 20, 300),
+      increaseBy: createNumericFormulaInput(values.increaseBy, 1, 20),
+      maximum: "stick",
+      maximumLimitStick: createNumericFormulaInput(
+        values.maximumLimit,
+        60,
+        400,
+      ),
+      maximumLimitReset: createNumericFormulaInput(
+        values.maximumLimit,
+        60,
+        400,
+      ),
+      maximumLimitReverse: createNumericFormulaInput(
+        values.maximumLimit,
+        60,
+        400,
+      ),
+      breaks: "limited",
+      breakCount: createNumericFormulaInput(values.breakCount, 1, null),
+      breakSeconds: createNumericFormulaInput(values.breakSeconds, 1, null),
+      sessionEndEnabled: true,
+      lockSettings: true,
+    },
+  };
+}
+
 export const METRONOME_PRESETS = Object.freeze({
   "120-150-2x10": Object.freeze({
     label: "120-150 : 2x10",
@@ -18,31 +63,15 @@ export const METRONOME_PRESETS = Object.freeze({
     hideProgress: false,
     values: Object.freeze({
       actions: Object.freeze([
-        Object.freeze({
-          type: "metronom",
-          name: "Metronom",
-          settings: Object.freeze({
+        Object.freeze(
+          presetAction({
             bpm: 120,
-            accentuate: true,
-            accentRepeat: 10,
-            increaseTempo: true,
             increaseBy: 2,
-            increaseAfter: 10,
-            maximum: "stick",
-            maximumLimitStick: 150,
-            maximumLimitReset: 150,
-            maximumLimitReverse: 150,
-            decreaseBy: 1,
-            decreaseAfter: 10,
-            breaks: "limited",
+            maximumLimit: 150,
             breakCount: 2,
-            breakSeconds: "10",
-            sessionEndEnabled: true,
-            sessionEndBeats: 100,
-            lockSettings: true,
-            lockBeats: 100,
+            breakSeconds: 10,
           }),
-        }),
+        ),
       ]),
     }),
   }),
@@ -52,31 +81,15 @@ export const METRONOME_PRESETS = Object.freeze({
     hideProgress: false,
     values: Object.freeze({
       actions: Object.freeze([
-        Object.freeze({
-          type: "metronom",
-          name: "Metronom",
-          settings: Object.freeze({
+        Object.freeze(
+          presetAction({
             bpm: 130,
-            accentuate: true,
-            accentRepeat: 10,
-            increaseTempo: true,
             increaseBy: 10,
-            increaseAfter: 10,
-            maximum: "stick",
-            maximumLimitStick: 200,
-            maximumLimitReset: 200,
-            maximumLimitReverse: 200,
-            decreaseBy: 1,
-            decreaseAfter: 10,
-            breaks: "limited",
+            maximumLimit: 200,
             breakCount: 4,
-            breakSeconds: "5",
-            sessionEndEnabled: true,
-            sessionEndBeats: 100,
-            lockSettings: true,
-            lockBeats: 100,
+            breakSeconds: 5,
           }),
-        }),
+        ),
       ]),
     }),
   }),

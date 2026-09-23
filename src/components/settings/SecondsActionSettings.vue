@@ -1,7 +1,11 @@
 <script setup lang="ts">
-import type { SecondsAction } from "../../action-model.ts";
+import type { Action, SecondsAction } from "../../action-model.ts";
+import type { NumericFormulaInput } from "../../formula-model.ts";
+import FormulaInput from "../formula/FormulaInput.vue";
 
 const props = defineProps<{
+  action: Action;
+  previousActions: readonly Action[];
   settings: SecondsAction["settings"];
   errors: Readonly<Record<string, string>>;
 }>();
@@ -10,12 +14,8 @@ const emit = defineEmits<{
   "update:settings": [settings: SecondsAction["settings"]];
 }>();
 
-function updateSeconds(event: Event): void {
-  const input = event.target;
-  if (!(input instanceof HTMLInputElement)) {
-    return;
-  }
-  emit("update:settings", { seconds: Number(input.value) });
+function updateSeconds(seconds: NumericFormulaInput): void {
+  emit("update:settings", { seconds });
 }
 </script>
 
@@ -24,20 +24,22 @@ function updateSeconds(event: Event): void {
     <fieldset>
       <legend>Dauer</legend>
       <div class="field input-wrapper">
-        <label for="action-seconds">
-          Sekunden <span class="required-marker" aria-hidden="true">*</span>
-        </label>
-        <input
+        <label for="action-seconds">Sekunden</label>
+        <FormulaInput
           id="action-seconds"
-          type="number"
-          min="1"
-          max="600"
-          step="1"
-          :value="settings.seconds"
-          :aria-invalid="errors.seconds ? 'true' : undefined"
-          @input="updateSeconds"
+          :model-value="settings.seconds"
+          :action="action"
+          :previous-actions="previousActions"
+          field="seconds"
+          label="Dauer in Sekunden"
+          :default-value="10"
+          :hard-min="1"
+          :hard-max="600"
+          @update:model-value="updateSeconds"
         />
-        <p class="field-help">Die Aktion wird nach Ablauf automatisch fortgesetzt.</p>
+        <p class="field-help">
+          Die Aktion wird nach Ablauf automatisch fortgesetzt.
+        </p>
         <p v-if="errors.seconds" class="field-error">{{ errors.seconds }}</p>
       </div>
     </fieldset>

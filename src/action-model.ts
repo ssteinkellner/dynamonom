@@ -1,14 +1,15 @@
+import { PRE_TIMER_TYPES } from "./pre-timer-model.ts";
 import {
-  PRE_TIMER_TYPES,
-  createDefaultPreTimer,
-  normalizePreTimerDefinition,
-} from "./pre-timer-model.ts";
+  collectFormulaNodes,
+  createNumericFormulaInput,
+  normalizeNumericFormulaInput,
+} from "./formula-model.ts";
 import type {
-  ManualPreTimer,
-  PreTimerRounding,
-  SecondsPreTimer,
-  StopwatchPreTimer,
-} from "./pre-timer-model.ts";
+  FormulaCurrentNode,
+  FormulaNode,
+  FormulaReferenceNode,
+  NumericFormulaInput,
+} from "./formula-model.ts";
 
 export const ACTION_TYPES = Object.freeze({
   METRONOME: "metronom",
@@ -32,25 +33,25 @@ export const ACTION_TYPE_LABELS = Object.freeze({
 export const ACTIONS_VERSION = 1;
 
 export interface MetronomeSettings {
-  bpm: number;
+  bpm: NumericFormulaInput;
   accentuate: boolean;
-  accentRepeat: NumericSetting;
+  accentRepeat: NumericFormulaInput;
   increaseTempo: boolean;
-  increaseBy: NumericSetting;
-  increaseAfter: NumericSetting;
+  increaseBy: NumericFormulaInput;
+  increaseAfter: NumericFormulaInput;
   maximum: MaximumMode;
-  maximumLimitStick: NumericSetting;
-  maximumLimitReset: NumericSetting;
-  maximumLimitReverse: NumericSetting;
-  decreaseBy: NumericSetting;
-  decreaseAfter: NumericSetting;
+  maximumLimitStick: NumericFormulaInput;
+  maximumLimitReset: NumericFormulaInput;
+  maximumLimitReverse: NumericFormulaInput;
+  decreaseBy: NumericFormulaInput;
+  decreaseAfter: NumericFormulaInput;
   breaks: BreakMode;
-  breakCount: NumericSetting | null;
-  breakSeconds: string;
+  breakCount: NumericFormulaInput | null;
+  breakSeconds: NumericFormulaInput | null;
   sessionEndEnabled: boolean;
-  sessionEndBeats: NumericSetting;
+  sessionEndBeats: NumericFormulaInput;
   lockSettings: boolean;
-  lockBeats: NumericSetting;
+  lockBeats: NumericFormulaInput;
 }
 
 export interface MetronomeAction {
@@ -64,27 +65,21 @@ export interface SecondsAction {
   id: string;
   type: typeof ACTION_TYPES.SECONDS;
   name: string;
-  settings: { seconds: number };
+  settings: { seconds: NumericFormulaInput };
 }
 
 export interface StopwatchAction {
   id: string;
   type: typeof ACTION_TYPES.STOPWATCH;
   name: string;
-  settings: {
-    formula: string;
-    rounding: PreTimerRounding;
-    roundingThreshold: number | null;
-    min: number;
-    max: number | null;
-  };
+  settings: Record<string, never>;
 }
 
 export interface ManualAction {
   id: string;
   type: typeof ACTION_TYPES.MANUAL;
   name: string;
-  settings: { limitSeconds: number | null };
+  settings: { limitSeconds: NumericFormulaInput | null };
 }
 
 export type Action =
@@ -95,29 +90,14 @@ export type Action =
 
 type NormalizedAction =
   | {
-      id?: string;
+      id: string;
       type: typeof ACTION_TYPES.METRONOME;
       name: string;
       settings: Record<string, unknown>;
     }
-  | {
-      id?: string;
-      type: typeof ACTION_TYPES.SECONDS;
-      name: string;
-      settings: { seconds: number };
-    }
-  | {
-      id?: string;
-      type: typeof ACTION_TYPES.STOPWATCH;
-      name: string;
-      settings: Omit<StopwatchPreTimer, "id" | "type" | "name">;
-    }
-  | {
-      id?: string;
-      type: typeof ACTION_TYPES.MANUAL;
-      name: string;
-      settings: Omit<ManualPreTimer, "id" | "type" | "name">;
-    };
+  | SecondsAction
+  | StopwatchAction
+  | ManualAction;
 
 export interface ActionValidationError {
   index: number;
@@ -163,6 +143,11 @@ export type ParsedActionsPayload =
   | { valid: true; actions: unknown[] }
   | { valid: false; error: string };
 
+export interface ActionFormulaField {
+  field: string;
+  input: NumericFormulaInput;
+}
+
 let nextActionId = 1;
 
 export function createActionId(): string {
@@ -180,7 +165,9 @@ export function cloneAction(action: Action): Action {
   return cloneValue(action);
 }
 
-export function cloneActions(actions: readonly Action[] | null | undefined): Action[] {
+export function cloneActions(
+  actions: readonly Action[] | null | undefined,
+): Action[] {
   return actions ? actions.map(cloneAction) : [];
 }
 
@@ -216,47 +203,30 @@ export function createDefaultAction(
   }
 
   const name = getNextActionName(type, actions);
+  const id = createActionId();
   if (type === ACTION_TYPES.METRONOME) {
     if (!metronomeSettings) {
       throw new Error("Default Metronom settings are required.");
     }
     return {
-      id: createActionId(),
+      id,
       type,
       name,
       settings: cloneValue(metronomeSettings),
     };
   }
-
-  const timer = createDefaultPreTimer(type);
-  if (timer.type === ACTION_TYPES.SECONDS) {
+  if (type === ACTION_TYPES.SECONDS) {
     return {
-      id: createActionId(),
-      type: timer.type,
+      id,
+      type,
       name,
-      settings: { seconds: timer.seconds },
+      settings: { seconds: createNumericFormulaInput(10, 1, 600) },
     };
   }
-  if (timer.type === ACTION_TYPES.STOPWATCH) {
-    return {
-      id: createActionId(),
-      type: timer.type,
-      name,
-      settings: {
-        formula: timer.formula,
-        rounding: timer.rounding,
-        roundingThreshold: timer.roundingThreshold,
-        min: timer.min,
-        max: timer.max,
-      },
-    };
+  if (type === ACTION_TYPES.STOPWATCH) {
+    return { id, type, name, settings: {} };
   }
-  return {
-    id: createActionId(),
-    type: timer.type,
-    name,
-    settings: { limitSeconds: timer.limitSeconds },
-  };
+  return { id, type, name, settings: { limitSeconds: null } };
 }
 
 export function normalizeActionDefinition(
@@ -279,13 +249,14 @@ export function normalizeActionDefinition(
   if (typeof rawAction.name !== "string" || !name) {
     errors.name = "Einen Namen eingeben.";
   }
-
-  const rawSettings = rawAction.settings;
-  if (!isRecord(rawSettings)) {
+  if (!isRecord(rawAction.settings)) {
     errors.settings = "Gültige Aktionseinstellungen fehlen.";
   }
-
-  if (Object.keys(errors).length > 0 || !isActionType(type) || !isRecord(rawSettings)) {
+  if (
+    Object.keys(errors).length > 0 ||
+    !isActionType(type) ||
+    !isRecord(rawAction.settings)
+  ) {
     return { valid: false, errors };
   }
 
@@ -298,63 +269,65 @@ export function normalizeActionDefinition(
         id,
         type,
         name,
-        settings: cloneValue(rawSettings),
+        settings: cloneValue(rawAction.settings),
       },
     };
   }
 
-  const normalized = normalizePreTimerDefinition(
-    {
-      ...rawSettings,
-      id: rawAction.id,
-      type,
-      name,
-    },
-    { generateId: false },
-  );
-  if (!normalized.valid) {
-    return { valid: false, errors: normalized.errors };
-  }
-
-  const value = normalized.value;
-  if (value.type === ACTION_TYPES.SECONDS) {
+  if (type === ACTION_TYPES.SECONDS) {
+    const seconds = normalizeNumericFormulaInput(
+      rawAction.settings.seconds ?? 10,
+      10,
+      1,
+      600,
+    );
+    if (!seconds.valid) {
+      errors.seconds = seconds.errors.join(" ");
+    }
+    if (Object.keys(errors).length > 0) {
+      return { valid: false, errors };
+    }
     return {
       valid: true,
       errors: {},
       value: {
         id,
-        type: value.type,
-        name: value.name,
-        settings: { seconds: value.seconds },
+        type,
+        name,
+        settings: { seconds: seconds.value },
       },
     };
   }
-  if (value.type === ACTION_TYPES.STOPWATCH) {
+
+  if (type === ACTION_TYPES.STOPWATCH) {
     return {
       valid: true,
       errors: {},
-      value: {
-        id,
-        type: value.type,
-        name: value.name,
-        settings: {
-          formula: value.formula,
-          rounding: value.rounding,
-          roundingThreshold: value.roundingThreshold,
-          min: value.min,
-          max: value.max,
-        },
-      },
+      value: { id, type, name, settings: {} },
     };
+  }
+
+  const rawLimit = rawAction.settings.limitSeconds;
+  let limitSeconds: NumericFormulaInput | null = null;
+  if (rawLimit !== null && rawLimit !== undefined && rawLimit !== "") {
+    const normalized = normalizeNumericFormulaInput(rawLimit, 60, 1, 600);
+    if (!normalized.valid) {
+      errors.limitSeconds = normalized.errors.join(" ");
+    } else {
+      limitSeconds = normalized.value;
+    }
+  }
+  if (Object.keys(errors).length > 0) {
+    return { valid: false, errors };
   }
   return {
     valid: true,
     errors: {},
     value: {
       id,
-      type: value.type,
-      name: value.name,
-      settings: { limitSeconds: value.limitSeconds },
+      type,
+      name,
+      settings: { limitSeconds },
     },
   };
 }
@@ -374,13 +347,14 @@ export function validateActionDefinitions(
     };
   }
 
-  const inputActions: unknown[] = rawActions;
   const actions: Action[] = [];
+  const actionIndices: number[] = [];
   const errors: ActionValidationError[] = [];
   const names = new Map<string, string>();
+  const ids = new Map<string, string>();
   let hasMetronome = false;
 
-  inputActions.forEach((rawAction, index) => {
+  rawActions.forEach((rawAction, index) => {
     const normalized = normalizeActionDefinition(rawAction);
     if (!normalized.valid) {
       Object.entries(normalized.errors).forEach(([field, message]) => {
@@ -402,7 +376,17 @@ export function validateActionDefinitions(
       names.set(normalizedName, value.name);
     }
 
-    const id = value.id || createActionId();
+    const previousId = ids.get(value.id);
+    if (previousId !== undefined) {
+      errors.push({
+        index,
+        field: "id",
+        message: `Die Aktionsreferenz "${value.id}" ist nicht eindeutig.`,
+      });
+    } else {
+      ids.set(value.id, value.name);
+    }
+
     if (value.type === ACTION_TYPES.METRONOME) {
       hasMetronome = true;
       if (!validateMetronomeSettings) {
@@ -413,7 +397,14 @@ export function validateActionDefinitions(
         });
         return;
       }
-      const validation = validateMetronomeSettings(value.settings, index, inputActions);
+      const rawSettings = isRecord(rawAction) && isRecord(rawAction.settings)
+        ? rawAction.settings
+        : {};
+      const validation = validateMetronomeSettings(
+        rawSettings,
+        index,
+        rawActions,
+      );
       if (!validation.valid) {
         validation.errors.forEach(({ field, message }) => {
           errors.push({ index, field, message });
@@ -421,36 +412,17 @@ export function validateActionDefinitions(
         return;
       }
       actions.push({
-        id,
+        id: value.id,
         type: value.type,
         name: value.name,
         settings: validation.settings,
       });
+      actionIndices.push(index);
       return;
     }
 
-    if (value.type === ACTION_TYPES.SECONDS) {
-      actions.push({
-        id,
-        type: value.type,
-        name: value.name,
-        settings: value.settings,
-      });
-    } else if (value.type === ACTION_TYPES.STOPWATCH) {
-      actions.push({
-        id,
-        type: value.type,
-        name: value.name,
-        settings: value.settings,
-      });
-    } else {
-      actions.push({
-        id,
-        type: value.type,
-        name: value.name,
-        settings: value.settings,
-      });
-    }
+    actions.push(value);
+    actionIndices.push(index);
   });
 
   if (requireMetronome && !hasMetronome) {
@@ -461,12 +433,85 @@ export function validateActionDefinitions(
     });
   }
 
+  validateFormulaReferences(actions, actionIndices, errors);
   return { valid: errors.length === 0, errors, actions };
+}
+
+export function getActionFormulaFields(action: Action): ActionFormulaField[] {
+  if (action.type === ACTION_TYPES.METRONOME) {
+    const fields: ActionFormulaField[] = [
+      { field: "bpm", input: action.settings.bpm },
+      { field: "accentRepeat", input: action.settings.accentRepeat },
+      { field: "increaseBy", input: action.settings.increaseBy },
+      { field: "increaseAfter", input: action.settings.increaseAfter },
+      { field: "maximumLimitStick", input: action.settings.maximumLimitStick },
+      { field: "maximumLimitReset", input: action.settings.maximumLimitReset },
+      { field: "maximumLimitReverse", input: action.settings.maximumLimitReverse },
+      { field: "decreaseBy", input: action.settings.decreaseBy },
+      { field: "decreaseAfter", input: action.settings.decreaseAfter },
+      { field: "sessionEndBeats", input: action.settings.sessionEndBeats },
+      { field: "lockBeats", input: action.settings.lockBeats },
+    ];
+    if (action.settings.breakCount) {
+      fields.push({ field: "breakCount", input: action.settings.breakCount });
+    }
+    if (action.settings.breakSeconds) {
+      fields.push({ field: "breakSeconds", input: action.settings.breakSeconds });
+    }
+    return fields;
+  }
+  if (action.type === ACTION_TYPES.SECONDS) {
+    return [{ field: "seconds", input: action.settings.seconds }];
+  }
+  if (action.type === ACTION_TYPES.MANUAL && action.settings.limitSeconds) {
+    return [{ field: "limitSeconds", input: action.settings.limitSeconds }];
+  }
+  return [];
+}
+
+export function getEnabledCurrentFormulaProperties(
+  action: Action,
+): string[] {
+  if (action.type === ACTION_TYPES.METRONOME) {
+    const fields = ["bpm"];
+    if (action.settings.accentuate) {
+      fields.push("accentRepeat");
+    }
+    if (action.settings.increaseTempo) {
+      fields.push("increaseBy", "increaseAfter");
+      if (action.settings.maximum !== "none") {
+        fields.push(`maximumLimit${capitalize(action.settings.maximum)}`);
+      }
+      if (action.settings.maximum === "reverse") {
+        fields.push("decreaseBy", "decreaseAfter");
+      }
+    }
+    if (action.settings.breaks === "limited") {
+      if (action.settings.breakCount) {
+        fields.push("breakCount");
+      }
+    }
+    if (action.settings.sessionEndEnabled) {
+      fields.push("sessionEndBeats");
+    }
+    if (action.settings.lockSettings) {
+      fields.push("lockBeats");
+    }
+    return fields;
+  }
+  if (action.type === ACTION_TYPES.SECONDS) {
+    return ["seconds"];
+  }
+  if (action.type === ACTION_TYPES.MANUAL && action.settings.limitSeconds) {
+    return ["limitSeconds"];
+  }
+  return [];
 }
 
 export function serializeActionsPayload(actions: readonly Action[]): string {
   return JSON.stringify(
-    actions.map(({ type, name, settings }) => ({
+    actions.map(({ id, type, name, settings }) => ({
+      id,
       type,
       name,
       settings: cloneValue(settings),
@@ -497,12 +542,126 @@ export function parseActionsPayload(rawPayload: unknown): ParsedActionsPayload {
         return action;
       }
       return {
+        id: action.id,
         type: action.type,
         name: action.name,
         settings: action.settings,
       };
     }),
   };
+}
+
+function validateFormulaReferences(
+  actions: readonly Action[],
+  actionIndices: readonly number[],
+  errors: ActionValidationError[],
+): void {
+  const indexById = new Map<string, { index: number; action: Action }>();
+  actions.forEach((action, normalizedIndex) => {
+    const inputIndex = actionIndices[normalizedIndex];
+    if (inputIndex !== undefined && !indexById.has(action.id)) {
+      indexById.set(action.id, { index: inputIndex, action });
+    }
+  });
+  actions.forEach((action, normalizedIndex) => {
+    const index = actionIndices[normalizedIndex] ?? normalizedIndex;
+    const enabledProperties = new Set(getEnabledCurrentFormulaProperties(action));
+    for (const { field, input } of getActionFormulaFields(action)) {
+      for (const node of getFormulaNodesFromInput(input)) {
+        if (node.type === "reference") {
+          validateReferenceNode(
+            node,
+            action,
+            index,
+            indexById,
+            errors,
+            field,
+          );
+        } else if (node.type === "current") {
+          validateCurrentNode(
+            node,
+            action,
+            field,
+            enabledProperties,
+            errors,
+            index,
+          );
+        }
+      }
+    }
+  });
+}
+
+function validateReferenceNode(
+  node: FormulaReferenceNode,
+  action: Action,
+  actionIndex: number,
+  indexById: ReadonlyMap<string, { index: number; action: Action }>,
+  errors: ActionValidationError[],
+  field: string,
+): void {
+  const source = indexById.get(node.actionId);
+  if (source === undefined || source.index >= actionIndex) {
+    errors.push({
+      index: actionIndex,
+      field,
+      message: "Formelbezüge müssen auf eine vorherige Aktion zeigen.",
+    });
+    return;
+  }
+  if (
+    node.metric === "end-bpm" &&
+    source.action.type !== ACTION_TYPES.METRONOME
+  ) {
+    errors.push({
+      index: actionIndex,
+      field,
+      message: "End-BPM kann nur von einer vorherigen Metronom-Aktion bezogen werden.",
+    });
+  }
+}
+
+function validateCurrentNode(
+  node: FormulaCurrentNode,
+  action: Action,
+  field: string,
+  enabledProperties: ReadonlySet<string>,
+  errors: ActionValidationError[],
+  actionIndex: number,
+): void {
+  if (node.property === "current-bpm") {
+    if (
+      action.type !== ACTION_TYPES.METRONOME ||
+      field !== "breakSeconds" ||
+      action.settings.breaks !== "limited"
+    ) {
+      errors.push({
+        index: actionIndex,
+        field,
+        message: "Aktuelles BPM ist nur in der Pausendauer verfügbar.",
+      });
+    }
+    return;
+  }
+  if (node.property === field || !enabledProperties.has(node.property)) {
+    errors.push({
+      index: actionIndex,
+      field,
+      message: "Aktuell kann nur eine andere aktive Zahleneinstellung verwenden.",
+    });
+  }
+}
+
+function getFormulaNodesFromInput(
+  input: NumericFormulaInput,
+): FormulaNode[] {
+  return [input.expression, input.min, input.max].flatMap((node) =>
+    node ? collectFormulaNodes(node) : [],
+  );
+}
+
+function capitalize(value: string): string {
+  return `${value[0]?.toUpperCase() ?? ""}${value.slice(1)}`;
 }
 
 function getNextActionName(type: ActionType, actions: readonly Action[]): string {
@@ -532,11 +691,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-function getOptionalId(rawId: unknown, generateId: boolean): string | undefined {
+function getOptionalId(rawId: unknown, generateId: boolean): string {
   if (typeof rawId === "string" && rawId !== "") {
     return rawId;
   }
-  return generateId ? createActionId() : undefined;
+  return generateId ? createActionId() : "";
 }
 
 function cloneValue<T>(value: T): T {

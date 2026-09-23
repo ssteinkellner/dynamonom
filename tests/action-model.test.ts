@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import type { Action } from "../src/action-model.ts";
 import {
   ACTION_TYPES,
   createDefaultAction,
@@ -8,21 +7,46 @@ import {
   serializeActionsPayload,
   validateActionDefinitions,
 } from "../src/action-model.ts";
+import type { Action } from "../src/action-model.ts";
 import {
-  PRE_TIMER_ROUNDING,
-  PRE_TIMER_TYPES,
-  evaluatePreTimerFormula,
-  getPreTimerFormulaVariables,
-  normalizePreTimerDefinition,
-  parsePreTimerFormula,
-} from "../src/pre-timer-model.ts";
+  createDefaultMetronomeSettings,
+  validateMetronomeActionSettings,
+} from "../src/models/metronome-settings.ts";
+import {
+  createNumericFormulaInput,
+  createStaticFormulaNode,
+} from "../src/formula-model.ts";
+
+function validate(actions: unknown[]) {
+  return validateActionDefinitions(actions, {
+    validateMetronomeSettings: validateMetronomeActionSettings,
+  });
+}
+
+function referenceInput(actionId: string, metric = "seconds-absolute") {
+  return {
+    expression: {
+      id: `fallback-${actionId}`,
+      type: "fallback",
+      input: {
+        id: `reference-${actionId}`,
+        type: "reference",
+        actionId,
+        metric,
+      },
+      fallback: 10,
+    },
+    min: createStaticFormulaNode(1),
+    max: createStaticFormulaNode(600),
+  };
+}
 
 test("duplicate action names report the original row after invalid rows", () => {
-  const validation = validateActionDefinitions([
+  const validation = validate([
     {
       type: ACTION_TYPES.SECONDS,
-      name: "Invalid",
-      settings: { seconds: 0 },
+      name: " ",
+      settings: { seconds: 1 },
     },
     {
       type: ACTION_TYPES.MANUAL,
@@ -49,14 +73,20 @@ test("duplicate action names report the original row after invalid rows", () => 
   assert.doesNotMatch(duplicateError.message, /"Beta"/);
 });
 
-test("imported action IDs are discarded and generated locally", () => {
+test("imports preserve stable action IDs referenced by formulas", () => {
   const parsed = parseActionsPayload(
     JSON.stringify([
       {
-        id: "remote-id",
+        id: "watch-id",
+        type: ACTION_TYPES.STOPWATCH,
+        name: "Messung",
+        settings: {},
+      },
+      {
+        id: "seconds-id",
         type: ACTION_TYPES.SECONDS,
-        name: "Pause",
-        settings: { seconds: 15 },
+        name: "Wartezeit",
+        settings: { seconds: referenceInput("watch-id") },
       },
     ]),
   );
@@ -64,110 +94,99 @@ test("imported action IDs are discarded and generated locally", () => {
   if (!parsed.valid) {
     throw new Error(parsed.error);
   }
-  const importedAction = parsed.actions[0];
-  assert.ok(importedAction && typeof importedAction === "object");
-  assert.equal("id" in importedAction, false);
-
-  const validation = validateActionDefinitions(parsed.actions);
+  const validation = validate(parsed.actions);
   assert.equal(validation.valid, true);
-  assert.notEqual(validation.actions[0]?.id, "remote-id");
+  assert.deepEqual(
+    validation.actions.map((action) => action.id),
+    ["watch-id", "seconds-id"],
+  );
+  const seconds = validation.actions[1];
+  assert.ok(seconds?.type === ACTION_TYPES.SECONDS);
+  assert.equal(
+    seconds.settings.seconds.expression?.type === "fallback" &&
+      seconds.settings.seconds.expression.input?.type === "reference"
+      ? seconds.settings.seconds.expression.input.actionId
+      : "",
+    "watch-id",
+  );
 });
 
-test("action exports omit local IDs and preserve ordered action settings", () => {
+test("action exports retain IDs, formulas, and action order", () => {
   const actions: Action[] = [
     {
       id: "local-id",
       type: ACTION_TYPES.SECONDS,
-      name: "Warm-up",
-      settings: { seconds: 12 },
+      name: "Wartezeit",
+      settings: {
+        seconds: createNumericFormulaInput(12, 1, 600),
+      },
+    },
+    {
+      id: "watch-id",
+      type: ACTION_TYPES.STOPWATCH,
+      name: "Messung",
+      settings: {},
     },
   ];
 
-  assert.deepEqual(JSON.parse(serializeActionsPayload(actions)), [
-    {
-      type: ACTION_TYPES.SECONDS,
-      name: "Warm-up",
-      settings: { seconds: 12 },
-    },
-  ]);
+  assert.deepEqual(JSON.parse(serializeActionsPayload(actions)), actions);
 });
 
-test("default Stoppuhr actions have a usable dynamic result range", () => {
+test("default Stopwatch actions only record elapsed time", () => {
   const action = createDefaultAction(ACTION_TYPES.STOPWATCH, []);
 
-  assert.equal(action.settings.min, 10);
-  assert.equal(action.settings.max, null);
+  assert.deepEqual(action.settings, {});
 });
 
-test("dynamic stopwatch formulas validate their beat bounds", () => {
-  const valid = normalizePreTimerDefinition({
-    type: PRE_TIMER_TYPES.STOPWATCH,
-    name: "Timer",
-    formula: "sekunden",
-    rounding: PRE_TIMER_ROUNDING.FLOOR,
-    min: "5",
-    max: "20",
-  });
-  const invalid = normalizePreTimerDefinition({
-    type: PRE_TIMER_TYPES.STOPWATCH,
-    name: "Timer",
-    formula: "sekunden",
-    rounding: PRE_TIMER_ROUNDING.FLOOR,
-    min: "20",
-    max: "5",
-  });
+test("references must point backward and End-BPM requires a Metronome source", () => {
+  const seconds = {
+    id: "seconds",
+    type: ACTION_TYPES.SECONDS,
+    name: "Wartezeit",
+    settings: { seconds: referenceInput("watch") },
+  };
+  const stopwatch = {
+    id: "watch",
+    type: ACTION_TYPES.STOPWATCH,
+    name: "Messung",
+    settings: {},
+  };
+  const valid = validate([stopwatch, seconds]);
+  const reordered = validate([seconds, stopwatch]);
+  const invalidEndBpm = validate([
+    stopwatch,
+    {
+      ...seconds,
+      settings: { seconds: referenceInput("watch", "end-bpm") },
+    },
+  ]);
 
   assert.equal(valid.valid, true);
-  if (!valid.valid || valid.value.type !== PRE_TIMER_TYPES.STOPWATCH) {
-    throw new Error("Expected a normalized stopwatch action.");
-  }
-  assert.equal(valid.value.min, 5);
-  assert.equal(valid.value.max, 20);
-  assert.equal(invalid.valid, false);
-  if (invalid.valid) {
-    throw new Error("Expected invalid stopwatch bounds.");
-  }
-  assert.ok(invalid.errors.max);
-});
-
-test("a static stopwatch formula must be a positive safe integer", () => {
-  const validation = normalizePreTimerDefinition({
-    type: PRE_TIMER_TYPES.STOPWATCH,
-    name: "Timer",
-    formula: "0",
-    rounding: PRE_TIMER_ROUNDING.FLOOR,
-  });
-
-  assert.equal(validation.valid, false);
-  if (validation.valid) {
-    throw new Error("Expected an invalid static formula.");
-  }
-  assert.ok(validation.errors.formula);
-});
-
-test("stopwatch formulas honor operator precedence and minute rounding", () => {
-  const variables = getPreTimerFormulaVariables(
-    150,
-    PRE_TIMER_ROUNDING.ROUND,
-    30,
+  assert.equal(reordered.valid, false);
+  assert.ok(
+    reordered.errors.some((error) =>
+      error.message.includes("vorherige Aktion"),
+    ),
   );
-  const result = evaluatePreTimerFormula(
-    "summe-minuten + minuten * 2 + rest-sekunden",
-    variables,
+  assert.equal(invalidEndBpm.valid, false);
+  assert.ok(
+    invalidEndBpm.errors.some((error) =>
+      error.message.includes("End-BPM"),
+    ),
   );
 
-  if (!result.valid) {
-    throw new Error(result.error);
-  }
-  assert.equal(result.result, 42);
-});
-
-test("stopwatch formulas reject incomplete expressions", () => {
-  const result = parsePreTimerFormula("minuten +");
-
-  assert.equal(result.valid, false);
-  if (result.valid) {
-    throw new Error("Expected the formula to be rejected.");
-  }
-  assert.match(result.error, /unvollständig/);
+  const metronomeSource = {
+    id: "tempo",
+    type: ACTION_TYPES.METRONOME,
+    name: "Tempo",
+    settings: createDefaultMetronomeSettings(),
+  };
+  const validEndBpm = validate([
+    metronomeSource,
+    {
+      ...seconds,
+      settings: { seconds: referenceInput("tempo", "end-bpm") },
+    },
+  ]);
+  assert.equal(validEndBpm.valid, true);
 });

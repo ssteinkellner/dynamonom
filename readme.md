@@ -12,12 +12,14 @@ presets, settings, execution, and report views without a router. The
 settings/action editors and each action's execution view are separate Vue
 components under `src/components/`.
 
-Typed action/timer models, metronome validation, built-in presets, settings
-transfer, and report text are implemented in `src/action-model.ts`,
-`src/pre-timer-model.ts`, `src/models/`, and `src/presets.ts`. The Pinia session
-store is in `src/stores/metronome.ts`; browser audio and timer resources are
-managed by `src/services/session-engine.ts`. The standalone service worker,
-manifest, and icons remain under `src/public/`.
+Typed action/timer models, the formula AST and evaluator, metronome validation,
+built-in presets, settings transfer, and report text are implemented in
+`src/action-model.ts`, `src/formula-model.ts`, `src/formula-engine.ts`,
+`src/models/`, and `src/presets.ts`. Each formula node's UI is a separate
+component under `src/components/formula/`. The Pinia session store is in
+`src/stores/metronome.ts`; browser audio and timer resources are managed by
+`src/services/session-engine.ts`. The standalone service worker, manifest, and
+icons remain under `src/public/`.
 
 ## Local development and phone installation
 
@@ -71,27 +73,37 @@ each execution view.
   metronome action starts with a fresh 3-2-1 countdown and resets its beat,
   tempo, and pause counters. **Weiter** ends that action and stays disabled
   until its configured lock threshold; an automatic Ende advances to the next
-  action.
-- **Sekunden** accepts a whole-number duration from 1 to 600 seconds and
+  action. Tempo, pause, and end settings use the visual formula editor.
+- **Sekunden** uses a formula-based duration from 1 to 600 seconds and
   advances automatically when it expires. Continuing more than 10 seconds
   early requires confirmation.
-- **Stoppuhr** counts elapsed time until **Weiter**. Its formula supports
-  `minuten`, `summe-minuten`, `sekunden`, and `rest-sekunden`, whole-number
-  literals, `+`, `-`, `*`, `/`, parentheses, and whitespace. Minute rounding
-  is configured per action as floor, ceil, or round (30 seconds by default).
-  A single integer literal has no Min/Max bounds. Other formulas use a
-  required minimum (default 10 beats) and an optional maximum. Valid results
-  are clamped to those bounds; an invalid runtime result uses that action's
-  minimum.
+- **Stoppuhr** only measures elapsed time until **Weiter**. Its result can be
+  referenced by formulas in later actions; it does not automatically set a
+  later Metronome's end or lock.
 - **Manuell** waits for **Weiter**. An optional 1-600 second limit is shown
-  while running but never advances the action automatically.
+  while running but never advances the action automatically. The limit can
+  also be a formula.
 
-Stoppuhr results since the previous Metronom are applied to the next
-Metronom: each result is bounded or falls back independently, then the values
-are summed to determine both automatic Ende and the Weiter lock. When such a
-Stoppuhr group precedes a Metronom, that action's manual Ende and lock controls
-are disabled with a note naming the source actions. Stoppuhren after the final
-Metronom remain report-only.
+Every editable numeric setting opens the drag-and-drop formula editor. Palette
+items create formula nodes; existing nodes can be moved between empty drop
+zones, staged in **Merken**, or removed through **Löschen**. The formula must
+be complete and the Remember area empty before it can be confirmed. Each
+number setting has an unremovable hard range; its visible formula bounds can
+only tighten that range. Non-static expressions receive a field-specific
+fallback value automatically.
+
+Available nodes are integer numbers, `+`, `-`, `*`, `/`, Clamp, Fallback,
+Reference, Round, and Aktuell. References select any earlier action for
+elapsed-time values (Minuten, Summe Minuten, absolute seconds, and remaining
+seconds); End-BPM is available only for earlier Metronome actions. Minuten
+uses exact elapsed minutes, and Summe Minuten is the triangular sum of those
+minutes. Round accepts only Minuten or Summe Minuten and rounds elapsed minutes
+using a seconds threshold from 0 to 60 (default 30); for Summe Minuten, the
+triangular sum is calculated after rounding. Aktuell can refer to another
+enabled numeric setting of the same action. Pause-duration formulas can also
+read live BPM and are evaluated each time a break begins. Formulas that create
+a Current-property cycle block session start. Removing or reordering an action
+that would invalidate a reference is rejected.
 
 ### Settings import and export
 
@@ -99,15 +111,16 @@ The Import field accepts a bare query string, one prefixed with `?`, or a full
 URL. It is processed when text is pasted or Enter is pressed. The versioned
 format requires `version=1`, an explicit `auto-start=true|false`, and an
 `actions` JSON array. `hide-progress=true` is optional and defaults to false.
-Each action contains a type, name, and settings object; local action IDs are
-generated when imported. Legacy flat settings and the former `pre-timers`
-payload are not supported.
+Each action contains its ID, type, name, and settings object, including its
+formula trees. Existing IDs are preserved on import so formula references
+remain valid; an ID is generated when an imported action does not have one.
+Legacy flat settings and the former `pre-timers` payload are not supported.
 
 For example, the query has this shape (the browser-encoded value of `actions`
 is longer):
 
 ```text
-version=1&auto-start=false&actions=[{"type":"metronom","name":"Metronom","settings":{...}}]
+version=1&auto-start=false&actions=[{"id":"action-id","type":"metronom","name":"Metronom","settings":{...}}]
 ```
 
 The export controls copy either the parameter list or the current page URL with
@@ -125,9 +138,9 @@ on every action view; after confirmation, the report contains all actions,
 marks the current one aborted, and marks later actions as not started.
 
 The report has one section per action, in execution order, titled
-`<action type> - <action name>`. Metronome sections include tempo, pauses,
-ending/lock details, and used breaks; Stoppuhr sections include the formula,
-rounding, bounds, and applied result.
+`<action type> - <action name>`. Sections include each action's resolved
+settings. Long reports also show formula expressions, resolved values,
+fallbacks, clamp adjustments, and used breaks.
 
 The long-copy report follows the UI and separates sections with headings such
 as `**Metronom - Warm-up**`. The short-copy report uses `**<action name>**`

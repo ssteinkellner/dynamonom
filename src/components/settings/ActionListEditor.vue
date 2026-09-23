@@ -11,11 +11,8 @@ import type {
   ActionType,
   ActionValidationError,
 } from "../../action-model.ts";
-import {
-  createDefaultMetronomeSettings,
-  getStopwatchSourcesBeforeMetronome,
-} from "../../models/metronome-settings.ts";
-import type { StopwatchActionSource } from "../../models/metronome-settings.ts";
+import { createDefaultMetronomeSettings } from "../../models/metronome-settings.ts";
+import { formatNumericFormulaInput } from "../../formula-model.ts";
 import { useMetronomeStore } from "../../stores/metronome.ts";
 import ActionEditor from "./ActionEditor.vue";
 
@@ -48,8 +45,8 @@ const draftIsDirty = computed(() => {
   );
 });
 
-const derivedSources = computed<StopwatchActionSource[]>(() => {
-  if (draft.value?.type !== ACTION_TYPES.METRONOME) {
+const previousActions = computed<Action[]>(() => {
+  if (!draft.value) {
     return [];
   }
   const index =
@@ -58,21 +55,24 @@ const derivedSources = computed<StopwatchActionSource[]>(() => {
       : store.actionDefinitions.findIndex(
           (action) => action.id === draft.value?.id,
         );
-  return getStopwatchSourcesBeforeMetronome(store.actionDefinitions, index);
+  return store.actionDefinitions.slice(0, Math.max(0, index));
 });
 
-function actionSummary(action: Action): string {
+function actionSummary(action: Action, index: number): string {
+  const previous = store.actionDefinitions
+    .slice(0, index)
+    .map(({ id, type, name }) => ({ id, type, name }));
   switch (action.type) {
     case ACTION_TYPES.METRONOME:
-      return `${action.settings.bpm} BPM`;
+      return `${formatNumericFormulaInput(action.settings.bpm, { actions: previous })} BPM`;
     case ACTION_TYPES.SECONDS:
-      return `${action.settings.seconds} Sekunden`;
+      return `${formatNumericFormulaInput(action.settings.seconds, { actions: previous })} Sekunden`;
     case ACTION_TYPES.STOPWATCH:
-      return action.settings.formula;
+      return "Zeit messen";
     case ACTION_TYPES.MANUAL:
       return action.settings.limitSeconds === null
         ? "Ohne Zeitlimit"
-        : `Limit ${action.settings.limitSeconds} Sekunden`;
+        : `Limit ${formatNumericFormulaInput(action.settings.limitSeconds, { actions: previous })} Sekunden`;
   }
 }
 
@@ -303,7 +303,7 @@ defineExpose({ closeIfAllowed });
               </div>
             </td>
             <td>{{ action.name }}</td>
-            <td>{{ actionSummary(action) }}</td>
+            <td>{{ actionSummary(action, index) }}</td>
             <td>
               <button
                 class="icon-button secondary-button"
@@ -352,7 +352,7 @@ defineExpose({ closeIfAllowed });
       <ActionEditor
         :draft="draft"
         :errors="editorErrors"
-        :derived-sources="derivedSources"
+        :previous-actions="previousActions"
         @update:draft="updateDraft"
         @save="saveDraft"
         @cancel="closeIfAllowed"

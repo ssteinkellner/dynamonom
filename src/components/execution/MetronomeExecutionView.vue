@@ -78,12 +78,6 @@ function abort(): void {
     <p v-if="breakDisplay" class="action-options-summary" aria-live="polite">
       {{ breakDisplay }}
     </p>
-    <p v-if="store.settings?.derivedEndTotal" class="action-options-summary">
-      Ende und Weiter-Sperre nach {{ store.settings.derivedEndTotal }} Beats
-      <template v-if="store.settings.derivedEndSources.length">
-        ({{ store.settings.derivedEndSources.join(", ") }})
-      </template>
-    </p>
     <div class="button-row action-execution-actions">
       <button
         class="secondary-button full-width-button"

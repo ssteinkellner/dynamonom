@@ -27,7 +27,6 @@ function abort(): void {
   >
     <p class="metric-label">Vergangene Zeit</p>
     <strong class="action-clock">{{ formatTime(store.activeElapsedSeconds) }}</strong>
-    <p class="action-options-summary">Formel: {{ action.settings.formula }}</p>
     <div class="button-row action-execution-actions">
       <button class="danger-button" type="button" @click="abort">
         Abbrechen

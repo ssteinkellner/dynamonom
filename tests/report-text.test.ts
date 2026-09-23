@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { ACTION_TYPES } from "../src/action-model.ts";
-import { createDefaultMetronomeSettings } from "../src/models/metronome-settings.ts";
+import { createNumericFormulaInput } from "../src/formula-model.ts";
 import type {
   MetronomeActionResult,
+  RuntimeMetronomeSettings,
   SessionReport,
-  StopwatchActionResult,
 } from "../src/models/session.ts";
 import {
   buildLongReportText,
@@ -13,7 +13,28 @@ import {
   getActionReportSections,
 } from "../src/models/report-text.ts";
 
-test("long report uses action headings and separates sections with blank lines", () => {
+const runtimeSettings: RuntimeMetronomeSettings = {
+  initialBpm: 120,
+  accentuate: false,
+  accentRepeat: 10,
+  increaseTempo: false,
+  increaseBy: 1,
+  increaseAfter: 10,
+  maximum: "none",
+  maximumLimit: 180,
+  decreaseBy: 1,
+  decreaseAfter: 10,
+  breaks: "none",
+  breakCount: null,
+  breakSecondsFormula: null,
+  breakSecondsRaw: "",
+  lockSettings: false,
+  lockBeats: 8,
+  sessionEndEnabled: true,
+  sessionEndBeats: 8,
+};
+
+test("long report headings identify each action and separate sections", () => {
   const report: SessionReport = {
     aborted: false,
     actions: [
@@ -46,17 +67,18 @@ test("long report uses action headings and separates sections with blank lines",
       "",
       "**Manuell - Abschluss**",
       "Status: Nicht gestartet",
+      "Limit: Ohne Limit",
     ].join("\n"),
   );
 });
 
-test("short metronome report uses the requested break wording", () => {
+test("short Metronome reports use the pause wording and current break list", () => {
   const action: MetronomeActionResult = {
     id: "metronome",
     type: ACTION_TYPES.METRONOME,
     name: "Warm-up",
     status: "completed",
-    settings: createDefaultMetronomeSettings(),
+    settings: runtimeSettings,
     beatCount: 12,
     breakRecords: [
       {
@@ -64,18 +86,20 @@ test("short metronome report uses the requested break wording", () => {
         beat: 6,
         bpm: 120,
         overLimit: false,
-        durationSeconds: null,
-        ended: "Active",
+        durationSeconds: 15,
+        scheduledDurationSeconds: 20,
+        ended: "Manuell fortgesetzt nach 15 Sekunden",
       },
     ],
     endReason: "manual",
+    endBpm: 120,
   };
   const report: SessionReport = { actions: [action], aborted: false };
 
   assert.match(buildShortReportText(report), /\*\*Warm-up\*\*/);
   assert.match(
     buildShortReportText(report),
-    /Pausen gebraucht bei: 6 \(aktiv, 120 BPM\)/,
+    /Pausen gebraucht bei: 6 \(15s, 120 BPM\)/,
   );
   assert.equal(
     buildShortReportText({
@@ -86,88 +110,85 @@ test("short metronome report uses the requested break wording", () => {
   );
 });
 
-test("metronome report prioritizes stopwatch-derived ends", () => {
-  const runtimeSettings = {
-    initialBpm: 120,
-    accentuate: false,
-    accentRepeat: 10,
-    increaseTempo: false,
-    increaseBy: 1,
-    increaseAfter: 10,
-    maximum: "none",
-    maximumLimit: 180,
-    decreaseBy: 1,
-    decreaseAfter: 10,
-    breaks: "none",
-    breakCount: null,
-    breakSeconds: null,
-    breakSecondsRaw: "",
-    lockSettings: true,
-    lockBeats: 8,
-    sessionEndEnabled: true,
-    sessionEndBeats: 8,
-    derivedEndTotal: 8,
-    derivedEndSources: ["Dauer"],
-  } satisfies MetronomeActionResult["settings"];
-  const report: SessionReport = {
+test("short Metronome reports use resolved pause-formula values", () => {
+  const action: MetronomeActionResult = {
+    id: "metronome",
+    type: ACTION_TYPES.METRONOME,
+    name: "Warm-up",
+    status: "completed",
+    settings: {
+      ...runtimeSettings,
+      breaks: "limited",
+      breakCount: 2,
+      breakSecondsFormula: createNumericFormulaInput(12, 1, null),
+      breakSecondsRaw: "Aktuell BPM / 10",
+    },
+    beatCount: 8,
+    breakRecords: [],
+    endReason: "automatic",
+    formulaValues: [
+      {
+        field: "breakSeconds",
+        label: "Pausendauer",
+        expression: "Aktuell BPM / 10",
+        value: 12,
+        fallbackUsed: false,
+        clamped: false,
+      },
+    ],
+  };
+  const text = buildShortReportText({
+    actions: [action],
     aborted: false,
+  });
+
+  assert.match(text, /Pausen: Begrenzt: 2; Dauer 12s/);
+  assert.doesNotMatch(text, /Aktuell BPM/);
+});
+
+test("long reports include formula resolutions and automatic adjustments", () => {
+  const report: SessionReport = {
     actions: [
       {
         id: "metronome",
         type: ACTION_TYPES.METRONOME,
-        name: "Metronom",
+        name: "Lauf",
         status: "completed",
         settings: runtimeSettings,
         beatCount: 8,
-        derivedEnd: { total: 8, sources: ["Dauer"] },
         endReason: "automatic",
+        endBpm: 126,
+        formulaValues: [
+          {
+            field: "bpm",
+            label: "Starttempo",
+            expression: "120 [Min 20; Max 300]",
+            value: 120,
+            fallbackUsed: true,
+            clamped: true,
+          },
+        ],
       },
     ],
-  };
-
-  assert.match(
-    buildLongReportText(report),
-    /Ende: Aus Stoppuhr: Nach 8 Beats; Weiter gesperrt bis 8 Beats/,
-  );
-  assert.match(buildLongReportText(report), /Aus Stoppuhr: Dauer = 8 Beats/);
-});
-
-test("static stopwatch formulas report no bounds or dynamic fallback", () => {
-  const action: StopwatchActionResult = {
-    id: "stopwatch",
-    type: ACTION_TYPES.STOPWATCH,
-    name: "Feste Länge",
-    status: "completed",
-    settings: {
-      formula: "42",
-      rounding: "round",
-      roundingThreshold: 30,
-      min: 10,
-      max: null,
-    },
-    elapsedSeconds: 60,
-    formula: "42",
-    rounding: "round",
-    roundingThreshold: 30,
-    resultValid: false,
-    invalidReason: "Ungültiges Ergebnis",
-    appliedBeats: 10,
-  };
-  const sections = getActionReportSections({
-    actions: [action],
     aborted: false,
-  });
-  const text = buildLongReportText({ actions: [action], aborted: false });
+  };
+  const text = buildLongReportText(report);
+  const sections = getActionReportSections(report);
 
+  assert.match(text, /\*\*Metronom - Lauf\*\*/);
+  assert.match(text, /Formel · Starttempo: 120 \[Min 20; Max 300\] = 120/);
+  assert.match(text, /Ersatzwert verwendet, begrenzt/);
+  assert.match(text, /End-BPM: 126/);
   assert.ok(
     sections[0]?.details.some(
-      (detail) => detail.label === "Grenzen" && detail.value === "Keine (statische Zahl)",
+      (detail) =>
+        detail.label === "Formel · Starttempo" &&
+        detail.value.includes("begrenzt"),
     ),
   );
-  assert.doesNotMatch(text, /Ersatzwert|Mindestwert 10 Beats/);
 });
 
-test("short reports retain configured parameters for actions not started", () => {
+test("short reports use configured values for actions that have not started", () => {
   const report: SessionReport = {
     aborted: true,
     actions: [
@@ -176,17 +197,14 @@ test("short reports retain configured parameters for actions not started", () =>
         type: ACTION_TYPES.SECONDS,
         name: "Wartezeit",
         status: "not-started",
-        settings: { seconds: 12 },
+        settings: { seconds: createNumericFormulaInput(12, 1, 600) },
       },
     ],
   };
 
-  assert.equal(
-    buildShortReportText(report),
-    "**Wartezeit**\nStatus: Nicht gestartet; Konfiguriert: 12s",
-  );
+  assert.equal(buildShortReportText(report), "**Wartezeit**\nDauer: 12 Sekunden");
   assert.equal(
     buildLongReportText(report),
-    "**Sekunden - Wartezeit**\nStatus: Nicht gestartet",
+    "**Sekunden - Wartezeit**\nStatus: Nicht gestartet\nDauer: 12 Sekunden",
   );
 });

@@ -77,12 +77,11 @@ test("action type dropdown creates a draft and returns to its disabled default",
 
   assert.equal(wrapper.get<HTMLSelectElement>("#new-action-type").element.value, "");
   assert.equal(wrapper.get("#action-editor-title").text(), "Sekunden-Einstellungen");
-  await wrapper.get("#action-seconds").setValue("15");
-  const saveButton = wrapper
-    .findAll("button")
-    .find((button) => button.text() === "Bestätigen");
-  assert.ok(saveButton);
-  await saveButton.trigger("click");
+  await wrapper.get("#action-seconds").trigger("click");
+  const formulaDialog = wrapper.get('[role="dialog"]');
+  await formulaDialog.get(".formula-node--static input").setValue("15");
+  await formulaDialog.get(".formula-dialog-actions .primary-button").trigger("click");
+  await wrapper.get(".action-editor-actions .primary-button").trigger("click");
 
   assert.match(wrapper.get("#actions-table").text(), /Sekunden.*15 Sekunden/);
   wrapper.unmount();
@@ -117,7 +116,7 @@ test("invalid imported action rows preserve defaults while applying envelope opt
     {
       type: ACTION_TYPES.SECONDS,
       name: "Ungültige Sekunden",
-      settings: {},
+      settings: { seconds: "keine Zahl" },
     },
   ];
   const parameters = new URLSearchParams();

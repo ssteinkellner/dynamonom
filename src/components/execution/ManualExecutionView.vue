@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from "vue";
 import type { ManualAction } from "../../action-model.ts";
 import { useMetronomeStore } from "../../stores/metronome.ts";
 import ActionExecutionFrame from "./ActionExecutionFrame.vue";
@@ -6,6 +7,17 @@ import ActionExecutionFrame from "./ActionExecutionFrame.vue";
 defineProps<{ action: ManualAction }>();
 const emit = defineEmits<{ abort: [] }>();
 const store = useMetronomeStore();
+
+const limitSeconds = computed(() => {
+  const result = store.currentActionResult;
+  if (result?.type !== "manuell") {
+    return null;
+  }
+  const configured = result.settings.limitSeconds;
+  return typeof configured === "number"
+    ? configured
+    : result.limitSeconds ?? null;
+});
 
 function formatTime(totalSeconds: number): string {
   const minutes = Math.floor(totalSeconds / 60);
@@ -30,9 +42,9 @@ function abort(): void {
     <p class="action-options-summary">
       Limit:
       {{
-        action.settings.limitSeconds === null
+        limitSeconds === null
           ? "Ohne Zeitlimit"
-          : `${action.settings.limitSeconds} Sekunden`
+          : `${limitSeconds} Sekunden`
       }}
     </p>
     <div class="button-row action-execution-actions">

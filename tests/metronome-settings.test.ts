@@ -1,15 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { ACTION_TYPES } from "../src/action-model.ts";
+import { createDefaultMetronomeSettings, validateMetronomeActionSettings } from "../src/models/metronome-settings.ts";
 import {
-  createDefaultMetronomeSettings,
-  getStopwatchSourcesBeforeMetronome,
-  parseBreakInput,
-  validateMetronomeActionSettings,
-} from "../src/models/metronome-settings.ts";
-import type { Action } from "../src/action-model.ts";
+  createNumericFormulaInput,
+  createStaticFormulaNode,
+} from "../src/formula-model.ts";
 
-test("default metronome settings pass runtime validation unchanged", () => {
+test("default metronome settings pass validation and expose formula inputs", () => {
   const defaults = createDefaultMetronomeSettings();
   const validation = validateMetronomeActionSettings(defaults, 0, []);
 
@@ -18,87 +15,77 @@ test("default metronome settings pass runtime validation unchanged", () => {
     throw new Error("Expected default metronome settings to be valid.");
   }
   assert.deepEqual(validation.settings, defaults);
+  assert.equal(defaults.bpm.expression?.type, "static");
+  assert.equal(defaults.bpm.min?.type, "static");
+  assert.equal(defaults.breakCount, null);
+  assert.equal(defaults.breakSeconds, null);
 });
 
-test("active maximum and pause settings are validated", () => {
-  const invalidMaximum = validateMetronomeActionSettings(
+test("legacy numeric settings normalize to formula inputs", () => {
+  const defaults = createDefaultMetronomeSettings();
+  const validation = validateMetronomeActionSettings(
     {
-      ...createDefaultMetronomeSettings(),
-      maximum: "stick",
-      maximumLimitStick: 120,
+      ...defaults,
+      bpm: 132,
+      accentRepeat: "8",
+      breakCount: 3,
+      breakSeconds: 12,
     },
     0,
     [],
   );
-  const invalidPause = validateMetronomeActionSettings(
+
+  assert.equal(validation.valid, true);
+  if (!validation.valid) {
+    throw new Error("Expected legacy numeric values to normalize.");
+  }
+  assert.equal(validation.settings.bpm.expression?.type, "static");
+  if (validation.settings.bpm.expression?.type !== "static") {
+    throw new Error("Expected the BPM formula to contain a static node.");
+  }
+  assert.equal(validation.settings.bpm.expression.value, 132);
+  assert.equal(validation.settings.accentRepeat.expression?.type, "static");
+  assert.equal(validation.settings.breakSeconds?.expression?.type, "static");
+});
+
+test("custom formula bounds reject an impossible static range", () => {
+  const defaults = createDefaultMetronomeSettings();
+  const validation = validateMetronomeActionSettings(
     {
-      ...createDefaultMetronomeSettings(),
-      breaks: "limited",
-      breakSeconds: "BPM-120",
+      ...defaults,
+      bpm: {
+        ...createNumericFormulaInput(120, 20, 300),
+        min: createStaticFormulaNode(150),
+        max: createStaticFormulaNode(100),
+      },
     },
     0,
     [],
   );
 
-  assert.equal(invalidMaximum.valid, false);
-  assert.ok(invalidMaximum.errors.some((error) => error.field === "maximumLimitStick"));
-  assert.equal(invalidPause.valid, false);
-  assert.ok(invalidPause.errors.some((error) => error.field === "breakSeconds"));
+  assert.equal(validation.valid, false);
+  if (validation.valid) {
+    throw new Error("Expected contradictory formula bounds to be rejected.");
+  }
+  assert.ok(validation.errors.some((error) => error.field === "bpm"));
 });
 
-test("break expressions parse into typed inputs", () => {
-  assert.deepEqual(parseBreakInput("15"), {
-    valid: true,
-    value: { type: "seconds", seconds: 15 },
-  });
-  assert.deepEqual(parseBreakInput("BPM/2"), {
-    valid: true,
-    value: { type: "expression", operator: "/", operand: 2 },
-  });
-  assert.equal(parseBreakInput("BPM-120").valid, true);
-});
+test("optional pause formula remains unsettable and malformed formulas fail", () => {
+  const defaults = createDefaultMetronomeSettings();
+  const valid = validateMetronomeActionSettings(defaults, 0, []);
+  const invalid = validateMetronomeActionSettings(
+    {
+      ...defaults,
+      breakSeconds: { expression: { type: "unknown" }, min: null, max: null },
+    },
+    0,
+    [],
+  );
 
-test("stopwatch-derived limits reset after each metronome action", () => {
-  const actions = [
-    {
-      id: "first-stopwatch",
-      type: ACTION_TYPES.STOPWATCH,
-      name: "Vorbereitung",
-      settings: {
-        formula: "sekunden",
-        rounding: "floor",
-        roundingThreshold: null,
-        min: 10,
-        max: null,
-      },
-    },
-    {
-      id: "first-metronome",
-      type: ACTION_TYPES.METRONOME,
-      name: "Erster Lauf",
-      settings: createDefaultMetronomeSettings(),
-    },
-    {
-      id: "second-stopwatch",
-      type: ACTION_TYPES.STOPWATCH,
-      name: "Zusatz",
-      settings: {
-        formula: "sekunden",
-        rounding: "floor",
-        roundingThreshold: null,
-        min: 10,
-        max: null,
-      },
-    },
-    {
-      id: "second-metronome",
-      type: ACTION_TYPES.METRONOME,
-      name: "Zweiter Lauf",
-      settings: createDefaultMetronomeSettings(),
-    },
-  ] satisfies Action[];
-
-  assert.deepEqual(getStopwatchSourcesBeforeMetronome(actions, 3), [
-    { id: "second-stopwatch", name: "Zusatz" },
-  ]);
+  assert.equal(valid.valid, true);
+  assert.equal(defaults.breakSeconds, null);
+  assert.equal(invalid.valid, false);
+  if (!invalid.valid) {
+    assert.ok(invalid.errors.some((error) => error.field === "breakSeconds"));
+  }
 });

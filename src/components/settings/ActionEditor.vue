@@ -10,9 +10,7 @@ import type {
   MetronomeSettings,
   ManualAction,
   SecondsAction,
-  StopwatchAction,
 } from "../../action-model.ts";
-import type { StopwatchActionSource } from "../../models/metronome-settings.ts";
 import ManualActionSettings from "./ManualActionSettings.vue";
 import MetronomeActionSettings from "./MetronomeActionSettings.vue";
 import SecondsActionSettings from "./SecondsActionSettings.vue";
@@ -21,7 +19,7 @@ import StopwatchActionSettings from "./StopwatchActionSettings.vue";
 const props = defineProps<{
   draft: Action;
   errors: readonly ActionValidationError[];
-  derivedSources: readonly StopwatchActionSource[];
+  previousActions: readonly Action[];
 }>();
 
 const emit = defineEmits<{
@@ -65,12 +63,6 @@ function updateSecondsSettings(settings: SecondsAction["settings"]): void {
   }
 }
 
-function updateStopwatchSettings(settings: StopwatchAction["settings"]): void {
-  if (props.draft.type === ACTION_TYPES.STOPWATCH) {
-    emit("update:draft", { ...props.draft, settings });
-  }
-}
-
 function updateManualSettings(settings: ManualAction["settings"]): void {
   if (props.draft.type === ACTION_TYPES.MANUAL) {
     emit("update:draft", { ...props.draft, settings });
@@ -99,27 +91,30 @@ function updateManualSettings(settings: ManualAction["settings"]): void {
 
     <MetronomeActionSettings
       v-if="draft.type === ACTION_TYPES.METRONOME"
+      :action="draft"
       :settings="draft.settings"
       :errors="settingsErrors"
-      :derived-sources="derivedSources"
+      :previous-actions="previousActions"
       @update:settings="updateMetronomeSettings"
     />
     <SecondsActionSettings
       v-else-if="draft.type === ACTION_TYPES.SECONDS"
+      :action="draft"
       :settings="draft.settings"
       :errors="settingsErrors"
+      :previous-actions="previousActions"
       @update:settings="updateSecondsSettings"
     />
     <StopwatchActionSettings
       v-else-if="draft.type === ACTION_TYPES.STOPWATCH"
-      :settings="draft.settings"
-      :errors="settingsErrors"
-      @update:settings="updateStopwatchSettings"
+      :action="draft"
     />
     <ManualActionSettings
       v-else
+      :action="draft"
       :settings="draft.settings"
       :errors="settingsErrors"
+      :previous-actions="previousActions"
       @update:settings="updateManualSettings"
     />
 

@@ -103,14 +103,22 @@ test("valid rows install unless an indexed action has validation errors", () => 
 
   const invalid = validateImportedActions([
     metronome,
-    { type: ACTION_TYPES.SECONDS, name: "Sekunden", settings: {} },
+    {
+      type: ACTION_TYPES.SECONDS,
+      name: "Sekunden",
+      settings: { seconds: "keine Zahl" },
+    },
   ]);
   assert.equal(invalid.valid, false);
   assert.equal(invalid.actionsToInstall, null);
   assert.deepEqual(
     getSettingsImportIssues(invalid.errors, [
       metronome,
-      { type: ACTION_TYPES.SECONDS, name: "Sekunden", settings: {} },
+      {
+        type: ACTION_TYPES.SECONDS,
+        name: "Sekunden",
+        settings: { seconds: "keine Zahl" },
+      },
     ]).map((issue) => [issue.actionIndex, issue.fieldLabel]),
     [[2, "Dauer in Sekunden"]],
   );

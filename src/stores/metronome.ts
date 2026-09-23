@@ -11,38 +11,31 @@ import type {
   Action,
   ActionType,
   MetronomeAction,
-  MetronomeSettings,
   NumericSetting,
-  SecondsAction,
-  StopwatchAction,
 } from "../action-model.ts";
-import {
-  evaluatePreTimerFormula,
-  getPreTimerFormulaVariables,
-  isStaticPreTimerFormula,
-} from "../pre-timer-model.ts";
-import type { PreTimerFormulaVariables } from "../pre-timer-model.ts";
 import type { MetronomePreset } from "../presets.ts";
 import {
   createDefaultMetronomeSettings,
-  getMetronomeMaximumLimit,
-  getStopwatchSourcesBeforeMetronome,
-  parseBreakInput,
   validateMetronomeActionSettings,
 } from "../models/metronome-settings.ts";
-import type {
-  BreakInput,
-  StopwatchActionSource,
-} from "../models/metronome-settings.ts";
+import {
+  createFormulaValueRecord,
+  getFormulaFieldLabel,
+  getActionRuntimeMetronomeSettings,
+  resolveActionFormulaValues,
+  resolvePauseDuration,
+} from "../models/action-formulas.ts";
+import type { FormulaRuntimeAction } from "../formula-engine.ts";
+import { findFormulaDependencyCycles } from "../models/formula-dependencies.ts";
 import type {
   ActionResult,
   ActiveBreak,
   BreakRecord,
+  FormulaValueRecord,
   MetronomeActionResult,
   RuntimeMetronomeSettings,
   SessionPhase,
   SessionReport,
-  StopwatchActionResult,
   TempoDirection,
 } from "../models/session.ts";
 import {
@@ -90,7 +83,7 @@ export const useMetronomeStore = defineStore("metronome", () => {
   const secondsRemaining = ref(0);
   const settings = shallowRef<RuntimeMetronomeSettings | null>(null);
   const beatCount = ref(0);
-  const currentBpm = ref(createDefaultMetronomeSettings().bpm);
+  const currentBpm = ref<number>(120);
   const direction = ref<TempoDirection>("up");
   const tempoCounter = ref(0);
   const stuckAtMaximum = ref(false);
@@ -208,6 +201,14 @@ export const useMetronomeStore = defineStore("metronome", () => {
     if (nextActions.length === actionDefinitions.value.length) {
       return false;
     }
+    const validation = validateDefinitions(nextActions);
+    if (!validation.valid) {
+      actionError.value = formatActionErrors(
+        validation.errors,
+        nextActions,
+      );
+      return false;
+    }
     actionDefinitions.value = nextActions;
     actionError.value = "";
     return true;
@@ -232,7 +233,16 @@ export const useMetronomeStore = defineStore("metronome", () => {
       return false;
     }
     nextActions.splice(targetIndex, 0, action);
+    const validation = validateDefinitions(nextActions);
+    if (!validation.valid) {
+      actionError.value = formatActionErrors(
+        validation.errors,
+        nextActions,
+      );
+      return false;
+    }
     actionDefinitions.value = nextActions;
+    actionError.value = "";
     return true;
   }
 
@@ -250,6 +260,24 @@ export const useMetronomeStore = defineStore("metronome", () => {
       return false;
     }
     actionDefinitions.value = validation.actions;
+    const cycles = findFormulaDependencyCycles(validation.actions);
+    if (cycles.length > 0) {
+      actionError.value = cycles
+        .map(
+          (cycle) =>
+            `${cycle.actionName}: Zirkelbezug zwischen ${cycle.fields.join(" → ")}.`,
+        )
+        .join(" ");
+      return false;
+    }
+    const firstAction = validation.actions[0];
+    if (firstAction) {
+      const initialResolution = resolveActionFormulaValues(firstAction, []);
+      if (!initialResolution.valid) {
+        actionError.value = `${firstAction.name} — ${getFormulaFieldLabel(initialResolution.field)}: ${initialResolution.error}`;
+        return false;
+      }
+    }
 
     try {
       await engine.ensureAudioReady();
@@ -350,29 +378,22 @@ export const useMetronomeStore = defineStore("metronome", () => {
         result.beatCount = beatCount.value;
         result.breakRecords = cloneBreakRecords(breakRecords.value);
         result.endReason = "aborted";
+        result.endBpm = currentBpm.value;
         break;
       case ACTION_TYPES.SECONDS:
         if (action.type !== ACTION_TYPES.SECONDS) {
           return false;
         }
-        result.settings = cloneValue(action.settings);
-        result.configuredSeconds = action.settings.seconds;
         break;
       case ACTION_TYPES.STOPWATCH:
         if (action.type !== ACTION_TYPES.STOPWATCH) {
           return false;
         }
-        result.settings = cloneValue(action.settings);
-        result.formula = action.settings.formula;
-        result.rounding = action.settings.rounding;
-        result.roundingThreshold = action.settings.roundingThreshold;
         break;
       case ACTION_TYPES.MANUAL:
         if (action.type !== ACTION_TYPES.MANUAL) {
           return false;
         }
-        result.settings = cloneValue(action.settings);
-        result.limitSeconds = action.settings.limitSeconds;
         break;
     }
     result.status = "active-aborted";
@@ -467,8 +488,18 @@ export const useMetronomeStore = defineStore("metronome", () => {
       throw new Error("The active action sequence is incomplete.");
     }
 
+    const resolved = resolveActionFormulaValues(
+      action,
+      actionResults.value.slice(0, nextIndex),
+    );
+    if (!resolved.valid) {
+      handleActionInitializationError(action, result, resolved.field, resolved.error);
+      return;
+    }
+
     result.status = "active";
     result.startedAt = engine.now();
+    result.formulaValues = [...resolved.formulaValues];
     activeActionStartedAt.value = result.startedAt;
     activeElapsedSeconds.value = 0;
     secondsRemaining.value = 0;
@@ -478,19 +509,54 @@ export const useMetronomeStore = defineStore("metronome", () => {
         if (result.type !== ACTION_TYPES.METRONOME) {
           throw new Error("Metronome action results must match their action.");
         }
-        startMetronomeAction(action, result);
+        startMetronomeAction(
+          action,
+          result,
+          resolved.values,
+          actionResults.value.slice(0, nextIndex),
+        );
         break;
       case ACTION_TYPES.SECONDS:
       case ACTION_TYPES.STOPWATCH:
       case ACTION_TYPES.MANUAL:
-        startTimerAction(action);
+        startTimerAction(action, result, resolved.values);
         break;
     }
   }
 
-  function startTimerAction(
-    action: Exclude<Action, MetronomeAction>,
+  function handleActionInitializationError(
+    action: Action,
+    result: ActionResult,
+    field: string,
+    error: string,
   ): void {
+    const message = `${action.name} — ${getFormulaFieldLabel(field)}: ${error}`;
+    result.initializationError = message;
+    settingsError.value = message;
+    executionMessage.value = message;
+
+    if (currentActionIndex.value === 0) {
+      cancelSessionTimers();
+      sessionToken.value += 1;
+      phase.value = "idle";
+      actionPlan.value = [];
+      actionResults.value = [];
+      currentActionIndex.value = -1;
+      activeActionStartedAt.value = null;
+      settings.value = null;
+      return;
+    }
+    finalizeActionSequence(false);
+  }
+
+  function startTimerAction(
+    action: Action,
+    result: ActionResult,
+    resolvedValues: Readonly<Record<string, number>>,
+  ): void {
+    if (action.type === ACTION_TYPES.METRONOME) {
+      throw new Error("Metronome actions cannot use the timer execution view.");
+    }
     settings.value = null;
     activeBreak.value = null;
     executionMessage.value = "";
@@ -500,14 +566,42 @@ export const useMetronomeStore = defineStore("metronome", () => {
         : action.type === ACTION_TYPES.STOPWATCH
           ? "action-stoppuhr"
           : "action-manuell";
+
+    let secondsDuration: number | null = null;
+    if (action.type === ACTION_TYPES.SECONDS) {
+      if (result.type !== ACTION_TYPES.SECONDS) {
+        throw new Error("Seconds action results must match their action.");
+      }
+      const seconds = resolvedValues.seconds;
+      if (typeof seconds !== "number") {
+        throw new Error("The resolved Seconds duration is unavailable.");
+      }
+      result.settings = { seconds };
+      result.configuredSeconds = seconds;
+      secondsDuration = seconds;
+    } else if (action.type === ACTION_TYPES.STOPWATCH) {
+      if (result.type !== ACTION_TYPES.STOPWATCH) {
+        throw new Error("Stopwatch action results must match their action.");
+      }
+      result.settings = {};
+    } else {
+      if (result.type !== ACTION_TYPES.MANUAL) {
+        throw new Error("Manual action results must match their action.");
+      }
+      const limitSeconds =
+        action.settings.limitSeconds === null
+          ? null
+          : resolvedValues.limitSeconds;
+      result.settings = { limitSeconds: limitSeconds ?? null };
+      result.limitSeconds = limitSeconds ?? null;
+    }
     updateTimerDisplay(engine.now());
     engine.scheduleInterval("action-display", sessionToken.value, 250);
-
-    if (action.type === ACTION_TYPES.SECONDS) {
+    if (secondsDuration !== null) {
       engine.scheduleTimeout(
         "action-deadline",
         sessionToken.value,
-        action.settings.seconds * 1000,
+        secondsDuration * 1000,
       );
     }
   }
@@ -536,16 +630,22 @@ export const useMetronomeStore = defineStore("metronome", () => {
 
   function getActiveSecondsRemaining(now = engine.now()): number {
     const action = currentAction.value;
+    const result = currentActionResult.value;
     if (
       action?.type !== ACTION_TYPES.SECONDS ||
+      result?.type !== ACTION_TYPES.SECONDS ||
       activeActionStartedAt.value === null
     ) {
       return 0;
     }
+    const configuredSeconds =
+      typeof result.settings.seconds === "number"
+        ? result.settings.seconds
+        : result.configuredSeconds ?? 0;
     return Math.max(
       0,
       Math.ceil(
-        (activeActionStartedAt.value + action.settings.seconds * 1000 - now) /
+        (activeActionStartedAt.value + configuredSeconds * 1000 - now) /
           1000,
       ),
     );
@@ -578,19 +678,23 @@ export const useMetronomeStore = defineStore("metronome", () => {
       result.type === ACTION_TYPES.SECONDS
     ) {
       result.completedBy = completedBy;
-      result.configuredSeconds = action.settings.seconds;
+      result.configuredSeconds =
+        typeof result.settings.seconds === "number"
+          ? result.settings.seconds
+          : result.configuredSeconds;
     } else if (
       action.type === ACTION_TYPES.MANUAL &&
       result.type === ACTION_TYPES.MANUAL
     ) {
       result.completedBy = "manual";
-      result.limitSeconds = action.settings.limitSeconds;
+      result.limitSeconds = result.settings.limitSeconds === null
+        ? null
+        : result.limitSeconds ?? null;
     } else if (
       action.type === ACTION_TYPES.STOPWATCH &&
       result.type === ACTION_TYPES.STOPWATCH
     ) {
       result.completedBy = "manual";
-      completeStopwatchResult(action, result, elapsedSeconds);
     } else {
       throw new Error("The active action and result types do not match.");
     }
@@ -598,62 +702,18 @@ export const useMetronomeStore = defineStore("metronome", () => {
     startNextAction();
   }
 
-  function completeStopwatchResult(
-    action: StopwatchAction,
-    result: StopwatchActionResult,
-    elapsedSeconds: number,
-  ): void {
-    const { settings: stopwatchSettings } = action;
-    const variables = getPreTimerFormulaVariables(
-      elapsedSeconds,
-      stopwatchSettings.rounding,
-      stopwatchSettings.roundingThreshold,
-    );
-    const evaluation = evaluatePreTimerFormula(
-      stopwatchSettings.formula,
-      variables,
-    );
-    result.formula = stopwatchSettings.formula;
-    result.rounding = stopwatchSettings.rounding;
-    result.roundingThreshold = stopwatchSettings.roundingThreshold;
-    result.variables = variables;
-    result.substitution = evaluation.valid ? evaluation.substitution : null;
-    result.resultValid = evaluation.valid;
-    result.formulaResult = evaluation.valid ? evaluation.result : null;
-    result.invalidReason = evaluation.valid ? null : evaluation.error;
-
-    if (isStaticPreTimerFormula(stopwatchSettings.formula)) {
-      result.appliedBeats = evaluation.valid
-        ? evaluation.result
-        : stopwatchSettings.min;
-      return;
-    }
-    if (!evaluation.valid) {
-      result.appliedBeats = stopwatchSettings.min;
-      return;
-    }
-    result.appliedBeats = Math.max(
-      stopwatchSettings.min,
-      stopwatchSettings.max === null
-        ? evaluation.result
-        : Math.min(stopwatchSettings.max, evaluation.result),
-    );
-    result.clamped = result.appliedBeats !== evaluation.result;
-  }
-
   function startMetronomeAction(
     action: MetronomeAction,
     result: MetronomeActionResult,
+    resolvedValues: Readonly<Record<string, number>>,
+    previousResults: readonly ActionResult[],
   ): void {
-    const derived = getDerivedStopwatchEnd(currentActionIndex.value);
-    const runtimeSettings = createRuntimeMetronomeSettings(
-      action.settings,
-      derived,
+    const runtimeSettings = getActionRuntimeMetronomeSettings(
+      action,
+      resolvedValues,
+      previousResults,
     );
     result.settings = cloneValue(runtimeSettings);
-    result.derivedEnd = derived
-      ? { total: derived.total, sources: derived.sources.map((source) => source.name) }
-      : null;
     settings.value = runtimeSettings;
     phase.value = "countdown";
     beatCount.value = 0;
@@ -672,89 +732,6 @@ export const useMetronomeStore = defineStore("metronome", () => {
       return;
     }
     scheduleCountdownStep();
-  }
-
-  function createRuntimeMetronomeSettings(
-    configured: MetronomeSettings,
-    derived: { total: number; sources: StopwatchActionSource[] } | null,
-  ): RuntimeMetronomeSettings {
-    let breakSeconds: BreakInput | null = null;
-    if (configured.breaks === "limited" && configured.breakSeconds) {
-      const parsed = parseBreakInput(configured.breakSeconds);
-      if (!parsed.valid) {
-        throw new Error(parsed.error);
-      }
-      breakSeconds = parsed.value;
-    }
-    const total = derived?.total ?? null;
-    return {
-      initialBpm: configured.bpm,
-      accentuate: configured.accentuate,
-      accentRepeat: configured.accentRepeat,
-      increaseTempo: configured.increaseTempo,
-      increaseBy: configured.increaseBy,
-      increaseAfter: configured.increaseAfter,
-      maximum: configured.maximum,
-      maximumLimit: getMetronomeMaximumLimit(configured),
-      decreaseBy: configured.decreaseBy,
-      decreaseAfter: configured.decreaseAfter,
-      breaks: configured.breaks,
-      breakCount: configured.breaks === "limited" ? configured.breakCount : null,
-      breakSeconds,
-      breakSecondsRaw:
-        configured.breaks === "limited" ? configured.breakSeconds : "",
-      lockSettings: derived ? true : configured.lockSettings,
-      lockBeats: derived ? derived.total : configured.lockBeats,
-      sessionEndEnabled: derived ? true : configured.sessionEndEnabled,
-      sessionEndBeats: derived ? derived.total : configured.sessionEndBeats,
-      derivedEndTotal: total,
-      derivedEndSources: derived?.sources.map((source) => source.name) ?? [],
-    };
-  }
-
-  function getDerivedStopwatchEnd(
-    metronomeIndex: number,
-  ): {
-    total: number;
-    sources: (StopwatchActionSource & { appliedBeats: number })[];
-  } | null {
-    const sources = getStopwatchSourcesBeforeMetronome(
-      actionPlan.value,
-      metronomeIndex,
-    );
-    if (sources.length === 0) {
-      return null;
-    }
-
-    const completedSources = sources.map((source) => {
-      const result = actionResults.value.find(
-        (entry) => entry.id === source.id,
-      );
-      if (!result || result.type !== ACTION_TYPES.STOPWATCH) {
-        throw new Error(
-          "A preceding Stoppuhr action has no valid applied beat result.",
-        );
-      }
-      const appliedBeats = result.appliedBeats;
-      if (
-        !source.id ||
-        typeof appliedBeats !== "number" ||
-        !Number.isSafeInteger(appliedBeats) ||
-        appliedBeats < 1
-      ) {
-        throw new Error(
-          "A preceding Stoppuhr action has no valid applied beat result.",
-        );
-      }
-      return { ...source, appliedBeats };
-    });
-    return {
-      total: completedSources.reduce(
-        (total, source) => total + source.appliedBeats,
-        0,
-      ),
-      sources: completedSources,
-    };
   }
 
   function scheduleCountdownStep(): void {
@@ -891,6 +868,14 @@ export const useMetronomeStore = defineStore("metronome", () => {
     if (!runtimeSettings) {
       return;
     }
+    const action = currentAction.value;
+    const result = currentActionResult.value;
+    if (
+      action?.type !== ACTION_TYPES.METRONOME ||
+      result?.type !== ACTION_TYPES.METRONOME
+    ) {
+      throw new Error("Pause formulas require an active Metronom action.");
+    }
 
     const sessionNumber = breakSessions.value + 1;
     breakSessions.value = sessionNumber;
@@ -904,25 +889,60 @@ export const useMetronomeStore = defineStore("metronome", () => {
       bpm: currentBpm.value,
       overLimit: breakCount !== null && sessionNumber > breakCount,
       durationSeconds: null,
+      scheduledDurationSeconds: null,
       ended: "Active",
     };
-    breakRecords.value.push(record);
 
     let durationSeconds: number | null = null;
-    if (runtimeSettings.breakSeconds) {
-      durationSeconds = evaluateBreakDuration(
-        runtimeSettings.breakSeconds,
+    if (runtimeSettings.breakSecondsFormula) {
+      const currentValues = Object.fromEntries(
+        (result.formulaValues ?? []).map(({ field, value }) => [field, value]),
+      );
+      const evaluation = resolvePauseDuration(
+        action,
+        runtimeSettings.breakSecondsFormula,
+        actionResults.value.slice(0, currentActionIndex.value),
+        currentValues,
         currentBpm.value,
       );
-      if (durationSeconds === null) {
-        breakRecords.value.pop();
+      if (!evaluation.valid) {
         breakSessions.value -= 1;
-        executionMessage.value =
-          "Dieser Pausenausdruck ist beim aktuellen BPM nicht positiv; die Pause wurde nicht gestartet.";
+        executionMessage.value = `Pausendauer konnte nicht berechnet werden: ${evaluation.error}`;
         return;
       }
+      durationSeconds = evaluation.value;
+      record.scheduledDurationSeconds = durationSeconds;
+      record.formulaFallbackUsed = evaluation.fallbackUsed;
+      record.formulaClamped = evaluation.clamped;
+      const previousActions: FormulaRuntimeAction[] = actionResults.value
+        .slice(0, currentActionIndex.value)
+        .filter((previous) => previous.status === "completed")
+        .map((previous) => ({
+          id: previous.id,
+          type: previous.type,
+          name: previous.name,
+          elapsedSeconds: previous.elapsedSeconds,
+          endBpm:
+            previous.type === ACTION_TYPES.METRONOME
+              ? previous.endBpm
+              : undefined,
+        }));
+      const formulaValue = createFormulaValueRecord(
+        action,
+        "breakSeconds",
+        runtimeSettings.breakSecondsFormula,
+        evaluation,
+        previousActions,
+      );
+      result.formulaValues = [
+        ...(result.formulaValues ?? []).filter(
+          (entry) => entry.field !== "breakSeconds",
+        ),
+        formulaValue,
+      ];
     }
 
+    breakRecords.value.push(record);
     executionMessage.value = "";
     engine.cancel("beat");
     phase.value = "paused";
@@ -1059,29 +1079,6 @@ export const useMetronomeStore = defineStore("metronome", () => {
     scheduleNextBeat(now);
   }
 
-  function evaluateBreakDuration(
-    parsedInput: BreakInput,
-    bpm: number,
-  ): number | null {
-    let seconds: number;
-    if (parsedInput.type === "seconds") {
-      seconds = parsedInput.seconds;
-    } else if (parsedInput.operator === "+") {
-      seconds = bpm + parsedInput.operand;
-    } else if (parsedInput.operator === "-") {
-      seconds = bpm - parsedInput.operand;
-    } else if (parsedInput.operator === "*") {
-      seconds = bpm * parsedInput.operand;
-    } else {
-      seconds = bpm / parsedInput.operand;
-    }
-    if (!Number.isFinite(seconds) || seconds <= 0) {
-      return null;
-    }
-    const roundedSeconds = Math.round(seconds);
-    return roundedSeconds > 0 ? roundedSeconds : null;
-  }
-
   function finalizeMetronomeAction(
     endReason: "automatic" | "manual",
   ): void {
@@ -1095,10 +1092,12 @@ export const useMetronomeStore = defineStore("metronome", () => {
       return;
     }
     result.status = "completed";
+    result.elapsedSeconds = getActiveActionElapsedSeconds();
     result.settings = cloneValue(settings.value);
     result.beatCount = beatCount.value;
     result.breakRecords = cloneBreakRecords(breakRecords.value);
     result.endReason = endReason;
+    result.endBpm = currentBpm.value;
 
     cancelSessionTimers();
     sessionToken.value += 1;

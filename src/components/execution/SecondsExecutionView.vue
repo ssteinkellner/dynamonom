@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from "vue";
 import type { SecondsAction } from "../../action-model.ts";
 import { useMetronomeStore } from "../../stores/metronome.ts";
 import ActionExecutionFrame from "./ActionExecutionFrame.vue";
@@ -6,6 +7,16 @@ import ActionExecutionFrame from "./ActionExecutionFrame.vue";
 defineProps<{ action: SecondsAction }>();
 const emit = defineEmits<{ abort: [] }>();
 const store = useMetronomeStore();
+
+const configuredSeconds = computed(() => {
+  const result = store.currentActionResult;
+  if (result?.type !== "sekunden") {
+    return 0;
+  }
+  return typeof result.settings.seconds === "number"
+    ? result.settings.seconds
+    : result.configuredSeconds ?? 0;
+});
 
 function formatTime(totalSeconds: number): string {
   const minutes = Math.floor(totalSeconds / 60);
@@ -39,7 +50,7 @@ function abort(): void {
     <strong class="action-clock">{{ formatTime(store.secondsRemaining) }}</strong>
     <p class="beat-count">
       {{ formatTime(store.activeElapsedSeconds) }} von
-      {{ formatTime(action.settings.seconds) }}
+      {{ formatTime(configuredSeconds) }}
     </p>
     <div class="button-row action-execution-actions">
       <button class="danger-button" type="button" @click="abort">

@@ -4,7 +4,13 @@ import assert from "node:assert/strict";
 import { createPinia, setActivePinia } from "pinia";
 import { afterEach, beforeEach, test, vi } from "vitest";
 import { ACTION_TYPES } from "../src/action-model.ts";
-import type { Action } from "../src/action-model.ts";
+import type { Action, MetronomeAction } from "../src/action-model.ts";
+import {
+  createNumericFormulaInput,
+  type FormulaNode,
+  type FormulaMetric,
+} from "../src/formula-model.ts";
+import type { FormulaFallbackNode, FormulaReferenceNode } from "../src/formula-model.ts";
 import { createDefaultMetronomeSettings } from "../src/models/metronome-settings.ts";
 import { useMetronomeStore } from "../src/stores/metronome.ts";
 
@@ -40,6 +46,42 @@ class FakeAudioContext {
   }
 }
 
+function formula(value: number, min = 1, max: number | null = null) {
+  return createNumericFormulaInput(value, min, max);
+}
+
+function metronomeAction(
+  id: string,
+  settings: MetronomeAction["settings"] = createDefaultMetronomeSettings(),
+  name = id,
+): MetronomeAction {
+  return { id, type: ACTION_TYPES.METRONOME, name, settings };
+}
+
+function currentNode(property: string): FormulaNode {
+  return { id: `current-${property}`, type: "current", property };
+}
+
+function referenceNode(
+  actionId: string,
+  metric: FormulaMetric,
+): FormulaReferenceNode {
+  return {
+    id: `reference-${actionId}`,
+    type: "reference",
+    actionId,
+    metric,
+  };
+}
+
+function fallbackNode(
+  id: string,
+  input: FormulaNode,
+  fallback: number,
+): FormulaFallbackNode {
+  return { id, type: "fallback", input, fallback };
+}
+
 beforeEach(() => {
   setActivePinia(createPinia());
   vi.useFakeTimers();
@@ -64,14 +106,9 @@ test("seconds actions advance automatically and abort produces a partial report"
       id: "seconds",
       type: ACTION_TYPES.SECONDS,
       name: "Vorbereitung",
-      settings: { seconds: 1 },
+      settings: { seconds: formula(1, 1, 600) },
     },
-    {
-      id: "metronome",
-      type: ACTION_TYPES.METRONOME,
-      name: "Metronom",
-      settings: createDefaultMetronomeSettings(),
-    },
+    metronomeAction("metronome", createDefaultMetronomeSettings(), "Metronom"),
     {
       id: "manual",
       type: ACTION_TYPES.MANUAL,
@@ -93,6 +130,7 @@ test("seconds actions advance automatically and abort produces a partial report"
   }
   assert.equal(secondsResult.status, "completed");
   assert.equal(secondsResult.completedBy, "auto");
+  assert.equal(secondsResult.configuredSeconds, 1);
   assert.equal(store.currentAction?.type, ACTION_TYPES.METRONOME);
   assert.equal(store.phase, "countdown");
   assert.equal(store.abortSession(), true);
@@ -105,22 +143,18 @@ test("seconds actions advance automatically and abort produces a partial report"
 
 test("metronome countdown and automatic end advance to the next action", async () => {
   const store = useMetronomeStore();
+  const defaults = createDefaultMetronomeSettings();
   const metronomeSettings = {
-    ...createDefaultMetronomeSettings(),
+    ...defaults,
     increaseTempo: false,
     breaks: "none" as const,
     sessionEndEnabled: true,
-    sessionEndBeats: 2,
+    sessionEndBeats: formula(2),
     lockSettings: true,
-    lockBeats: 1,
+    lockBeats: formula(1),
   };
   const actions: Action[] = [
-    {
-      id: "metronome",
-      type: ACTION_TYPES.METRONOME,
-      name: "Metronom",
-      settings: metronomeSettings,
-    },
+    metronomeAction("metronome", metronomeSettings, "Metronom"),
     {
       id: "manual",
       type: ACTION_TYPES.MANUAL,
@@ -142,31 +176,37 @@ test("metronome countdown and automatic end advance to the next action", async (
   assert.equal(metronomeResult.status, "completed");
   assert.equal(metronomeResult.endReason, "automatic");
   assert.equal(metronomeResult.beatCount, 2);
+  assert.equal(metronomeResult.endBpm, 120);
   assert.equal(store.currentAction?.type, ACTION_TYPES.MANUAL);
   assert.equal(store.phase, "action-manuell");
 });
 
-test("stopwatch results determine the next metronome's end and lock", async () => {
+test("Stopwatch values affect a later Metronome only through explicit references", async () => {
   const store = useMetronomeStore();
+  const defaults = createDefaultMetronomeSettings();
+  const reference = formula(2, 1, null);
+  const referencedSettings = {
+    ...defaults,
+    increaseTempo: false,
+    breaks: "none" as const,
+    sessionEndEnabled: true,
+    sessionEndBeats: {
+      ...reference,
+      expression: fallbackNode(
+        "fallback-watch",
+        referenceNode("stopwatch", "seconds-absolute"),
+        2,
+      ),
+    },
+  };
   const actions: Action[] = [
     {
       id: "stopwatch",
       type: ACTION_TYPES.STOPWATCH,
       name: "Dauer",
-      settings: {
-        formula: "sekunden",
-        rounding: "floor",
-        roundingThreshold: null,
-        min: 1,
-        max: null,
-      },
+      settings: {},
     },
-    {
-      id: "metronome",
-      type: ACTION_TYPES.METRONOME,
-      name: "Metronom",
-      settings: createDefaultMetronomeSettings(),
-    },
+    metronomeAction("metronome", referencedSettings, "Metronom"),
   ];
 
   assert.equal(store.replaceActionDefinitions(actions, true), true);
@@ -179,27 +219,114 @@ test("stopwatch results determine the next metronome's end and lock", async () =
   if (stopwatchResult.type !== ACTION_TYPES.STOPWATCH) {
     throw new Error("Expected a stopwatch-action result.");
   }
-  assert.equal(stopwatchResult.appliedBeats, 2);
+  assert.equal(stopwatchResult.elapsedSeconds, 2);
+  assert.equal("appliedBeats" in stopwatchResult, false);
   assert.equal(store.currentAction?.type, ACTION_TYPES.METRONOME);
-  assert.equal(store.settings?.derivedEndTotal, 2);
   assert.equal(store.settings?.sessionEndBeats, 2);
-  assert.equal(store.settings?.lockBeats, 2);
-  assert.deepEqual(store.settings?.derivedEndSources, ["Dauer"]);
+  assert.equal(store.settings?.lockSettings, false);
   store.abortSession();
+});
+
+test("multiple Metronomes run in sequence and may reference an earlier End-BPM", async () => {
+  const store = useMetronomeStore();
+  const defaults = createDefaultMetronomeSettings();
+  const firstSettings = {
+    ...defaults,
+    bpm: formula(140, 20, 300),
+    increaseTempo: false,
+    breaks: "none" as const,
+    sessionEndEnabled: true,
+    sessionEndBeats: formula(1),
+  };
+  const secondSettings = {
+    ...defaults,
+    bpm: {
+      ...formula(120, 20, 300),
+      expression: fallbackNode(
+        "fallback-end-bpm",
+        referenceNode("first-metronome", "end-bpm"),
+        120,
+      ),
+    },
+    increaseTempo: false,
+    breaks: "none" as const,
+    sessionEndEnabled: true,
+    sessionEndBeats: formula(1),
+  };
+  assert.equal(
+    store.replaceActionDefinitions(
+      [
+        metronomeAction("first-metronome", firstSettings, "Erster Lauf"),
+        metronomeAction("second-metronome", secondSettings, "Zweiter Lauf"),
+      ],
+      true,
+    ),
+    true,
+  );
+
+  assert.equal(await store.startSession(), true);
+  await vi.advanceTimersByTimeAsync(3000);
+
+  const firstResult = store.actionResults[0];
+  assert.ok(firstResult?.type === ACTION_TYPES.METRONOME);
+  assert.equal(firstResult.endBpm, 140);
+  assert.equal(store.currentActionIndex, 1);
+  assert.equal(store.settings?.initialBpm, 140);
+  await vi.advanceTimersByTimeAsync(3000);
+
+  assert.equal(store.phase, "finished");
+  assert.deepEqual(
+    store.report?.actions.map((result) => result.status),
+    ["completed", "completed"],
+  );
+});
+
+test("removing or moving a referenced action is rejected", () => {
+  const store = useMetronomeStore();
+  const seconds = {
+    id: "seconds",
+    type: ACTION_TYPES.SECONDS,
+    name: "Wartezeit",
+    settings: {
+      seconds: {
+        ...formula(10, 1, 600),
+        expression: fallbackNode(
+          "fallback-watch",
+          referenceNode("stopwatch", "seconds-absolute"),
+          10,
+        ),
+      },
+    },
+  };
+  assert.equal(
+    store.replaceActionDefinitions(
+      [
+        { id: "stopwatch", type: ACTION_TYPES.STOPWATCH, name: "Messung", settings: {} },
+        seconds,
+        metronomeAction("metronome", createDefaultMetronomeSettings(), "Lauf"),
+      ],
+      true,
+    ),
+    true,
+  );
+
+  assert.equal(store.moveAction("stopwatch", 1), false);
+  assert.equal(store.removeAction("stopwatch"), false);
+  assert.deepEqual(
+    store.actionDefinitions.map((action) => action.id),
+    ["stopwatch", "seconds", "metronome"],
+  );
 });
 
 test("manual metronome pauses resume and are recorded before abort", async () => {
   const store = useMetronomeStore();
-  const actions: Action[] = [
-    {
-      id: "metronome",
-      type: ACTION_TYPES.METRONOME,
-      name: "Metronom",
-      settings: createDefaultMetronomeSettings(),
-    },
-  ];
-
-  assert.equal(store.replaceActionDefinitions(actions, true), true);
+  assert.equal(
+    store.replaceActionDefinitions(
+      [metronomeAction("metronome", createDefaultMetronomeSettings())],
+      true,
+    ),
+    true,
+  );
   assert.equal(await store.startSession(), true);
   await vi.advanceTimersByTimeAsync(3000);
   assert.equal(store.phase, "running");
@@ -216,4 +343,107 @@ test("manual metronome pauses resume and are recorded before abort", async () =>
     throw new Error("Expected the report to contain a metronome result.");
   }
   assert.equal(reportResult.breakRecords?.length, 1);
+});
+
+test("pause formulas use the current BPM and record their resolved duration", async () => {
+  const store = useMetronomeStore();
+  const defaults = createDefaultMetronomeSettings();
+  const settings = {
+    ...defaults,
+    breaks: "limited" as const,
+    breakSeconds: {
+      ...formula(10),
+      expression: fallbackNode(
+        "fallback-live-bpm",
+        currentNode("current-bpm"),
+        10,
+      ),
+    },
+  };
+  assert.equal(
+    store.replaceActionDefinitions(
+      [metronomeAction("metronome", settings)],
+      true,
+    ),
+    true,
+  );
+  assert.equal(await store.startSession(), true);
+  await vi.advanceTimersByTimeAsync(3000);
+  store.pauseOrResumeMetronome();
+
+  assert.equal(store.phase, "paused");
+  assert.equal(store.activeBreak?.durationSeconds, 120);
+  assert.equal(store.breakRecords[0]?.scheduledDurationSeconds, 120);
+  const result = store.currentActionResult;
+  assert.ok(result?.type === ACTION_TYPES.METRONOME);
+  assert.equal(
+    result.formulaValues?.find((entry) => entry.field === "breakSeconds")
+      ?.value,
+    120,
+  );
+  store.abortSession();
+});
+
+test("Current-property cycles block a session before execution", async () => {
+  const store = useMetronomeStore();
+  const defaults = createDefaultMetronomeSettings();
+  const settings = {
+    ...defaults,
+    bpm: {
+      ...formula(120, 20, 300),
+      expression: fallbackNode(
+        "fallback-bpm",
+        currentNode("accentRepeat"),
+        120,
+      ),
+    },
+    accentRepeat: {
+      ...formula(10),
+      expression: fallbackNode(
+        "fallback-accent",
+        currentNode("bpm"),
+        10,
+      ),
+    },
+  };
+  assert.equal(
+    store.replaceActionDefinitions(
+      [metronomeAction("metronome", settings)],
+      true,
+    ),
+    true,
+  );
+
+  assert.equal(await store.startSession(), false);
+  assert.match(store.actionError, /Zirkelbezug/);
+  assert.equal(store.phase, "idle");
+});
+
+test("cross-field constraints clamp a maximum above the resolved start tempo", async () => {
+  const store = useMetronomeStore();
+  const defaults = createDefaultMetronomeSettings();
+  const settings = {
+    ...defaults,
+    maximum: "stick" as const,
+    maximumLimitStick: formula(120, 60, 400),
+  };
+  assert.equal(
+    store.replaceActionDefinitions(
+      [metronomeAction("metronome", settings)],
+      true,
+    ),
+    true,
+  );
+  assert.equal(await store.startSession(), true);
+
+  assert.equal(store.settings?.maximumLimit, 121);
+  const result = store.currentActionResult;
+  assert.ok(result?.type === ACTION_TYPES.METRONOME);
+  assert.equal(
+    result.formulaValues?.find(
+      (entry) => entry.field === "maximumLimitStick",
+    )?.clamped,
+    true,
+  );
+  store.abortSession();
 });

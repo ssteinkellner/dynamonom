@@ -1,11 +1,14 @@
 import {
-  ACTION_TYPES,
   type BreakMode,
   type MaximumMode,
   type MetronomeSettings,
   type MetronomeSettingsValidation,
-  type NumericSetting,
 } from "../action-model.ts";
+import {
+  createNumericFormulaInput,
+  normalizeNumericFormulaInput,
+} from "../formula-model.ts";
+import type { NumericFormulaInput } from "../formula-model.ts";
 
 const DEFAULT_VALUES = Object.freeze({
   bpm: 120,
@@ -27,32 +30,30 @@ const DEFAULT_VALUES = Object.freeze({
   sessionEndBeats: 100,
 });
 
-const MAXIMUM_LIMIT_FIELDS = [
-  "maximumLimitStick",
-  "maximumLimitReset",
-  "maximumLimitReverse",
-] as const;
-
-type MaximumLimitField = typeof MAXIMUM_LIMIT_FIELDS[number];
-
-export interface StopwatchActionSource {
-  id?: string;
-  name: string;
+export interface NumericFieldBounds {
+  min: number;
+  max: number | null;
 }
 
-export type BreakInput =
-  | { type: "seconds"; seconds: number }
-  | {
-      type: "expression";
-      operator: "+" | "-" | "*" | "/";
-      operand: number;
-    };
+export const METRONOME_NUMERIC_FIELD_BOUNDS: Readonly<
+  Record<string, NumericFieldBounds>
+> = Object.freeze({
+  bpm: { min: 20, max: 300 },
+  accentRepeat: { min: 1, max: null },
+  increaseBy: { min: 1, max: 20 },
+  increaseAfter: { min: 1, max: null },
+  maximumLimitStick: { min: 60, max: 400 },
+  maximumLimitReset: { min: 60, max: 400 },
+  maximumLimitReverse: { min: 60, max: 400 },
+  decreaseBy: { min: 1, max: 50 },
+  decreaseAfter: { min: 1, max: null },
+  breakCount: { min: 1, max: null },
+  breakSeconds: { min: 1, max: null },
+  sessionEndBeats: { min: 1, max: null },
+  lockBeats: { min: 1, max: null },
+});
 
-export type BreakInputParseResult =
-  | { valid: true; value: BreakInput }
-  | { valid: false; error: string };
-
-const ACTIVE_MAXIMUM_LIMIT_FIELD: Record<MaximumMode, MaximumLimitField | null> = {
+const ACTIVE_MAXIMUM_LIMIT_FIELD: Record<MaximumMode, string | null> = {
   none: null,
   stick: "maximumLimitStick",
   reset: "maximumLimitReset",
@@ -61,85 +62,51 @@ const ACTIVE_MAXIMUM_LIMIT_FIELD: Record<MaximumMode, MaximumLimitField | null> 
 
 export function createDefaultMetronomeSettings(): MetronomeSettings {
   return {
-    bpm: DEFAULT_VALUES.bpm,
+    bpm: createField("bpm", DEFAULT_VALUES.bpm),
     accentuate: DEFAULT_VALUES.accentuate,
-    accentRepeat: DEFAULT_VALUES.accentRepeat,
+    accentRepeat: createField("accentRepeat", DEFAULT_VALUES.accentRepeat),
     increaseTempo: DEFAULT_VALUES.increaseTempo,
-    increaseBy: DEFAULT_VALUES.increaseBy,
-    increaseAfter: DEFAULT_VALUES.increaseAfter,
+    increaseBy: createField("increaseBy", DEFAULT_VALUES.increaseBy),
+    increaseAfter: createField("increaseAfter", DEFAULT_VALUES.increaseAfter),
     maximum: DEFAULT_VALUES.maximum,
-    maximumLimitStick: DEFAULT_VALUES.maximumLimit,
-    maximumLimitReset: DEFAULT_VALUES.maximumLimit,
-    maximumLimitReverse: DEFAULT_VALUES.maximumLimit,
-    decreaseBy: DEFAULT_VALUES.decreaseBy,
-    decreaseAfter: DEFAULT_VALUES.decreaseAfter,
+    maximumLimitStick: createField("maximumLimitStick", DEFAULT_VALUES.maximumLimit),
+    maximumLimitReset: createField("maximumLimitReset", DEFAULT_VALUES.maximumLimit),
+    maximumLimitReverse: createField("maximumLimitReverse", DEFAULT_VALUES.maximumLimit),
+    decreaseBy: createField("decreaseBy", DEFAULT_VALUES.decreaseBy),
+    decreaseAfter: createField("decreaseAfter", DEFAULT_VALUES.decreaseAfter),
     breaks: DEFAULT_VALUES.breaks,
-    breakCount: DEFAULT_VALUES.breakCount,
-    breakSeconds: "",
+    breakCount: null,
+    breakSeconds: null,
     sessionEndEnabled: DEFAULT_VALUES.sessionEndEnabled,
-    sessionEndBeats: DEFAULT_VALUES.sessionEndBeats,
+    sessionEndBeats: createField(
+      "sessionEndBeats",
+      DEFAULT_VALUES.sessionEndBeats,
+    ),
     lockSettings: DEFAULT_VALUES.lockSettings,
-    lockBeats: DEFAULT_VALUES.lockBeats,
+    lockBeats: createField("lockBeats", DEFAULT_VALUES.lockBeats),
   };
 }
 
 export function getMetronomeMaximumLimit(
   settings: MetronomeSettings,
-): NumericSetting {
-  if (settings.maximum === "stick") {
+): NumericFormulaInput {
+  const field = ACTIVE_MAXIMUM_LIMIT_FIELD[settings.maximum];
+  if (field === "maximumLimitStick") {
     return settings.maximumLimitStick;
   }
-  if (settings.maximum === "reset") {
+  if (field === "maximumLimitReset") {
     return settings.maximumLimitReset;
   }
-  if (settings.maximum === "reverse") {
+  if (field === "maximumLimitReverse") {
     return settings.maximumLimitReverse;
   }
-  return DEFAULT_VALUES.maximumLimit;
-}
-
-export function parseBreakInput(rawValue: string): BreakInputParseResult {
-  const raw = rawValue.trim();
-  if (/^\d+$/.test(raw)) {
-    const seconds = Number(raw);
-    if (Number.isSafeInteger(seconds) && seconds > 0) {
-      return { valid: true, value: { type: "seconds", seconds } };
-    }
-    return { valid: false, error: "Positive ganze Zahl für Sekunden eingeben." };
-  }
-
-  const expression = /^BPM\s*([+\-*\/])\s*(\d+(?:\.\d+)?)$/i.exec(raw);
-  if (!expression) {
-    return {
-      valid: false,
-      error: "Positive ganze Zahl oder Ausdruck wie BPM/2 verwenden.",
-    };
-  }
-
-  const operator = expression[1];
-  const operand = Number(expression[2]);
-  if (
-    (operator !== "+" && operator !== "-" && operator !== "*" && operator !== "/") ||
-    !Number.isFinite(operand) ||
-    operand <= 0
-  ) {
-    return { valid: false, error: "Die Zahl im Ausdruck muss größer als null sein." };
-  }
-
-  return {
-    valid: true,
-    value: {
-      type: "expression",
-      operator,
-      operand,
-    },
-  };
+  return createField("maximumLimitStick", DEFAULT_VALUES.maximumLimit);
 }
 
 export function validateMetronomeActionSettings(
   rawSettings: unknown,
   _index: number,
-  actions: unknown[],
+  _actions: unknown[],
 ): MetronomeSettingsValidation {
   const defaults = createDefaultMetronomeSettings();
   const raw = isRecord(rawSettings) ? rawSettings : {};
@@ -157,264 +124,128 @@ export function validateMetronomeActionSettings(
     markInvalid(name, "Einen gültigen Ja/Nein-Wert auswählen.");
     return fallback;
   };
-  const getText = (name: string, fallback: NumericSetting | null): string =>
-    String(raw[name] ?? fallback ?? "").trim();
-
-  const bpm = parseIntegerField(getText("bpm", defaults.bpm), 20, 300);
-  if (bpm === null) {
-    markInvalid("bpm", "Ganze BPM-Zahl von 20 bis 300 eingeben.");
-  }
+  const getChoice = <T extends string>(
+    name: string,
+    fallback: T,
+    isValid: (value: unknown) => value is T,
+  ): T => {
+    if (raw[name] === undefined) {
+      return fallback;
+    }
+    if (isValid(raw[name])) {
+      return raw[name];
+    }
+    markInvalid(name, "Eine gültige Option auswählen.");
+    return fallback;
+  };
+  const getFormula = (
+    field: string,
+    fallback: NumericFormulaInput,
+    optional = false,
+  ): NumericFormulaInput | null => {
+    const rawValue = raw[field];
+    if (optional && (rawValue === null || rawValue === undefined || rawValue === "")) {
+      return null;
+    }
+    const defaults = getStaticFormulaValue(fallback.expression);
+    const bounds = METRONOME_NUMERIC_FIELD_BOUNDS[field];
+    const normalized = normalizeNumericFormulaInput(
+      rawValue === undefined ? fallback : rawValue,
+      defaults,
+      bounds.min,
+      bounds.max,
+    );
+    if (!normalized.valid) {
+      markInvalid(field, normalized.errors.join(" "));
+    }
+    return normalized.value;
+  };
 
   const accentuate = getBoolean("accentuate", defaults.accentuate);
-  const accentRepeatRaw = getText("accentRepeat", defaults.accentRepeat);
-  const parsedAccentRepeat = parsePositiveInteger(
-    accentRepeatRaw,
-    Number.POSITIVE_INFINITY,
-  );
-  if (accentuate && parsedAccentRepeat === null) {
-    markInvalid("accentRepeat", "Positive ganze Zahl eingeben.");
-  }
-  const accentRepeat = parsedAccentRepeat ?? accentRepeatRaw;
-
   const increaseTempo = getBoolean("increaseTempo", defaults.increaseTempo);
-  const increaseByRaw = getText("increaseBy", defaults.increaseBy);
-  const parsedIncreaseBy = parseIntegerField(increaseByRaw, 1, 20);
-  if (increaseTempo && parsedIncreaseBy === null) {
-    markInvalid("increaseBy", "Ganze Zahl von 1 bis 20 eingeben.");
-  }
-  const increaseBy = parsedIncreaseBy ?? increaseByRaw;
-  const increaseAfterRaw = getText("increaseAfter", defaults.increaseAfter);
-  const parsedIncreaseAfter = parsePositiveInteger(
-    increaseAfterRaw,
-    Number.POSITIVE_INFINITY,
+  const maximum = getChoice(
+    "maximum",
+    defaults.maximum,
+    isMaximumMode,
   );
-  if (increaseTempo && parsedIncreaseAfter === null) {
-    markInvalid("increaseAfter", "Positive ganze Zahl eingeben.");
-  }
-  const increaseAfter = parsedIncreaseAfter ?? increaseAfterRaw;
-
-  const maximumRaw = String(raw.maximum ?? defaults.maximum);
-  const maximum = isMaximumMode(maximumRaw) ? maximumRaw : defaults.maximum;
-  if (!isMaximumMode(maximumRaw)) {
-    markInvalid("maximum", "Eine gültige Maximum-Option auswählen.");
-  }
-  const activeMaximumLimitField = ACTIVE_MAXIMUM_LIMIT_FIELD[maximum];
-  const maximumLimits: Record<MaximumLimitField, NumericSetting | null> = {
-    maximumLimitStick: parseIntegerField(
-      getText("maximumLimitStick", defaults.maximumLimitStick),
-      60,
-      400,
-    ),
-    maximumLimitReset: parseIntegerField(
-      getText("maximumLimitReset", defaults.maximumLimitReset),
-      60,
-      400,
-    ),
-    maximumLimitReverse: parseIntegerField(
-      getText("maximumLimitReverse", defaults.maximumLimitReverse),
-      60,
-      400,
-    ),
-  };
-  for (const field of MAXIMUM_LIMIT_FIELDS) {
-    if (maximumLimits[field] === null) {
-      maximumLimits[field] = getText(field, DEFAULT_VALUES.maximumLimit);
-    }
-  }
-
-  const decreaseByRaw = getText("decreaseBy", defaults.decreaseBy);
-  const parsedDecreaseBy = parseIntegerField(decreaseByRaw, 1, 50);
-  const decreaseAfterRaw = getText("decreaseAfter", defaults.decreaseAfter);
-  const parsedDecreaseAfter = parsePositiveInteger(
-    decreaseAfterRaw,
-    Number.POSITIVE_INFINITY,
-  );
-  const decreaseBy = parsedDecreaseBy ?? decreaseByRaw;
-  const decreaseAfter = parsedDecreaseAfter ?? decreaseAfterRaw;
-  if (increaseTempo && activeMaximumLimitField) {
-    const selectedMaximumLimit = parseIntegerField(
-      getText(activeMaximumLimitField, DEFAULT_VALUES.maximumLimit),
-      60,
-      400,
-    );
-    if (selectedMaximumLimit === null) {
-      markInvalid(activeMaximumLimitField, "Ganzzahliges Limit von 60 bis 400 eingeben.");
-    } else {
-      maximumLimits[activeMaximumLimitField] = selectedMaximumLimit;
-      if (bpm !== null && selectedMaximumLimit <= bpm) {
-        markInvalid(activeMaximumLimitField, "Das Limit muss über dem Startwert liegen.");
-      }
-    }
-    if (maximum === "reverse") {
-      if (parsedDecreaseBy === null) {
-        markInvalid("decreaseBy", "Ganze Zahl von 1 bis 50 eingeben.");
-      }
-      if (parsedDecreaseAfter === null) {
-        markInvalid("decreaseAfter", "Positive ganze Zahl eingeben.");
-      }
-    }
-  }
-
-  const breaksRaw = String(raw.breaks ?? defaults.breaks);
-  const breaks = isBreakMode(breaksRaw) ? breaksRaw : defaults.breaks;
-  if (!isBreakMode(breaksRaw)) {
-    markInvalid("breaks", "Eine gültige Pausen-Option auswählen.");
-  }
-  const breakCountRaw = getText("breakCount", "");
-  const parsedBreakCount = breakCountRaw === ""
-    ? null
-    : parsePositiveInteger(breakCountRaw, Number.POSITIVE_INFINITY);
-  if (breaks === "limited" && breakCountRaw !== "" && parsedBreakCount === null) {
-    markInvalid("breakCount", "Positive ganze Zahl eingeben oder leer lassen.");
-  }
-  const breakCount = parsedBreakCount ?? (breakCountRaw === "" ? null : breakCountRaw);
-  const breakSecondsRaw = getText("breakSeconds", "");
-  if (breaks === "limited" && breakSecondsRaw !== "") {
-    const parsedBreakSeconds = parseBreakInput(breakSecondsRaw);
-    if (!parsedBreakSeconds.valid) {
-      markInvalid("breakSeconds", parsedBreakSeconds.error);
-    } else if (
-      bpm !== null &&
-      !isBreakInputSafe(parsedBreakSeconds.value, bpm)
-    ) {
-      markInvalid(
-        "breakSeconds",
-        "Dieser Ausdruck kann bei einem erreichbaren BPM-Wert null oder negativ werden.",
-      );
-    }
-  }
-
-  const stopwatchSources = getStopwatchSourcesBeforeMetronome(actions, _index);
-  const hasDerivedEnd = stopwatchSources.length > 0;
+  const breaks = getChoice("breaks", defaults.breaks, isBreakMode);
   const sessionEndEnabled = getBoolean(
     "sessionEndEnabled",
     defaults.sessionEndEnabled,
   );
-  const sessionEndBeatsRaw = getText("sessionEndBeats", defaults.sessionEndBeats);
-  const parsedSessionEndBeats = parsePositiveInteger(
-    sessionEndBeatsRaw,
-    Number.POSITIVE_INFINITY,
-  );
-  if (sessionEndEnabled && !hasDerivedEnd && parsedSessionEndBeats === null) {
-    markInvalid("sessionEndBeats", "Positive ganze Zahl eingeben.");
-  }
-  const sessionEndBeats = parsedSessionEndBeats ?? sessionEndBeatsRaw;
   const lockSettings = getBoolean("lockSettings", defaults.lockSettings);
-  const lockBeatsRaw = getText("lockBeats", defaults.lockBeats);
-  const parsedLockBeats = parsePositiveInteger(
-    lockBeatsRaw,
-    Number.POSITIVE_INFINITY,
-  );
-  if (lockSettings && !hasDerivedEnd && parsedLockBeats === null) {
-    markInvalid("lockBeats", "Positive ganze Zahl eingeben.");
-  }
-  const lockBeats = parsedLockBeats ?? lockBeatsRaw;
-  if (
-    !hasDerivedEnd &&
-    lockSettings &&
-    sessionEndEnabled &&
-    typeof lockBeats === "number" &&
-    typeof sessionEndBeats === "number" &&
-    lockBeats > sessionEndBeats
-  ) {
-    markInvalid(
-      "lockBeats",
-      "Die Sperre darf das automatische Session-Ende nicht überschreiten.",
-    );
-  }
+
+  const settings: MetronomeSettings = {
+    bpm: getFormula("bpm", defaults.bpm) ?? defaults.bpm,
+    accentuate,
+    accentRepeat:
+      getFormula("accentRepeat", defaults.accentRepeat) ?? defaults.accentRepeat,
+    increaseTempo,
+    increaseBy: getFormula("increaseBy", defaults.increaseBy) ?? defaults.increaseBy,
+    increaseAfter:
+      getFormula("increaseAfter", defaults.increaseAfter) ??
+      defaults.increaseAfter,
+    maximum,
+    maximumLimitStick:
+      getFormula("maximumLimitStick", defaults.maximumLimitStick) ??
+      defaults.maximumLimitStick,
+    maximumLimitReset:
+      getFormula("maximumLimitReset", defaults.maximumLimitReset) ??
+      defaults.maximumLimitReset,
+    maximumLimitReverse:
+      getFormula("maximumLimitReverse", defaults.maximumLimitReverse) ??
+      defaults.maximumLimitReverse,
+    decreaseBy: getFormula("decreaseBy", defaults.decreaseBy) ?? defaults.decreaseBy,
+    decreaseAfter:
+      getFormula("decreaseAfter", defaults.decreaseAfter) ??
+      defaults.decreaseAfter,
+    breaks,
+    breakCount: getFormula(
+      "breakCount",
+      createField("breakCount", 1),
+      true,
+    ),
+    breakSeconds: getFormula(
+      "breakSeconds",
+      createField("breakSeconds", 1),
+      true,
+    ),
+    sessionEndEnabled,
+    sessionEndBeats:
+      getFormula("sessionEndBeats", defaults.sessionEndBeats) ??
+      defaults.sessionEndBeats,
+    lockSettings,
+    lockBeats: getFormula("lockBeats", defaults.lockBeats) ?? defaults.lockBeats,
+  };
 
   if (errors.length > 0) {
     return { valid: false, errors };
   }
-  return {
-    valid: true,
-    errors,
-    settings: {
-      bpm: bpm ?? defaults.bpm,
-      accentuate,
-      accentRepeat,
-      increaseTempo,
-      increaseBy,
-      increaseAfter,
-      maximum,
-      maximumLimitStick: maximumLimits.maximumLimitStick ?? DEFAULT_VALUES.maximumLimit,
-      maximumLimitReset: maximumLimits.maximumLimitReset ?? DEFAULT_VALUES.maximumLimit,
-      maximumLimitReverse: maximumLimits.maximumLimitReverse ?? DEFAULT_VALUES.maximumLimit,
-      decreaseBy,
-      decreaseAfter,
-      breaks,
-      breakCount,
-      breakSeconds: breakSecondsRaw,
-      sessionEndEnabled,
-      sessionEndBeats,
-      lockSettings,
-      lockBeats,
-    },
-  };
+  return { valid: true, errors, settings };
 }
 
-export function parseIntegerField(
-  rawValue: unknown,
-  min: number,
-  max: number,
-): number | null {
-  const value = parsePositiveInteger(rawValue, max);
-  if (value === null || value < min) {
-    return null;
+function createField(field: string, value: number): NumericFormulaInput {
+  const bounds = METRONOME_NUMERIC_FIELD_BOUNDS[field];
+  if (!bounds) {
+    throw new Error(`Unknown Metronome numeric field: ${field}`);
   }
-  return value;
+  return createNumericFormulaInput(value, bounds.min, bounds.max);
 }
 
-export function parsePositiveInteger(
-  rawValue: unknown,
-  max: number,
-): number | null {
-  const raw = String(rawValue ?? "").trim();
-  if (!/^\d+$/.test(raw)) {
-    return null;
-  }
-
-  const value = Number(raw);
-  if (!Number.isSafeInteger(value) || value < 1 || value > max) {
-    return null;
-  }
-  return value;
+function getStaticFormulaValue(node: NumericFormulaInput["expression"]): number {
+  return node?.type === "static" ? node.value : 1;
 }
 
-export function getStopwatchSourcesBeforeMetronome(
-  actions: readonly unknown[],
-  metronomeIndex: number,
-): StopwatchActionSource[] {
-  const sources: StopwatchActionSource[] = [];
-  for (let index = 0; index < metronomeIndex; index += 1) {
-    const action = actions[index];
-    if (!isRecord(action)) {
-      continue;
-    }
-    if (action.type === ACTION_TYPES.METRONOME) {
-      sources.length = 0;
-    } else if (action.type === ACTION_TYPES.STOPWATCH) {
-      sources.push({
-        id: typeof action.id === "string" ? action.id : undefined,
-        name: typeof action.name === "string" ? action.name : "Stoppuhr",
-      });
-    }
-  }
-  return sources;
+function isMaximumMode(value: unknown): value is MaximumMode {
+  return (
+    value === "none" ||
+    value === "stick" ||
+    value === "reset" ||
+    value === "reverse"
+  );
 }
 
-function isBreakInputSafe(parsedInput: BreakInput, initialBpm: number): boolean {
-  if (parsedInput.type !== "expression") {
-    return true;
-  }
-  return parsedInput.operator !== "-" || initialBpm - parsedInput.operand > 0;
-}
-
-function isMaximumMode(value: string): value is MaximumMode {
-  return value === "none" || value === "stick" || value === "reset" || value === "reverse";
-}
-
-function isBreakMode(value: string): value is BreakMode {
+function isBreakMode(value: unknown): value is BreakMode {
   return value === "none" || value === "limited" || value === "unlimited";
 }
 

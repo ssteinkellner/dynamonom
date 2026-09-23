@@ -1,20 +1,43 @@
 <script setup lang="ts">
+import { computed } from "vue";
 import type {
+  Action,
   MaximumMode,
+  MetronomeAction,
   MetronomeSettings,
-  NumericSetting,
 } from "../../action-model.ts";
-import type { StopwatchActionSource } from "../../models/metronome-settings.ts";
+import {
+  createNumericFormulaInput,
+  type NumericFormulaInput,
+} from "../../formula-model.ts";
+import { METRONOME_NUMERIC_FIELD_BOUNDS } from "../../models/metronome-settings.ts";
+import FormulaInput from "../formula/FormulaInput.vue";
 
 const props = defineProps<{
+  action: MetronomeAction;
+  previousActions: readonly Action[];
   settings: MetronomeSettings;
   errors: Readonly<Record<string, string>>;
-  derivedSources: readonly StopwatchActionSource[];
 }>();
 
 const emit = defineEmits<{
   "update:settings": [settings: MetronomeSettings];
 }>();
+
+type NumericField =
+  | "bpm"
+  | "accentRepeat"
+  | "increaseBy"
+  | "increaseAfter"
+  | "maximumLimitStick"
+  | "maximumLimitReset"
+  | "maximumLimitReverse"
+  | "decreaseBy"
+  | "decreaseAfter"
+  | "breakCount"
+  | "breakSeconds"
+  | "sessionEndBeats"
+  | "lockBeats";
 
 const maximumOptions: readonly { value: MaximumMode; label: string }[] = [
   { value: "none", label: "Unbegrenzt" },
@@ -23,58 +46,36 @@ const maximumOptions: readonly { value: MaximumMode; label: string }[] = [
   { value: "reverse", label: "Bei Limit umkehren" },
 ];
 
-const hasDerivedEnd = props.derivedSources.length > 0;
+const activeMaximumField = computed<
+  "maximumLimitStick" | "maximumLimitReset" | "maximumLimitReverse"
+>(() =>
+  props.settings.maximum === "reset"
+    ? "maximumLimitReset"
+    : props.settings.maximum === "reverse"
+      ? "maximumLimitReverse"
+      : "maximumLimitStick",
+);
 
-function updateBpm(event: Event): void {
-  const input = event.target;
-  if (!(input instanceof HTMLInputElement)) {
-    return;
-  }
-  emit("update:settings", {
-    ...props.settings,
-    bpm: Number(input.value),
-  });
+function updateNumeric(field: NumericField, value: NumericFormulaInput): void {
+  emit("update:settings", { ...props.settings, [field]: value });
 }
 
-function updateNumeric(
-  field:
-    | "accentRepeat"
-    | "increaseBy"
-    | "increaseAfter"
-    | "maximumLimitStick"
-    | "maximumLimitReset"
-    | "maximumLimitReverse"
-    | "decreaseBy"
-    | "decreaseAfter"
-    | "sessionEndBeats"
-    | "lockBeats",
+function updateOptionalFormula(
+  field: "breakCount" | "breakSeconds",
   event: Event,
 ): void {
   const input = event.target;
   if (!(input instanceof HTMLInputElement)) {
     return;
   }
-  const value: NumericSetting = input.value === "" ? "" : Number(input.value);
-  emit("update:settings", { ...props.settings, [field]: value });
-}
-
-function updateBreakCount(event: Event): void {
-  const input = event.target;
-  if (!(input instanceof HTMLInputElement)) {
-    return;
-  }
-  const value = input.value === "" ? null : Number(input.value);
-  emit("update:settings", { ...props.settings, breakCount: value });
-}
-
-function updateBreakSeconds(event: Event): void {
-  const input = event.target;
-  if (!(input instanceof HTMLInputElement)) {
-    return;
-  }
+  const initialValue = field === "breakCount" ? 1 : 10;
+  const bounds = METRONOME_NUMERIC_FIELD_BOUNDS[field];
   emit("update:settings", {
     ...props.settings,
-    breakSeconds: input.value,
+    [field]: input.checked
+      ? props.settings[field] ??
+        createNumericFormulaInput(initialValue, bounds.min, bounds.max)
+      : null,
   });
 }
 
@@ -83,24 +84,20 @@ function updateBoolean(
   event: Event,
 ): void {
   const input = event.target;
-  if (!(input instanceof HTMLInputElement)) {
-    return;
+  if (input instanceof HTMLInputElement) {
+    emit("update:settings", { ...props.settings, [field]: input.checked });
   }
-  emit("update:settings", { ...props.settings, [field]: input.checked });
 }
 
-function updateChoice(
-  field: "maximum" | "breaks",
-  event: Event,
-): void {
+function updateChoice(field: "maximum" | "breaks", event: Event): void {
   const input = event.target;
-  if (!(input instanceof HTMLSelectElement)) {
-    return;
+  if (input instanceof HTMLSelectElement) {
+    emit("update:settings", { ...props.settings, [field]: input.value });
   }
-  emit("update:settings", {
-    ...props.settings,
-    [field]: input.value,
-  });
+}
+
+function bounds(field: NumericField) {
+  return METRONOME_NUMERIC_FIELD_BOUNDS[field] ?? { min: 1, max: null };
 }
 </script>
 
@@ -113,15 +110,17 @@ function updateChoice(
         <label for="action-bpm">
           Starttempo (BPM) <span class="required-marker" aria-hidden="true">*</span>
         </label>
-        <input
+        <FormulaInput
           id="action-bpm"
-          type="number"
-          min="20"
-          max="300"
-          step="1"
-          :value="settings.bpm"
-          :aria-invalid="errors.bpm ? 'true' : undefined"
-          @input="updateBpm"
+          :model-value="settings.bpm"
+          :action="action"
+          :previous-actions="previousActions"
+          field="bpm"
+          label="Starttempo in BPM"
+          :default-value="120"
+          :hard-min="bounds('bpm').min"
+          :hard-max="bounds('bpm').max"
+          @update:model-value="updateNumeric('bpm', $event)"
         />
         <p v-if="errors.bpm" class="field-error">{{ errors.bpm }}</p>
       </div>
@@ -137,14 +136,17 @@ function updateChoice(
         </label>
         <div v-if="settings.accentuate" class="option-details">
           <label for="action-accent-repeat">Betonung alle Beats</label>
-          <input
+          <FormulaInput
             id="action-accent-repeat"
-            type="number"
-            min="1"
-            step="1"
-            :value="settings.accentRepeat"
-            :aria-invalid="errors.accentRepeat ? 'true' : undefined"
-            @input="updateNumeric('accentRepeat', $event)"
+            :model-value="settings.accentRepeat"
+            :action="action"
+            :previous-actions="previousActions"
+            field="accentRepeat"
+            label="Betonungsintervall in Beats"
+            :default-value="10"
+            :hard-min="bounds('accentRepeat').min"
+            :hard-max="bounds('accentRepeat').max"
+            @update:model-value="updateNumeric('accentRepeat', $event)"
           />
           <p v-if="errors.accentRepeat" class="field-error">
             {{ errors.accentRepeat }}
@@ -169,15 +171,17 @@ function updateChoice(
               <label class="visually-hidden" for="action-increase-by">
                 BPM-Steigerung
               </label>
-              <input
+              <FormulaInput
                 id="action-increase-by"
-                type="number"
-                min="1"
-                max="20"
-                step="1"
-                :value="settings.increaseBy"
-                :aria-invalid="errors.increaseBy ? 'true' : undefined"
-                @input="updateNumeric('increaseBy', $event)"
+                :model-value="settings.increaseBy"
+                :action="action"
+                :previous-actions="previousActions"
+                field="increaseBy"
+                label="BPM-Steigerung"
+                :default-value="1"
+                :hard-min="bounds('increaseBy').min"
+                :hard-max="bounds('increaseBy').max"
+                @update:model-value="updateNumeric('increaseBy', $event)"
               />
               <p v-if="errors.increaseBy" class="field-error">
                 {{ errors.increaseBy }}
@@ -188,14 +192,17 @@ function updateChoice(
               <label class="visually-hidden" for="action-increase-after">
                 Steigerungsintervall in Beats
               </label>
-              <input
+              <FormulaInput
                 id="action-increase-after"
-                type="number"
-                min="1"
-                step="1"
-                :value="settings.increaseAfter"
-                :aria-invalid="errors.increaseAfter ? 'true' : undefined"
-                @input="updateNumeric('increaseAfter', $event)"
+                :model-value="settings.increaseAfter"
+                :action="action"
+                :previous-actions="previousActions"
+                field="increaseAfter"
+                label="Steigerungsintervall in Beats"
+                :default-value="10"
+                :hard-min="bounds('increaseAfter').min"
+                :hard-max="bounds('increaseAfter').max"
+                @update:model-value="updateNumeric('increaseAfter', $event)"
               />
               <p v-if="errors.increaseAfter" class="field-error">
                 {{ errors.increaseAfter }}
@@ -223,50 +230,22 @@ function updateChoice(
             <p v-if="errors.maximum" class="field-error">{{ errors.maximum }}</p>
           </div>
 
-          <div
-            v-if="settings.maximum !== 'none'"
-            class="field input-wrapper"
-          >
+          <div v-if="settings.maximum !== 'none'" class="field input-wrapper">
             <label for="action-maximum-limit">BPM-Limit</label>
-            <input
+            <FormulaInput
               id="action-maximum-limit"
-              type="number"
-              min="60"
-              max="400"
-              step="1"
-              :value="
-                settings.maximum === 'stick'
-                  ? settings.maximumLimitStick
-                  : settings.maximum === 'reset'
-                    ? settings.maximumLimitReset
-                    : settings.maximumLimitReverse
-              "
-              :aria-invalid="
-                errors.maximumLimitStick ||
-                errors.maximumLimitReset ||
-                errors.maximumLimitReverse
-                  ? 'true'
-                  : undefined
-              "
-              @input="
-                updateNumeric(
-                  settings.maximum === 'stick'
-                    ? 'maximumLimitStick'
-                    : settings.maximum === 'reset'
-                      ? 'maximumLimitReset'
-                      : 'maximumLimitReverse',
-                  $event,
-                )
-              "
+              :model-value="settings[activeMaximumField]"
+              :action="action"
+              :previous-actions="previousActions"
+              :field="activeMaximumField"
+              label="BPM-Limit"
+              :default-value="150"
+              :hard-min="bounds(activeMaximumField).min"
+              :hard-max="bounds(activeMaximumField).max"
+              @update:model-value="updateNumeric(activeMaximumField, $event)"
             />
-            <p v-if="errors.maximumLimitStick" class="field-error">
-              {{ errors.maximumLimitStick }}
-            </p>
-            <p v-else-if="errors.maximumLimitReset" class="field-error">
-              {{ errors.maximumLimitReset }}
-            </p>
-            <p v-else-if="errors.maximumLimitReverse" class="field-error">
-              {{ errors.maximumLimitReverse }}
+            <p v-if="errors[activeMaximumField]" class="field-error">
+              {{ errors[activeMaximumField] }}
             </p>
           </div>
 
@@ -276,15 +255,17 @@ function updateChoice(
               <label class="visually-hidden" for="action-decrease-by">
                 BPM-Verringerung
               </label>
-              <input
+              <FormulaInput
                 id="action-decrease-by"
-                type="number"
-                min="1"
-                max="50"
-                step="1"
-                :value="settings.decreaseBy"
-                :aria-invalid="errors.decreaseBy ? 'true' : undefined"
-                @input="updateNumeric('decreaseBy', $event)"
+                :model-value="settings.decreaseBy"
+                :action="action"
+                :previous-actions="previousActions"
+                field="decreaseBy"
+                label="BPM-Verringerung"
+                :default-value="1"
+                :hard-min="bounds('decreaseBy').min"
+                :hard-max="bounds('decreaseBy').max"
+                @update:model-value="updateNumeric('decreaseBy', $event)"
               />
               <p v-if="errors.decreaseBy" class="field-error">
                 {{ errors.decreaseBy }}
@@ -295,14 +276,17 @@ function updateChoice(
               <label class="visually-hidden" for="action-decrease-after">
                 Verringerungsintervall in Beats
               </label>
-              <input
+              <FormulaInput
                 id="action-decrease-after"
-                type="number"
-                min="1"
-                step="1"
-                :value="settings.decreaseAfter"
-                :aria-invalid="errors.decreaseAfter ? 'true' : undefined"
-                @input="updateNumeric('decreaseAfter', $event)"
+                :model-value="settings.decreaseAfter"
+                :action="action"
+                :previous-actions="previousActions"
+                field="decreaseAfter"
+                label="Verringerungsintervall in Beats"
+                :default-value="10"
+                :hard-min="bounds('decreaseAfter').min"
+                :hard-max="bounds('decreaseAfter').max"
+                @update:model-value="updateNumeric('decreaseAfter', $event)"
               />
               <p v-if="errors.decreaseAfter" class="field-error">
                 {{ errors.decreaseAfter }}
@@ -332,39 +316,69 @@ function updateChoice(
       </div>
 
       <div v-if="settings.breaks === 'limited'" class="option-card">
-        <div class="field input-wrapper">
-          <label for="action-break-count">Maximale Pausenzahl (optional)</label>
-          <input
-            id="action-break-count"
-            type="number"
-            min="1"
-            step="1"
-            :value="settings.breakCount ?? ''"
-            :aria-invalid="errors.breakCount ? 'true' : undefined"
-            @input="updateBreakCount"
-          />
-          <p v-if="errors.breakCount" class="field-error">
-            {{ errors.breakCount }}
-          </p>
+        <div class="option-card checkbox-option-card">
+          <label class="checkbox-label">
+            <input
+              type="checkbox"
+              :checked="settings.breakCount !== null"
+              @change="updateOptionalFormula('breakCount', $event)"
+            />
+            Maximale Pausenzahl festlegen
+          </label>
+          <div v-if="settings.breakCount" class="option-details">
+            <label for="action-break-count">Maximale Pausenzahl</label>
+            <FormulaInput
+              id="action-break-count"
+              :model-value="settings.breakCount"
+              :action="action"
+              :previous-actions="previousActions"
+              field="breakCount"
+              label="Maximale Pausenzahl"
+              :default-value="1"
+              :hard-min="bounds('breakCount').min"
+              :hard-max="bounds('breakCount').max"
+              @update:model-value="updateNumeric('breakCount', $event)"
+            />
+            <p v-if="errors.breakCount" class="field-error">
+              {{ errors.breakCount }}
+            </p>
+          </div>
         </div>
-        <div class="field input-wrapper">
-          <label for="action-break-seconds">Pausendauer (optional)</label>
-          <input
-            id="action-break-seconds"
-            type="text"
-            inputmode="text"
-            placeholder="Sekunden oder BPM/2"
-            :value="settings.breakSeconds"
-            :aria-invalid="errors.breakSeconds ? 'true' : undefined"
-            @input="updateBreakSeconds"
-          />
-          <p class="field-help">
-            Leer lassen, um die Pause manuell zu beenden.
-          </p>
-          <p v-if="errors.breakSeconds" class="field-error">
-            {{ errors.breakSeconds }}
-          </p>
+
+        <div class="option-card checkbox-option-card">
+          <label class="checkbox-label">
+            <input
+              type="checkbox"
+              :checked="settings.breakSeconds !== null"
+              @change="updateOptionalFormula('breakSeconds', $event)"
+            />
+            Pausendauer festlegen
+          </label>
+          <div v-if="settings.breakSeconds" class="option-details">
+            <label for="action-break-seconds">Pausendauer in Sekunden</label>
+            <FormulaInput
+              id="action-break-seconds"
+              :model-value="settings.breakSeconds"
+              :action="action"
+              :previous-actions="previousActions"
+              field="breakSeconds"
+              label="Pausendauer in Sekunden"
+              :default-value="10"
+              :hard-min="bounds('breakSeconds').min"
+              :hard-max="bounds('breakSeconds').max"
+              @update:model-value="updateNumeric('breakSeconds', $event)"
+            />
+            <p class="field-help">
+              Die Formel kann das aktuelle BPM als Aktuell-Wert verwenden.
+            </p>
+            <p v-if="errors.breakSeconds" class="field-error">
+              {{ errors.breakSeconds }}
+            </p>
+          </div>
         </div>
+        <p v-if="settings.breakSeconds === null" class="field-help">
+          Ohne Pausendauer kann die Pause manuell beendet werden.
+        </p>
       </div>
     </fieldset>
 
@@ -375,21 +389,23 @@ function updateChoice(
           <input
             type="checkbox"
             :checked="settings.sessionEndEnabled"
-            :disabled="hasDerivedEnd"
             @change="updateBoolean('sessionEndEnabled', $event)"
           />
           Nach einer festen Beat-Anzahl automatisch beenden
         </label>
-        <div v-if="settings.sessionEndEnabled && !hasDerivedEnd" class="option-details">
+        <div v-if="settings.sessionEndEnabled" class="option-details">
           <label for="action-session-end">Session-Ende nach Beats</label>
-          <input
+          <FormulaInput
             id="action-session-end"
-            type="number"
-            min="1"
-            step="1"
-            :value="settings.sessionEndBeats"
-            :aria-invalid="errors.sessionEndBeats ? 'true' : undefined"
-            @input="updateNumeric('sessionEndBeats', $event)"
+            :model-value="settings.sessionEndBeats"
+            :action="action"
+            :previous-actions="previousActions"
+            field="sessionEndBeats"
+            label="Session-Ende nach Beats"
+            :default-value="100"
+            :hard-min="bounds('sessionEndBeats').min"
+            :hard-max="bounds('sessionEndBeats').max"
+            @update:model-value="updateNumeric('sessionEndBeats', $event)"
           />
           <p v-if="errors.sessionEndBeats" class="field-error">
             {{ errors.sessionEndBeats }}
@@ -402,33 +418,29 @@ function updateChoice(
           <input
             type="checkbox"
             :checked="settings.lockSettings"
-            :disabled="hasDerivedEnd"
             @change="updateBoolean('lockSettings', $event)"
           />
           Weiter und Einstellungen bis zu einer Beat-Anzahl sperren
         </label>
-        <div v-if="settings.lockSettings && !hasDerivedEnd" class="option-details">
+        <div v-if="settings.lockSettings" class="option-details">
           <label for="action-lock-beats">Sperre bis Beats</label>
-          <input
+          <FormulaInput
             id="action-lock-beats"
-            type="number"
-            min="1"
-            step="1"
-            :value="settings.lockBeats"
-            :aria-invalid="errors.lockBeats ? 'true' : undefined"
-            @input="updateNumeric('lockBeats', $event)"
+            :model-value="settings.lockBeats"
+            :action="action"
+            :previous-actions="previousActions"
+            field="lockBeats"
+            label="Sperre bis Beats"
+            :default-value="10"
+            :hard-min="bounds('lockBeats').min"
+            :hard-max="bounds('lockBeats').max"
+            @update:model-value="updateNumeric('lockBeats', $event)"
           />
           <p v-if="errors.lockBeats" class="field-error">
             {{ errors.lockBeats }}
           </p>
         </div>
       </div>
-
-      <p v-if="hasDerivedEnd" class="field-help">
-        Ende und Weiter-Sperre werden durch
-        {{ derivedSources.map((source) => source.name).join(", ") }}
-        bestimmt.
-      </p>
     </fieldset>
   </div>
 </template>
