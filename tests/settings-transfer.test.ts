@@ -45,6 +45,25 @@ test("settings exports preserve the versioned query contract", () => {
   );
 });
 
+test("next tempo visibility survives settings export and import", () => {
+  const settings = createDefaultMetronomeSettings();
+  settings.hideNextTempo = true;
+  const action = createDefaultAction(ACTION_TYPES.METRONOME, [], settings);
+  const parsed = parseSettingsImport(
+    serializeSettings([action], false, false),
+  );
+
+  assert.equal(parsed.valid, true);
+  if (!parsed.valid) {
+    throw new Error("Expected the exported settings to parse.");
+  }
+  const validation = validateImportedActions(parsed.actions);
+  assert.equal(validation.valid, true);
+  const imported = validation.actions[0];
+  assert.ok(imported?.type === ACTION_TYPES.METRONOME);
+  assert.equal(imported.settings.hideNextTempo, true);
+});
+
 test("settings imports accept raw, question-prefixed, and full URL input", () => {
   const action = createDefaultAction(
     ACTION_TYPES.METRONOME,

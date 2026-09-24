@@ -66,6 +66,7 @@ export interface RuntimeMetronomeSettings {
   breakSecondsRaw: string;
   lockSettings: boolean;
   hideLockText: boolean;
+  hideNextTempo: boolean;
   lockBeats: NumericSetting;
   sessionEndEnabled: boolean;
   sessionEndBeats: NumericSetting;

@@ -34,6 +34,7 @@ const runtimeSettings: RuntimeMetronomeSettings = {
   breakSecondsRaw: "",
   lockSettings: false,
   hideLockText: false,
+  hideNextTempo: false,
   lockBeats: 8,
   sessionEndEnabled: true,
   sessionEndBeats: 8,

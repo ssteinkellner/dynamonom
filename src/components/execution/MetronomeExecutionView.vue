@@ -8,6 +8,23 @@ defineProps<{ action: MetronomeAction }>();
 const emit = defineEmits<{ abort: [] }>();
 const store = useMetronomeStore();
 
+const showNextTempo = computed(() => {
+  const settings = store.settings;
+  return Boolean(
+    settings?.increaseTempo &&
+      !settings.hideNextTempo &&
+      store.nextBpm !== null,
+  );
+});
+
+const nextTempoLabel = computed(() => {
+  const nextTempoBeat = store.nextTempoChangeBeat;
+  if (nextTempoBeat === null) {
+    return "";
+  }
+  return `Ab ${nextTempoBeat} ${nextTempoBeat === 1 ? "Beat" : "Beats"}`;
+});
+
 const isContinueLocked = computed(() => {
   const settings = store.settings;
   return Boolean(
@@ -83,15 +100,23 @@ function abort(): void {
     :message="store.executionMessage"
   >
     <p class="eyebrow">{{ countdownLabel() }}</p>
-    <div class="metric-grid">
-      <div class="metric">
-        <span class="metric-label">Aktuelles Tempo</span>
-        <strong class="metric-value">{{ store.currentBpm }}</strong>
-        <span class="metric-detail">BPM</span>
-      </div>
+    <div
+      class="metric-grid"
+      :class="{ 'metric-grid--progressing': showNextTempo }"
+    >
       <div class="metric">
         <span class="metric-label">Beats</span>
         <strong class="metric-value">{{ store.beatCount }}</strong>
+      </div>
+      <div class="metric">
+        <span class="metric-label">Tempo</span>
+        <strong class="metric-value">{{ store.currentBpm }}</strong>
+        <span class="metric-detail">BPM</span>
+      </div>
+      <div v-if="showNextTempo" class="metric">
+        <span class="metric-label">{{ nextTempoLabel }}</span>
+        <strong class="metric-value">{{ store.nextBpm }}</strong>
+        <span class="metric-detail">BPM</span>
       </div>
     </div>
     <p v-if="breakDisplay" class="action-options-summary" aria-live="polite">

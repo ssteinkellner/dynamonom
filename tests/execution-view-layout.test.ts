@@ -73,6 +73,84 @@ test("Metronome title is a section heading and Pause spans the first row", () =>
   wrapper.unmount();
 });
 
+test("metronome cards reflect tempo progression and the hide-next setting", async () => {
+  const pinia = createPinia();
+  setActivePinia(pinia);
+  const store = useMetronomeStore();
+  store.settings = {
+    initialBpm: 120,
+    accentuate: false,
+    accentRepeat: 10,
+    increaseTempo: true,
+    increaseBy: 2,
+    increaseAfter: 10,
+    maximum: "none",
+    maximumLimit: 180,
+    decreaseBy: 1,
+    decreaseAfter: 10,
+    breaks: "none",
+    breakCount: null,
+    breakSecondsFormula: null,
+    breakSecondsRaw: "",
+    lockSettings: false,
+    hideLockText: false,
+    hideNextTempo: false,
+    lockBeats: 10,
+    sessionEndEnabled: false,
+    sessionEndBeats: 100,
+  };
+  store.phase = "running";
+  store.currentBpm = 120;
+  store.beatCount = 4;
+  store.tempoCounter = 4;
+
+  const wrapper = mount(MetronomeExecutionView, {
+    props: {
+      action: {
+        id: "metronome",
+        type: ACTION_TYPES.METRONOME,
+        name: "Warm-up",
+        settings: createDefaultMetronomeSettings(),
+      },
+    },
+    global: { plugins: [pinia] },
+  });
+
+  assert.deepEqual(
+    wrapper.findAll(".metric .metric-label").map((label) => label.text()),
+    ["Beats", "Tempo", "Ab 10 Beats"],
+  );
+  assert.deepEqual(
+    wrapper.findAll(".metric .metric-value").map((value) => value.text()),
+    ["4", "120", "122"],
+  );
+
+  store.settings = { ...store.settings!, increaseAfter: 1 };
+  store.beatCount = 0;
+  store.tempoCounter = 0;
+  await nextTick();
+  assert.equal(
+    wrapper.findAll(".metric .metric-label")[2]?.text(),
+    "Ab 1 Beat",
+  );
+
+  store.settings = { ...store.settings!, hideNextTempo: true };
+  await nextTick();
+  assert.deepEqual(
+    wrapper.findAll(".metric .metric-label").map((label) => label.text()),
+    ["Beats", "Tempo"],
+  );
+  assert.equal(wrapper.find(".metric-grid--progressing").exists(), false);
+
+  store.settings = { ...store.settings!, increaseTempo: false };
+  await nextTick();
+  assert.deepEqual(
+    wrapper.findAll(".metric .metric-label").map((label) => label.text()),
+    ["Beats", "Tempo"],
+  );
+  wrapper.unmount();
+});
+
 test("locked metronome actions describe the lock and can hide its threshold", async () => {
   const pinia = createPinia();
   setActivePinia(pinia);
@@ -94,6 +172,7 @@ test("locked metronome actions describe the lock and can hide its threshold", as
     breakSecondsRaw: "",
     lockSettings: true,
     hideLockText: false,
+    hideNextTempo: false,
     lockBeats: 10,
     sessionEndEnabled: false,
     sessionEndBeats: 100,

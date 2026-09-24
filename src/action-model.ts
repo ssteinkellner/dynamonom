@@ -47,6 +47,7 @@ export interface MetronomeSettings {
   sessionEndBeats: NumericFormulaInput;
   lockSettings: boolean;
   hideLockText: boolean;
+  hideNextTempo: boolean;
   lockBeats: NumericFormulaInput;
 }
 

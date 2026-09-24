@@ -152,6 +152,31 @@ export const useMetronomeStore = defineStore("metronome", () => {
         : `Aktion ${currentActionIndex.value + 1} von ${actionPlan.value.length}`,
   );
   const isFinished = computed(() => phase.value === "finished");
+  const nextBpm = computed<number | null>(() => {
+    const runtimeSettings = settings.value;
+    if (!runtimeSettings?.increaseTempo) {
+      return null;
+    }
+    return getNextBpmPreview(
+      runtimeSettings,
+      currentBpm.value,
+      direction.value,
+      stuckAtMaximum.value,
+    );
+  });
+  const nextTempoChangeBeat = computed<number | null>(() => {
+    const runtimeSettings = settings.value;
+    if (!runtimeSettings?.increaseTempo || nextBpm.value === null) {
+      return null;
+    }
+    const interval = toNumber(
+      direction.value === "up"
+        ? runtimeSettings.increaseAfter
+        : runtimeSettings.decreaseAfter,
+      direction.value === "up" ? "increaseAfter" : "decreaseAfter",
+    );
+    return beatCount.value + Math.max(1, Math.ceil(interval - tempoCounter.value));
+  });
 
   const engine = new SessionEngine();
   const unsubscribeEngine = engine.subscribe(handleEngineEvent);
@@ -835,6 +860,43 @@ export const useMetronomeStore = defineStore("metronome", () => {
     direction.value = "down";
   }
 
+  function getNextBpmPreview(
+    runtimeSettings: RuntimeMetronomeSettings,
+    current: number,
+    currentDirection: TempoDirection,
+    isStuckAtMaximum: boolean,
+  ): number {
+    if (isStuckAtMaximum) {
+      return current;
+    }
+
+    if (currentDirection === "down") {
+      const next = current - toNumber(runtimeSettings.decreaseBy, "decreaseBy");
+      return next <= runtimeSettings.initialBpm
+        ? runtimeSettings.initialBpm
+        : next;
+    }
+
+    let next = current + toNumber(runtimeSettings.increaseBy, "increaseBy");
+    if (runtimeSettings.maximum === "none") {
+      return next;
+    }
+
+    const maximum = toNumber(runtimeSettings.maximumLimit, "maximumLimit");
+    if (next < maximum) {
+      return next;
+    }
+
+    next = maximum;
+    if (runtimeSettings.maximum === "stick") {
+      return next;
+    }
+    if (runtimeSettings.maximum === "reset") {
+      return runtimeSettings.initialBpm;
+    }
+    return next;
+  }
+
   function scheduleNextBeat(now = engine.now()): void {
     if (phase.value !== "running") {
       return;
@@ -1143,6 +1205,8 @@ export const useMetronomeStore = defineStore("metronome", () => {
     settings,
     beatCount,
     currentBpm,
+    nextBpm,
+    nextTempoChangeBeat,
     direction,
     tempoCounter,
     stuckAtMaximum,

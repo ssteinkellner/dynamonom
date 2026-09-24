@@ -300,6 +300,7 @@ export function getActionRuntimeMetronomeSettings(
       : "",
     lockSettings: settings.lockSettings,
     hideLockText: settings.hideLockText,
+    hideNextTempo: settings.hideNextTempo,
     lockBeats: getResolvedValue(
       resolvedValues,
       "lockBeats",

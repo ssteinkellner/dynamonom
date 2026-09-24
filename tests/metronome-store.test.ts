@@ -202,6 +202,57 @@ test("metronome countdown and automatic end advance to the next action", async (
   assert.equal(store.phase, "action-stoppuhr");
 });
 
+test("next BPM previews the scheduled change at progression boundaries", async () => {
+  const store = useMetronomeStore();
+  assert.equal(
+    store.replaceActionDefinitions(
+      [metronomeAction("metronome", createDefaultMetronomeSettings())],
+      true,
+    ),
+    true,
+  );
+  assert.equal(await store.startSession(), true);
+
+  assert.equal(store.nextBpm, 121);
+  assert.equal(store.nextTempoChangeBeat, 10);
+  store.beatCount = 4;
+  store.tempoCounter = 4;
+  assert.equal(store.nextTempoChangeBeat, 10);
+  store.beatCount = 10;
+  store.tempoCounter = 0;
+  assert.equal(store.nextTempoChangeBeat, 20);
+
+  store.settings = {
+    ...store.settings!,
+    initialBpm: 100,
+    increaseBy: 5,
+    decreaseBy: 3,
+    maximum: "stick",
+    maximumLimit: 120,
+  };
+  store.currentBpm = 118;
+  store.direction = "up";
+  store.stuckAtMaximum = false;
+  assert.equal(store.nextBpm, 120);
+  store.currentBpm = 120;
+  store.stuckAtMaximum = true;
+  assert.equal(store.nextBpm, 120);
+
+  store.settings = { ...store.settings, maximum: "reset" };
+  store.stuckAtMaximum = false;
+  store.currentBpm = 118;
+  assert.equal(store.nextBpm, 100);
+
+  store.settings = { ...store.settings, maximum: "reverse" };
+  store.currentBpm = 118;
+  store.direction = "up";
+  assert.equal(store.nextBpm, 120);
+  store.currentBpm = 120;
+  store.direction = "down";
+  assert.equal(store.nextBpm, 117);
+  store.abortSession();
+});
+
 test("Stopwatch values affect a later Metronome only through explicit references", async () => {
   const store = useMetronomeStore();
   const defaults = createDefaultMetronomeSettings();

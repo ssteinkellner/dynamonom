@@ -74,6 +74,8 @@ on each execution view; when enabled, only **Aktion n** is shown.
   tempo, and pause counters. **Weiter** ends that action and stays disabled
   until its configured lock threshold; an automatic Ende advances to the next
   action. Tempo, pause, and end settings use the visual formula editor.
+  When automatic tempo increase is enabled, **Nächstes Tempo ausblenden**
+  hides the upcoming-tempo preview without changing the progression.
 - **Stoppuhr** measures elapsed time until **Weiter** and supports three
   **Ende** modes: **Unbegrenzt**, **Automatisch beenden nach** a
   formula-based duration, or **Manuell limitieren auf** a formula-based

@@ -33,6 +33,8 @@ test("the presets view opens first and manual settings can edit the initial acti
   assert.equal(wrapper.get("h1").text(), "Metronom-Einstellungen");
   await wrapper.get('button[aria-label="Metronom bearbeiten"]').trigger("click");
   assert.equal(wrapper.get("#action-editor-title").text(), "Metronom-Einstellungen");
+  const hideNextTempo = wrapper.get<HTMLInputElement>("#action-hide-next-tempo");
+  assert.equal(hideNextTempo.element.checked, false);
   assert.deepEqual(
     wrapper
       .get(".action-editor-actions")

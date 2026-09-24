@@ -54,6 +54,7 @@ const ACTION_FIELD_LABELS: Readonly<Record<string, string>> = Object.freeze({
   sessionEndBeats: "Session-Ende Beats",
   lockSettings: "Einstellungssperre",
   lockBeats: "Sperre Beats",
+  hideNextTempo: "Nächstes Tempo ausblenden",
 });
 
 export interface SettingsImportIssue {

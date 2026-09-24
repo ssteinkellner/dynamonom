@@ -20,6 +20,7 @@ test("default metronome settings pass validation and expose formula inputs", () 
   assert.equal(defaults.breakCount, null);
   assert.equal(defaults.breakSeconds, null);
   assert.equal(defaults.hideLockText, false);
+  assert.equal(defaults.hideNextTempo, false);
 });
 
 test("lock text visibility is optional and defaults to visible", () => {
@@ -35,6 +36,21 @@ test("lock text visibility is optional and defaults to visible", () => {
     throw new Error("Expected hideLockText to be valid.");
   }
   assert.equal(validation.settings.hideLockText, true);
+});
+
+test("next tempo visibility is optional and defaults to shown", () => {
+  const defaults = createDefaultMetronomeSettings();
+  const validation = validateMetronomeActionSettings(
+    { ...defaults, hideNextTempo: true },
+    0,
+    [],
+  );
+
+  assert.equal(validation.valid, true);
+  if (!validation.valid) {
+    throw new Error("Expected hideNextTempo to be valid.");
+  }
+  assert.equal(validation.settings.hideNextTempo, true);
 });
 
 test("legacy numeric settings normalize to formula inputs", () => {

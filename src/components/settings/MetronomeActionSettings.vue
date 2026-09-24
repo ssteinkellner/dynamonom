@@ -85,7 +85,8 @@ function updateBoolean(
     | "increaseTempo"
     | "sessionEndEnabled"
     | "lockSettings"
-    | "hideLockText",
+    | "hideLockText"
+    | "hideNextTempo",
   event: Event,
 ): void {
   const input = event.target;
@@ -299,6 +300,16 @@ function bounds(field: NumericField) {
             </div>
             <span class="inline-option-text">Beats</span>
           </div>
+
+          <label class="checkbox-label">
+            <input
+              id="action-hide-next-tempo"
+              type="checkbox"
+              :checked="settings.hideNextTempo"
+              @change="updateBoolean('hideNextTempo', $event)"
+            />
+            Nächstes Tempo ausblenden
+          </label>
         </div>
       </div>
     </fieldset>

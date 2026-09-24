@@ -26,6 +26,7 @@ const DEFAULT_VALUES = Object.freeze({
   breakSeconds: null,
   lockSettings: false,
   hideLockText: false,
+  hideNextTempo: false,
   lockBeats: 10,
   sessionEndEnabled: false,
   sessionEndBeats: 100,
@@ -85,6 +86,7 @@ export function createDefaultMetronomeSettings(): MetronomeSettings {
     ),
     lockSettings: DEFAULT_VALUES.lockSettings,
     hideLockText: DEFAULT_VALUES.hideLockText,
+    hideNextTempo: DEFAULT_VALUES.hideNextTempo,
     lockBeats: createField("lockBeats", DEFAULT_VALUES.lockBeats),
   };
 }
@@ -177,6 +179,7 @@ export function validateMetronomeActionSettings(
   );
   const lockSettings = getBoolean("lockSettings", defaults.lockSettings);
   const hideLockText = getBoolean("hideLockText", defaults.hideLockText);
+  const hideNextTempo = getBoolean("hideNextTempo", defaults.hideNextTempo);
 
   const settings: MetronomeSettings = {
     bpm: getFormula("bpm", defaults.bpm) ?? defaults.bpm,
@@ -219,6 +222,7 @@ export function validateMetronomeActionSettings(
       defaults.sessionEndBeats,
     lockSettings,
     hideLockText,
+    hideNextTempo,
     lockBeats: getFormula("lockBeats", defaults.lockBeats) ?? defaults.lockBeats,
   };
 
