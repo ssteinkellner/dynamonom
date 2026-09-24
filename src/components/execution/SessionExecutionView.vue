@@ -5,11 +5,21 @@ import ManualExecutionView from "./ManualExecutionView.vue";
 import MetronomeExecutionView from "./MetronomeExecutionView.vue";
 import SecondsExecutionView from "./SecondsExecutionView.vue";
 import StopwatchExecutionView from "./StopwatchExecutionView.vue";
+import { useDialog } from "../../services/dialog.ts";
 
 const store = useMetronomeStore();
+const { confirm } = useDialog();
 
-function requestAbort(): void {
-  if (!window.confirm("Die Aktion abbrechen und den Bericht anzeigen?")) {
+async function requestAbort(): Promise<void> {
+  if (
+    !(await confirm({
+      title: "Aktion abbrechen?",
+      message: "Die Aktion abbrechen und den Bericht anzeigen?",
+      confirmLabel: "Aktion abbrechen",
+      cancelLabel: "Weiter",
+      tone: "danger",
+    }))
+  ) {
     return;
   }
   store.abortSession();

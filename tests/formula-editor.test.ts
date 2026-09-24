@@ -45,6 +45,13 @@ test("formula input opens a custom dialog and emits only after confirmation", as
 
   await wrapper.get("#duration-formula").trigger("click");
   const dialog = wrapper.get('[role="dialog"]');
+  assert.deepEqual(
+    dialog
+      .get(".formula-dialog-actions")
+      .findAll("button")
+      .map((button) => button.text()),
+    ["Abbrechen", "Bestätigen"],
+  );
   await dialog.get(".formula-node--static input").setValue("15");
   await dialog.get(".formula-dialog-actions .primary-button").trigger("click");
 

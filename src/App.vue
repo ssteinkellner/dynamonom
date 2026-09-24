@@ -13,6 +13,7 @@ import PresetsView from "./components/views/PresetsView.vue";
 import SettingsView from "./components/views/SettingsView.vue";
 import ReportView from "./components/views/ReportView.vue";
 import SessionExecutionView from "./components/execution/SessionExecutionView.vue";
+import AppDialogHost from "./components/common/AppDialogHost.vue";
 import { useMetronomeStore } from "./stores/metronome.ts";
 
 type AppView = "presets" | "settings" | "execution" | "report";
@@ -210,5 +211,6 @@ async function repeatSession(): Promise<void> {
       @settings="returnToSettings"
       @repeat="repeatSession"
     />
+    <AppDialogHost />
   </div>
 </template>

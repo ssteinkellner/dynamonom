@@ -28,31 +28,31 @@ onUnmounted(() => {
   window.clearTimeout(feedbackTimer);
 });
 
-function canChangeConfiguration(): boolean {
-  return actionListEditor.value?.closeIfAllowed() === true;
+async function canChangeConfiguration(): Promise<boolean> {
+  return (await actionListEditor.value?.closeIfAllowed()) === true;
 }
 
-function requestStart(): void {
-  if (canChangeConfiguration()) {
+async function requestStart(): Promise<void> {
+  if (await canChangeConfiguration()) {
     emit("start");
   }
 }
 
-function requestBack(): void {
-  if (canChangeConfiguration()) {
+async function requestBack(): Promise<void> {
+  if (await canChangeConfiguration()) {
     emit("back");
   }
 }
 
-function updateBooleanSetting(
+async function updateBooleanSetting(
   setting: "hideProgress" | "autoStart",
   event: Event,
-): void {
+): Promise<void> {
   const input = event.target;
   if (!(input instanceof HTMLInputElement)) {
     return;
   }
-  if (!canChangeConfiguration()) {
+  if (!(await canChangeConfiguration())) {
     input.checked = store[setting];
     return;
   }
@@ -60,7 +60,7 @@ function updateBooleanSetting(
 }
 
 async function exportSettings(format: "settings" | "url"): Promise<void> {
-  if (!canChangeConfiguration()) {
+  if (!(await canChangeConfiguration())) {
     return;
   }
 

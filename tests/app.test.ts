@@ -29,6 +29,13 @@ test("the presets view opens first and manual settings can edit the initial acti
   assert.equal(wrapper.get("h1").text(), "Metronom-Einstellungen");
   await wrapper.get('button[aria-label="Metronom bearbeiten"]').trigger("click");
   assert.equal(wrapper.get("#action-editor-title").text(), "Metronom-Einstellungen");
+  assert.deepEqual(
+    wrapper
+      .get(".action-editor-actions")
+      .findAll("button")
+      .map((button) => button.text()),
+    ["Abbrechen", "Bestätigen"],
+  );
 
   await wrapper.get("#action-name").setValue("Einlaufen");
   const confirmButton = wrapper
@@ -43,7 +50,6 @@ test("the presets view opens first and manual settings can edit the initial acti
 
 test("dirty action drafts guard navigation and can be discarded", async () => {
   const wrapper = mountApp();
-  vi.spyOn(window, "confirm").mockReturnValue(false);
 
   await wrapper.get("button.secondary-button").trigger("click");
   await wrapper.get('button[aria-label="Metronom bearbeiten"]').trigger("click");
@@ -54,11 +60,23 @@ test("dirty action drafts guard navigation and can be discarded", async () => {
     .find((button) => button.text() === "Zurück zu den Voreinstellungen");
   assert.ok(backButton);
   await backButton.trigger("click");
+  await flushPromises();
+  const discardDialog = document.body.querySelector('[role="alertdialog"]');
+  assert.ok(discardDialog);
+  assert.match(discardDialog.textContent ?? "", /Nicht gespeicherte Änderungen verwerfen/);
+  discardDialog.querySelector<HTMLButtonElement>("[data-dialog-cancel]")?.click();
+  await flushPromises();
   assert.equal(wrapper.get("h1").text(), "Metronom-Einstellungen");
   assert.ok(wrapper.find("#action-editor-title").exists());
 
-  vi.mocked(window.confirm).mockReturnValue(true);
   await backButton.trigger("click");
+  await flushPromises();
+  const confirmDiscardDialog = document.body.querySelector('[role="alertdialog"]');
+  assert.ok(confirmDiscardDialog);
+  confirmDiscardDialog
+    .querySelector<HTMLButtonElement>("[data-dialog-confirm]")
+    ?.click();
+  await flushPromises();
   assert.equal(wrapper.get("h1").text(), "Metronom - Voreinstellungen");
   wrapper.unmount();
 });
@@ -79,6 +97,13 @@ test("action type dropdown creates a draft and returns to its disabled default",
   assert.equal(wrapper.get("#action-editor-title").text(), "Sekunden-Einstellungen");
   await wrapper.get("#action-seconds").trigger("click");
   const formulaDialog = wrapper.get('[role="dialog"]');
+  assert.deepEqual(
+    formulaDialog
+      .get(".formula-dialog-actions")
+      .findAll("button")
+      .map((button) => button.text()),
+    ["Abbrechen", "Bestätigen"],
+  );
   await formulaDialog.get(".formula-node--static input").setValue("15");
   await formulaDialog.get(".formula-dialog-actions .primary-button").trigger("click");
   await wrapper.get(".action-editor-actions .primary-button").trigger("click");

@@ -2,11 +2,13 @@
 import { computed } from "vue";
 import type { SecondsAction } from "../../action-model.ts";
 import { useMetronomeStore } from "../../stores/metronome.ts";
+import { useDialog } from "../../services/dialog.ts";
 import ActionExecutionFrame from "./ActionExecutionFrame.vue";
 
 defineProps<{ action: SecondsAction }>();
 const emit = defineEmits<{ abort: [] }>();
 const store = useMetronomeStore();
+const { confirm } = useDialog();
 
 const configuredSeconds = computed(() => {
   const result = store.currentActionResult;
@@ -24,14 +26,20 @@ function formatTime(totalSeconds: number): string {
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
 
-function continueAction(): void {
+async function continueAction(): Promise<void> {
+  const shouldEndEarly = store.secondsRemaining > 10;
   if (
-    store.secondsRemaining > 10 &&
-    !window.confirm("Die Sekunden-Aktion vorzeitig beenden?")
+    shouldEndEarly &&
+    !(await confirm({
+      title: "Sekunden-Aktion vorzeitig beenden?",
+      message: "Die verbleibende Zeit wirklich überspringen?",
+      confirmLabel: "Beenden",
+      cancelLabel: "Weiter",
+    }))
   ) {
     return;
   }
-  store.continueTimerAction(store.secondsRemaining > 10);
+  store.continueTimerAction(shouldEndEarly);
 }
 
 function abort(): void {

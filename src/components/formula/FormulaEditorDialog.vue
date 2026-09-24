@@ -948,34 +948,34 @@ function getFallbackSeed(
       <div class="button-row formula-dialog-actions">
         <template v-if="isEditingBound">
           <button
-            class="primary-button"
-            type="button"
-            @click="confirmBoundEdit"
-          >
-            Grenze übernehmen
-          </button>
-          <button
             class="secondary-button"
             type="button"
             @click="cancelBoundEdit"
           >
             Zur Formel zurück
           </button>
-        </template>
-        <template v-else>
           <button
             class="primary-button"
             type="button"
-            @click="confirmFormula"
+            @click="confirmBoundEdit"
           >
-            Bestätigen
+            Grenze übernehmen
           </button>
+        </template>
+        <template v-else>
           <button
             class="secondary-button"
             type="button"
             @click="cancelFormula"
           >
             Abbrechen
+          </button>
+          <button
+            class="primary-button"
+            type="button"
+            @click="confirmFormula"
+          >
+            Bestätigen
           </button>
         </template>
       </div>

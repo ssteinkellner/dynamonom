@@ -119,11 +119,11 @@ function updateManualSettings(settings: ManualAction["settings"]): void {
     />
 
     <div class="button-row action-editor-actions">
-      <button class="primary-button" type="button" @click="emit('save')">
-        Bestätigen
-      </button>
       <button class="secondary-button" type="button" @click="emit('cancel')">
         Abbrechen
+      </button>
+      <button class="primary-button" type="button" @click="emit('save')">
+        Bestätigen
       </button>
     </div>
   </section>

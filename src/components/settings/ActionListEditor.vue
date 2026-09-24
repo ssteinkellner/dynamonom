@@ -14,9 +14,11 @@ import type {
 import { createDefaultMetronomeSettings } from "../../models/metronome-settings.ts";
 import { formatNumericFormulaInput } from "../../formula-model.ts";
 import { useMetronomeStore } from "../../stores/metronome.ts";
+import { useDialog } from "../../services/dialog.ts";
 import ActionEditor from "./ActionEditor.vue";
 
 const store = useMetronomeStore();
+const { confirm } = useDialog();
 
 const actionsFieldset = ref<HTMLElement | null>(null);
 const editorWrapper = ref<HTMLElement | null>(null);
@@ -76,8 +78,17 @@ function actionSummary(action: Action, index: number): string {
   }
 }
 
-function confirmDiscard(): boolean {
-  return !draftIsDirty.value || window.confirm("Nicht gespeicherte Änderungen verwerfen?");
+async function confirmDiscard(): Promise<boolean> {
+  if (!draftIsDirty.value) {
+    return true;
+  }
+  return confirm({
+    title: "Änderungen verwerfen?",
+    message: "Nicht gespeicherte Änderungen verwerfen?",
+    confirmLabel: "Verwerfen",
+    cancelLabel: "Weiter bearbeiten",
+    tone: "danger",
+  });
 }
 
 function closeDraft(): void {
@@ -91,11 +102,11 @@ function closeDraft(): void {
   });
 }
 
-function closeIfAllowed(): boolean {
+async function closeIfAllowed(): Promise<boolean> {
   if (!draft.value) {
     return true;
   }
-  if (!confirmDiscard()) {
+  if (!(await confirmDiscard())) {
     return false;
   }
   closeDraft();
@@ -121,8 +132,8 @@ function scrollTo(element: HTMLElement | null): void {
   }
 }
 
-function openActionEditor(action: Action, index: number): void {
-  if (!closeIfAllowed()) {
+async function openActionEditor(action: Action, index: number): Promise<void> {
+  if (!(await closeIfAllowed())) {
     return;
   }
   openDraft("edit", action, index);
@@ -143,14 +154,14 @@ function createActionDraft(type: ActionType): Action {
   return createDefaultAction(type, store.actionDefinitions);
 }
 
-function beginAddAction(event: Event): void {
+async function beginAddAction(event: Event): Promise<void> {
   const select = event.target;
   if (!(select instanceof HTMLSelectElement)) {
     return;
   }
   const type = select.value;
   newActionType.value = "";
-  if (!isActionType(type) || !closeIfAllowed()) {
+  if (!isActionType(type) || !(await closeIfAllowed())) {
     return;
   }
   openDraft(
@@ -201,29 +212,41 @@ function updateDraft(nextDraft: Action): void {
   editorErrors.value = [];
 }
 
-function deleteAction(action: Action): void {
-  if (!closeIfAllowed()) {
+async function deleteAction(action: Action): Promise<void> {
+  if (!(await closeIfAllowed())) {
     return;
   }
-  if (window.confirm(`„${action.name}“ wirklich löschen?`)) {
+  if (
+    await confirm({
+      title: `„${action.name}“ löschen?`,
+      message: "Diese Aktion wird aus der Liste entfernt.",
+      confirmLabel: "Löschen",
+      cancelLabel: "Abbrechen",
+      tone: "danger",
+    })
+  ) {
     store.removeAction(action.id);
   }
 }
 
-function moveAction(actionId: string, targetIndex: number): void {
-  if (!closeIfAllowed()) {
+async function moveAction(actionId: string, targetIndex: number): Promise<void> {
+  if (!(await closeIfAllowed())) {
     return;
   }
   store.moveAction(actionId, targetIndex);
 }
 
-function handleReorderKey(event: KeyboardEvent, index: number, actionId: string): void {
+async function handleReorderKey(
+  event: KeyboardEvent,
+  index: number,
+  actionId: string,
+): Promise<void> {
   if (!event.altKey || (event.key !== "ArrowUp" && event.key !== "ArrowDown")) {
     return;
   }
   event.preventDefault();
   const targetIndex = index + (event.key === "ArrowUp" ? -1 : 1);
-  moveAction(actionId, targetIndex);
+  await moveAction(actionId, targetIndex);
   void nextTick(() => {
     document
       .querySelector<HTMLButtonElement>(`[data-action-handle="${actionId}"]`)
@@ -239,7 +262,7 @@ function startDragging(actionId: string, event: DragEvent): void {
   }
 }
 
-function dropOnAction(actionId: string): void {
+async function dropOnAction(actionId: string): Promise<void> {
   const sourceId = draggedActionId.value;
   draggedActionId.value = null;
   if (!sourceId || sourceId === actionId) {
@@ -248,7 +271,7 @@ function dropOnAction(actionId: string): void {
   const targetIndex = store.actionDefinitions.findIndex(
     (action) => action.id === actionId,
   );
-  moveAction(sourceId, targetIndex);
+  await moveAction(sourceId, targetIndex);
 }
 
 defineExpose({ closeIfAllowed });
