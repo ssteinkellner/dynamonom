@@ -22,7 +22,6 @@ function abort(): void {
   <ActionExecutionFrame
     :action-name="action.name"
     :progress-label="store.progressLabel"
-    :hide-progress="store.hideProgress"
     :message="store.executionMessage"
   >
     <p class="metric-label">Vergangene Zeit</p>

@@ -34,6 +34,7 @@ export interface FormulaValueRecord {
   label: string;
   expression: string;
   value: number;
+  isStatic: boolean;
   fallbackUsed: boolean;
   clamped: boolean;
 }
@@ -66,6 +67,7 @@ export interface RuntimeMetronomeSettings {
   breakSecondsFormula: NumericFormulaInput | null;
   breakSecondsRaw: string;
   lockSettings: boolean;
+  hideLockText: boolean;
   lockBeats: NumericSetting;
   sessionEndEnabled: boolean;
   sessionEndBeats: NumericSetting;

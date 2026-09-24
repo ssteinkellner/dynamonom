@@ -82,6 +82,10 @@ const otherPaletteItems = paletteItems.filter((item) => !item.operator);
 const activeRemembered = computed(() =>
   boundEditor.value ? boundEditor.value.remembered : mainRemembered.value,
 );
+const showResultBounds = computed(() => {
+  const expression = working.value.expression;
+  return expression !== null && expression.type !== "static";
+});
 const currentProperties = computed(() => {
   const options = getEnabledCurrentFormulaProperties(props.action)
     .filter((property) => property !== props.field)
@@ -894,7 +898,10 @@ function getFallbackSeed(
         </fieldset>
       </div>
 
-      <fieldset v-if="!isEditingBound" class="formula-editor-fieldset">
+      <fieldset
+        v-if="!isEditingBound && showResultBounds"
+        class="formula-editor-fieldset"
+      >
         <legend>Ergebnisbegrenzung</legend>
         <p class="field-help">
           Zulässiger Bereich: {{ hardMin }} bis

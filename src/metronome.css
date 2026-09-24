@@ -1143,6 +1143,10 @@ th {
   padding: 0.4rem 0.55rem;
 }
 
+.formula-fallback-value input[type="number"] {
+  max-width: 6rem;
+}
+
 .formula-node label {
   display: grid;
   gap: 0.25rem;
@@ -1334,7 +1338,13 @@ th {
 }
 
 .formula-dialog-actions {
+  position: sticky;
+  z-index: 1;
+  bottom: 0;
   margin-top: 1rem;
+  border-top: 0.1rem solid var(--border);
+  padding-top: 0.75rem;
+  background: var(--surface);
 }
 
 .formula-node--operator.formula-palette-item {
@@ -1415,7 +1425,11 @@ th {
 
   .formula-field-scroll
     > .formula-node-drag-wrapper--root
-    .formula-node
+    > .formula-node--static
+    input[type="number"],
+  .formula-field-scroll
+    > .formula-node-drag-wrapper--root
+    > .formula-node--round
     input[type="number"],
   .formula-field-scroll > .formula-drop-zone--root {
     max-width: none;

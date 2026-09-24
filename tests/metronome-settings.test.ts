@@ -19,6 +19,22 @@ test("default metronome settings pass validation and expose formula inputs", () 
   assert.equal(defaults.bpm.min?.type, "static");
   assert.equal(defaults.breakCount, null);
   assert.equal(defaults.breakSeconds, null);
+  assert.equal(defaults.hideLockText, false);
+});
+
+test("lock text visibility is optional and defaults to visible", () => {
+  const defaults = createDefaultMetronomeSettings();
+  const validation = validateMetronomeActionSettings(
+    { ...defaults, hideLockText: true },
+    0,
+    [],
+  );
+
+  assert.equal(validation.valid, true);
+  if (!validation.valid) {
+    throw new Error("Expected hideLockText to be valid.");
+  }
+  assert.equal(validation.settings.hideLockText, true);
 });
 
 test("legacy numeric settings normalize to formula inputs", () => {

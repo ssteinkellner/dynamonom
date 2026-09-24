@@ -14,7 +14,6 @@ import type {
 import ManualActionSettings from "./ManualActionSettings.vue";
 import MetronomeActionSettings from "./MetronomeActionSettings.vue";
 import SecondsActionSettings from "./SecondsActionSettings.vue";
-import StopwatchActionSettings from "./StopwatchActionSettings.vue";
 
 const props = defineProps<{
   draft: Action;
@@ -105,12 +104,8 @@ function updateManualSettings(settings: ManualAction["settings"]): void {
       :previous-actions="previousActions"
       @update:settings="updateSecondsSettings"
     />
-    <StopwatchActionSettings
-      v-else-if="draft.type === ACTION_TYPES.STOPWATCH"
-      :action="draft"
-    />
     <ManualActionSettings
-      v-else
+      v-else-if="draft.type === ACTION_TYPES.MANUAL"
       :action="draft"
       :settings="draft.settings"
       :errors="settingsErrors"

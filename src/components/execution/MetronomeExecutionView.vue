@@ -8,13 +8,33 @@ defineProps<{ action: MetronomeAction }>();
 const emit = defineEmits<{ abort: [] }>();
 const store = useMetronomeStore();
 
+const isContinueLocked = computed(() => {
+  const settings = store.settings;
+  return Boolean(
+    settings &&
+      settings.lockSettings &&
+      store.beatCount < Number(settings.lockBeats),
+  );
+});
+
 const canContinue = computed(() => {
   const settings = store.settings;
   return Boolean(
     settings &&
       ["running", "paused", "resume-countdown"].includes(store.phase) &&
-      (!settings.lockSettings || store.beatCount >= Number(settings.lockBeats)),
+      !isContinueLocked.value,
   );
+});
+
+const continueLabel = computed(() => {
+  const settings = store.settings;
+  if (!settings || !isContinueLocked.value) {
+    return "Weiter";
+  }
+  if (settings.hideLockText) {
+    return "Weiter (gesperrt)";
+  }
+  return `Weiter (gesperrt bis ${Number(settings.lockBeats)} Beats)`;
 });
 
 const pauseLabel = computed(() =>
@@ -60,7 +80,6 @@ function abort(): void {
   <ActionExecutionFrame
     :action-name="action.name"
     :progress-label="store.progressLabel"
-    :hide-progress="store.hideProgress"
     :message="store.executionMessage"
   >
     <p class="eyebrow">{{ countdownLabel() }}</p>
@@ -98,7 +117,7 @@ function abort(): void {
         :disabled="!canContinue"
         @click="store.continueMetronome"
       >
-        Weiter
+        {{ continueLabel }}
       </button>
     </div>
   </ActionExecutionFrame>

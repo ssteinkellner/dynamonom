@@ -10,6 +10,7 @@ import type {
   Action,
   ActionType,
   ActionValidationError,
+  MetronomeSettings,
 } from "../../action-model.ts";
 import { createDefaultMetronomeSettings } from "../../models/metronome-settings.ts";
 import { formatNumericFormulaInput } from "../../formula-model.ts";
@@ -65,17 +66,56 @@ function actionSummary(action: Action, index: number): string {
     .slice(0, index)
     .map(({ id, type, name }) => ({ id, type, name }));
   switch (action.type) {
-    case ACTION_TYPES.METRONOME:
-      return `${formatNumericFormulaInput(action.settings.bpm, { actions: previous })} BPM`;
+    case ACTION_TYPES.METRONOME: {
+      return formatMetronomeSummary(action.settings, previous);
+    }
     case ACTION_TYPES.SECONDS:
       return `${formatNumericFormulaInput(action.settings.seconds, { actions: previous })} Sekunden`;
     case ACTION_TYPES.STOPWATCH:
-      return "Zeit messen";
+      return "";
     case ACTION_TYPES.MANUAL:
       return action.settings.limitSeconds === null
         ? "Ohne Zeitlimit"
         : `Limit ${formatNumericFormulaInput(action.settings.limitSeconds, { actions: previous })} Sekunden`;
   }
+}
+
+function formatMetronomeSummary(
+  settings: MetronomeSettings,
+  previous: readonly { id: string; type: string; name: string }[],
+): string {
+  const format = (input: MetronomeSettings["bpm"]): string =>
+    formatNumericFormulaInput(input, { actions: previous });
+  const summary = [`${format(settings.bpm)} BPM`];
+
+  if (settings.increaseTempo) {
+    summary.push(
+      `+${format(settings.increaseBy)}/${format(settings.increaseAfter)}`,
+    );
+    if (settings.maximum === "reverse") {
+      summary.push(
+        `-${format(settings.decreaseBy)}/${format(settings.decreaseAfter)}`,
+      );
+    }
+  }
+
+  if (settings.breaks === "none") {
+    summary.push("Pausen: keine");
+  } else if (settings.breaks === "unlimited") {
+    summary.push("Pausen: unbegrenzt");
+  } else if (settings.breakCount && settings.breakSeconds) {
+    summary.push(
+      `Pausen: ${format(settings.breakCount)} x ${format(settings.breakSeconds)} Sekunden erlaubt`,
+    );
+  } else if (settings.breakCount) {
+    summary.push(`Pausen: ${format(settings.breakCount)}x erlaubt`);
+  } else if (settings.breakSeconds) {
+    summary.push(`Pausen: ${format(settings.breakSeconds)} Sekunden erlaubt`);
+  } else {
+    summary.push("Pausen: begrenzt");
+  }
+
+  return summary.join("; ");
 }
 
 async function confirmDiscard(): Promise<boolean> {

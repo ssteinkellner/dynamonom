@@ -2,14 +2,13 @@
 defineProps<{
   actionName: string;
   progressLabel: string;
-  hideProgress: boolean;
   message: string;
 }>();
 </script>
 
 <template>
   <section class="view" aria-labelledby="execution-title">
-    <header v-if="!hideProgress && progressLabel" class="view-header">
+    <header v-if="progressLabel" class="view-header">
       <p class="eyebrow action-progress">
         {{ progressLabel }}
       </p>

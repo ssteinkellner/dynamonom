@@ -29,6 +29,7 @@ const runtimeSettings: RuntimeMetronomeSettings = {
   breakSecondsFormula: null,
   breakSecondsRaw: "",
   lockSettings: false,
+  hideLockText: false,
   lockBeats: 8,
   sessionEndEnabled: true,
   sessionEndBeats: 8,
@@ -132,6 +133,7 @@ test("short Metronome reports use resolved pause-formula values", () => {
         label: "Pausendauer",
         expression: "Aktuell BPM / 10",
         value: 12,
+        isStatic: false,
         fallbackUsed: false,
         clamped: false,
       },
@@ -164,6 +166,7 @@ test("long reports include formula resolutions and automatic adjustments", () =>
             label: "Starttempo",
             expression: "120 [Min 20; Max 300]",
             value: 120,
+            isStatic: false,
             fallbackUsed: true,
             clamped: true,
           },
@@ -188,6 +191,40 @@ test("long reports include formula resolutions and automatic adjustments", () =>
   );
 });
 
+test("static formula values use the ordinary report value without a formula row", () => {
+  const report: SessionReport = {
+    actions: [
+      {
+        id: "seconds",
+        type: ACTION_TYPES.SECONDS,
+        name: "Wartezeit",
+        status: "completed",
+        settings: { seconds: 12 },
+        configuredSeconds: 12,
+        completedBy: "auto",
+        elapsedSeconds: 12,
+        formulaValues: [
+          {
+            field: "seconds",
+            label: "Dauer",
+            expression: "12 [Min 1; Max 600]",
+            value: 12,
+            isStatic: true,
+            fallbackUsed: false,
+            clamped: false,
+          },
+        ],
+      },
+    ],
+    aborted: false,
+  };
+
+  const text = buildLongReportText(report);
+
+  assert.match(text, /Dauer: 12 Sekunden/);
+  assert.doesNotMatch(text, /Formel ·|Min 1|Max 600/);
+});
+
 test("short reports use configured values for actions that have not started", () => {
   const report: SessionReport = {
     aborted: true,
@@ -207,4 +244,25 @@ test("short reports use configured values for actions that have not started", ()
     buildLongReportText(report),
     "**Sekunden - Wartezeit**\nStatus: Nicht gestartet\nDauer: 12 Sekunden",
   );
+});
+
+test("stopwatch reports omit the time-measurement hint", () => {
+  const report: SessionReport = {
+    actions: [
+      {
+        id: "stopwatch",
+        type: ACTION_TYPES.STOPWATCH,
+        name: "Messung",
+        status: "completed",
+        settings: {},
+        elapsedSeconds: 42,
+      },
+    ],
+    aborted: false,
+  };
+
+  const text = buildLongReportText(report);
+
+  assert.match(text, /Dauer: 42 Sekunden/);
+  assert.doesNotMatch(text, /Zeitmessung/);
 });

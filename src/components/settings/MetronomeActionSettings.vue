@@ -80,7 +80,12 @@ function updateOptionalFormula(
 }
 
 function updateBoolean(
-  field: "accentuate" | "increaseTempo" | "sessionEndEnabled" | "lockSettings",
+  field:
+    | "accentuate"
+    | "increaseTempo"
+    | "sessionEndEnabled"
+    | "lockSettings"
+    | "hideLockText",
   event: Event,
 ): void {
   const input = event.target;
@@ -439,6 +444,14 @@ function bounds(field: NumericField) {
           <p v-if="errors.lockBeats" class="field-error">
             {{ errors.lockBeats }}
           </p>
+          <label class="checkbox-label">
+            <input
+              type="checkbox"
+              :checked="settings.hideLockText"
+              @change="updateBoolean('hideLockText', $event)"
+            />
+            Sperre ausgeblendet
+          </label>
         </div>
       </div>
     </fieldset>

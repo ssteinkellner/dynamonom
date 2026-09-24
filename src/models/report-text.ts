@@ -128,8 +128,9 @@ function getActionShortLine(action: ActionResult): string {
   const settings = details.map(({ label, value }) => `${label}: ${value}`);
   const formulaValues = (action.formulaValues ?? [])
     .filter(
-      ({ field }) =>
-        action.type !== ACTION_TYPES.METRONOME || field !== "breakSeconds",
+      ({ field, isStatic }) =>
+        !isStatic &&
+        (action.type !== ACTION_TYPES.METRONOME || field !== "breakSeconds"),
     )
     .map(
       ({ label, value, fallbackUsed, clamped }) =>
@@ -274,10 +275,7 @@ function appendStopwatchDetails(
   details: ReportDetail[],
   action: StopwatchActionResult,
 ): void {
-  details.push(
-    { label: "Dauer", value: `${action.elapsedSeconds ?? 0} Sekunden` },
-    { label: "Zeitmessung", value: "Abgeschlossen" },
-  );
+  details.push({ label: "Dauer", value: `${action.elapsedSeconds ?? 0} Sekunden` });
 }
 
 function appendManualDetails(
@@ -304,7 +302,7 @@ function appendFormulaDetails(
   details: ReportDetail[],
   formulaValues: readonly FormulaValueRecord[],
 ): void {
-  formulaValues.forEach((formula) => {
+  formulaValues.filter((formula) => !formula.isStatic).forEach((formula) => {
     const adjustments = [
       formula.fallbackUsed ? "Ersatzwert verwendet" : "",
       formula.clamped ? "begrenzt" : "",

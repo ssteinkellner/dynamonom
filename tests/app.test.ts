@@ -6,6 +6,7 @@ import { createPinia } from "pinia";
 import { afterEach, beforeEach, test, vi } from "vitest";
 import App from "../src/App.vue";
 import { ACTION_TYPES } from "../src/action-model.ts";
+import { createNumericFormulaInput } from "../src/formula-model.ts";
 import { createDefaultMetronomeSettings } from "../src/models/metronome-settings.ts";
 
 function mountApp() {
@@ -45,6 +46,51 @@ test("the presets view opens first and manual settings can edit the initial acti
   await confirmButton.trigger("click");
 
   assert.match(wrapper.get("#actions-table").text(), /Einlaufen/);
+  wrapper.unmount();
+});
+
+test("action settings summaries show metronome progression and leave stopwatch settings blank", async () => {
+  const settings = createDefaultMetronomeSettings();
+  settings.maximum = "reverse";
+  settings.breaks = "limited";
+  settings.breakCount = createNumericFormulaInput(2, 1, null);
+  settings.breakSeconds = createNumericFormulaInput(10, 1, null);
+  const parameters = new URLSearchParams();
+  parameters.set("version", "1");
+  parameters.set("auto-start", "false");
+  parameters.set(
+    "actions",
+    JSON.stringify([
+      {
+        id: "metronome-summary",
+        type: ACTION_TYPES.METRONOME,
+        name: "Zusammenfassung",
+        settings,
+      },
+    ]),
+  );
+  window.history.replaceState({}, "", `/?${parameters.toString()}`);
+
+  const wrapper = mountApp();
+  await flushPromises();
+
+  const metronomeRow = wrapper.get("#actions-table tbody tr.action-row");
+  assert.equal(
+    metronomeRow.findAll("td")[2]?.text(),
+    "120 BPM; +1/10; -1/10; Pausen: 2 x 10 Sekunden erlaubt",
+  );
+
+  await wrapper.get("#new-action-type").setValue(ACTION_TYPES.STOPWATCH);
+  await flushPromises();
+  assert.equal(wrapper.get("#action-editor-title").text(), "Stoppuhr-Einstellungen");
+  assert.equal(wrapper.find(".action-editor fieldset").exists(), false);
+  await wrapper.get(".action-editor-actions .primary-button").trigger("click");
+
+  const stopwatchRow = wrapper
+    .findAll("#actions-table tbody tr.action-row")
+    .find((row) => row.text().includes("Stoppuhr"));
+  assert.ok(stopwatchRow);
+  assert.equal(stopwatchRow.findAll("td")[2]?.text(), "");
   wrapper.unmount();
 });
 

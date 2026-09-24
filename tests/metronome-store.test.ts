@@ -141,6 +141,24 @@ test("seconds actions advance automatically and abort produces a partial report"
   );
 });
 
+test("hideProgress keeps the current action number but hides the total", async () => {
+  const store = useMetronomeStore();
+  assert.equal(
+    store.replaceActionDefinitions(
+      [metronomeAction("metronome", createDefaultMetronomeSettings())],
+      true,
+    ),
+    true,
+  );
+  assert.equal(await store.startSession(), true);
+
+  assert.equal(store.progressLabel, "Aktion 1 von 1");
+  store.hideProgress = true;
+  assert.equal(store.progressLabel, "Aktion 1");
+
+  assert.equal(store.abortSession(), true);
+});
+
 test("metronome countdown and automatic end advance to the next action", async () => {
   const store = useMetronomeStore();
   const defaults = createDefaultMetronomeSettings();

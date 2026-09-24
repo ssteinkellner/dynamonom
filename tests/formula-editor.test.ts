@@ -30,6 +30,16 @@ const commonProps = {
   hardMax: 600,
 };
 
+const dynamicInput = {
+  ...input,
+  expression: {
+    id: "dynamic-expression",
+    type: "fallback" as const,
+    input: { id: "dynamic-input", type: "static" as const, value: 10 },
+    fallback: 10,
+  },
+};
+
 const mounted: Array<{ unmount: () => void }> = [];
 
 afterEach(() => {
@@ -60,7 +70,7 @@ test("formula input opens a custom dialog and emits only after confirmation", as
   );
   assert.deepEqual(
     dialog.findAll("legend").map((legend) => legend.text()),
-    ["Formel", "Merken", "Löschen", "Hinzufügen", "Ergebnisbegrenzung"],
+    ["Formel", "Merken", "Löschen", "Hinzufügen"],
   );
   assert.equal(dialog.findAll(".formula-field-scroll").length, 1);
   assert.equal(
@@ -78,14 +88,6 @@ test("formula input opens a custom dialog and emits only after confirmation", as
     ["+", "−", "×", "÷"],
   );
   assert.equal(dialog.get(".formula-palette-items").findAll("button").length, 6);
-  assert.equal(
-    dialog.get(".formula-bound-card").find("button").text(),
-    "Minimum einschränken",
-  );
-  assert.equal(
-    dialog.findAll(".formula-bound-card")[1]?.find("button").text(),
-    "Maximum einschränken",
-  );
   await dialog.get(".formula-node--static input").setValue("15");
   await dialog.get(".formula-dialog-actions .primary-button").trigger("click");
 
@@ -115,6 +117,25 @@ test("Remembered nodes must be returned or deleted before formula confirmation",
     /gemerkten Formelbausteine/,
   );
   assert.equal(wrapper.emitted("confirm"), undefined);
+});
+
+test("result bounds are shown only for non-static expressions", () => {
+  const wrapper = mount(FormulaEditorDialog, { props: commonProps });
+  const dynamicWrapper = mount(FormulaEditorDialog, {
+    props: { ...commonProps, modelValue: dynamicInput },
+  });
+  mounted.push(wrapper, dynamicWrapper);
+
+  assert.equal(
+    wrapper.findAll("legend").some((legend) => legend.text() === "Ergebnisbegrenzung"),
+    false,
+  );
+  assert.equal(
+    dynamicWrapper
+      .findAll("legend")
+      .some((legend) => legend.text() === "Ergebnisbegrenzung"),
+    true,
+  );
 });
 
 test("palette nodes can be dropped into empty operator slots", async () => {
@@ -268,7 +289,9 @@ test("dynamic expressions use the field's current static value as fallback", asy
 });
 
 test("bound editors use the same formula tools layout", async () => {
-  const wrapper = mount(FormulaEditorDialog, { props: commonProps });
+  const wrapper = mount(FormulaEditorDialog, {
+    props: { ...commonProps, modelValue: dynamicInput },
+  });
   mounted.push(wrapper);
 
   await wrapper.get(".formula-bound-card .secondary-button").trigger("click");

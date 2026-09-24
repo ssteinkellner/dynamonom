@@ -105,7 +105,9 @@ export const useMetronomeStore = defineStore("metronome", () => {
   const progressLabel = computed(() =>
     actionPlan.value.length === 0 || currentActionIndex.value < 0
       ? ""
-      : `Aktion ${currentActionIndex.value + 1} von ${actionPlan.value.length}`,
+      : hideProgress.value
+        ? `Aktion ${currentActionIndex.value + 1}`
+        : `Aktion ${currentActionIndex.value + 1} von ${actionPlan.value.length}`,
   );
   const isFinished = computed(() => phase.value === "finished");
 

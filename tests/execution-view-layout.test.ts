@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 
 import assert from "node:assert/strict";
-import { createPinia } from "pinia";
+import { createPinia, setActivePinia } from "pinia";
 import { mount } from "@vue/test-utils";
+import { nextTick } from "vue";
 import { test } from "vitest";
 import {
   ACTION_TYPES,
@@ -12,6 +13,8 @@ import ManualExecutionView from "../src/components/execution/ManualExecutionView
 import SecondsExecutionView from "../src/components/execution/SecondsExecutionView.vue";
 import StopwatchExecutionView from "../src/components/execution/StopwatchExecutionView.vue";
 import { createDefaultMetronomeSettings } from "../src/models/metronome-settings.ts";
+import type { RuntimeMetronomeSettings } from "../src/models/session.ts";
+import { useMetronomeStore } from "../src/stores/metronome.ts";
 
 function mountWithStore(component: Parameters<typeof mount>[0], props: object) {
   return mount(component, {
@@ -49,6 +52,60 @@ test("Metronome title is a section heading and Pause spans the first row", () =>
     rows[1]?.findAll("button").map((button) => button.text()),
     ["Abbrechen", "Weiter"],
   );
+  wrapper.unmount();
+});
+
+test("locked metronome actions describe the lock and can hide its threshold", async () => {
+  const pinia = createPinia();
+  setActivePinia(pinia);
+  const store = useMetronomeStore();
+  const settings: RuntimeMetronomeSettings = {
+    initialBpm: 120,
+    accentuate: false,
+    accentRepeat: 10,
+    increaseTempo: false,
+    increaseBy: 1,
+    increaseAfter: 10,
+    maximum: "none",
+    maximumLimit: 180,
+    decreaseBy: 1,
+    decreaseAfter: 10,
+    breaks: "none",
+    breakCount: null,
+    breakSecondsFormula: null,
+    breakSecondsRaw: "",
+    lockSettings: true,
+    hideLockText: false,
+    lockBeats: 10,
+    sessionEndEnabled: false,
+    sessionEndBeats: 100,
+  };
+  store.settings = settings;
+  store.phase = "running";
+  store.beatCount = 3;
+
+  const wrapper = mount(MetronomeExecutionView, {
+    props: {
+      action: {
+        id: "metronome",
+        type: ACTION_TYPES.METRONOME,
+        name: "Warm-up",
+        settings: createDefaultMetronomeSettings(),
+      },
+    },
+    global: { plugins: [pinia] },
+  });
+  const continueButton = wrapper
+    .findAll(".action-execution-actions")[1]
+    ?.get("button.primary-button");
+
+  assert.equal(continueButton?.text(), "Weiter (gesperrt bis 10 Beats)");
+  store.settings = { ...store.settings, hideLockText: true };
+  await nextTick();
+  assert.equal(continueButton?.text(), "Weiter (gesperrt)");
+  store.beatCount = 10;
+  await nextTick();
+  assert.equal(continueButton?.text(), "Weiter");
   wrapper.unmount();
 });
 

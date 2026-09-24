@@ -189,6 +189,7 @@ export function createFormulaValueRecord(
     label: getFormulaFieldLabel(field),
     expression: `${expression} [Min ${minimum}; Max ${maximum}]`,
     value: evaluation.value,
+    isStatic: input.expression?.type === "static",
     fallbackUsed: evaluation.fallbackUsed,
     clamped: evaluation.clamped,
   };
@@ -296,6 +297,7 @@ export function getActionRuntimeMetronomeSettings(
         })
       : "",
     lockSettings: settings.lockSettings,
+    hideLockText: settings.hideLockText,
     lockBeats: getResolvedValue(
       resolvedValues,
       "lockBeats",

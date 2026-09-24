@@ -166,7 +166,7 @@ async function exportSettings(format: "settings" | "url"): Promise<void> {
             :checked="store.hideProgress"
             @change="updateBooleanSetting('hideProgress', $event)"
           />
-          Fortschritt ausblenden
+          Gesamtanzahl Aktionen ausblenden
         </label>
       </div>
     </fieldset>
