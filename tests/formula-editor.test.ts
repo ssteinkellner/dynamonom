@@ -63,6 +63,13 @@ test("formula input opens a custom dialog and emits only after confirmation", as
     ["Formel", "Merken", "Löschen", "Hinzufügen", "Ergebnisbegrenzung"],
   );
   assert.equal(dialog.findAll(".formula-field-scroll").length, 1);
+  assert.equal(
+    dialog
+      .get(".formula-field-scroll > .formula-node-drag-wrapper")
+      .classes()
+      .includes("formula-node-drag-wrapper--root"),
+    true,
+  );
   assert.deepEqual(
     dialog
       .get(".formula-palette-operators")
@@ -273,5 +280,12 @@ test("bound editors use the same formula tools layout", async () => {
   assert.equal(wrapper.find("legend").text(), "Formel");
   assert.equal(wrapper.findAll("legend").some((legend) => legend.text() === "Ergebnisbegrenzung"), false);
   assert.equal(wrapper.findAll(".formula-field-scroll").length, 1);
+  assert.equal(
+    wrapper
+      .get(".formula-field-scroll > .formula-node-drag-wrapper")
+      .classes()
+      .includes("formula-node-drag-wrapper--root"),
+    true,
+  );
   assert.equal(wrapper.find(".formula-editor-tools").exists(), true);
 });

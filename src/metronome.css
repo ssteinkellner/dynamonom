@@ -1136,10 +1136,6 @@ th {
   padding: 0.75rem;
 }
 
-.formula-node:not(.formula-node--static) {
-  padding-block: 5px;
-}
-
 .formula-node input,
 .formula-node select {
   min-width: 0;
@@ -1412,6 +1408,23 @@ th {
       minmax(0, 7fr);
   }
 
+  .formula-field-scroll .formula-node input[type="number"],
+  .formula-field-scroll .formula-drop-zone {
+    max-width: 6rem;
+  }
+
+  .formula-field-scroll
+    > .formula-node-drag-wrapper--root
+    .formula-node
+    input[type="number"],
+  .formula-field-scroll > .formula-drop-zone--root {
+    max-width: none;
+  }
+
+  .formula-node:not(.formula-node--static) {
+    padding-block: 5px;
+  }
+
   .formula-bound-list {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1438,6 +1451,10 @@ th {
   .formula-fallback-layout,
   .formula-round-layout {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .formula-node:not(.formula-node--static) {
+    padding-inline: 5px;
   }
 }
 

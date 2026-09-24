@@ -17,6 +17,7 @@ const props = defineProps<{
   actions: readonly Action[];
   currentProperties: readonly { value: string; label: string }[];
   required?: boolean;
+  root?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -81,11 +82,13 @@ function forwardDragNode(nodeId: string, event: DragEvent): void {
     :path="path"
     label="Ablegen"
     :required="required"
+    :root="root"
     @drop="handleDrop"
   />
   <div
     v-else
     class="formula-node-drag-wrapper"
+    :class="{ 'formula-node-drag-wrapper--root': root }"
     :key="node.id"
     draggable="true"
     @dragstart="startDragging"

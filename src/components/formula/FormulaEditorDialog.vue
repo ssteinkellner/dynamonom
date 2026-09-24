@@ -793,6 +793,7 @@ function getFallbackSeed(
               :actions="previousActions"
               :current-properties="currentProperties"
               required
+              root
               @update:node="updateNode"
               @drop="handleDrop"
               @drag-node="startDraggingNode"
@@ -815,6 +816,7 @@ function getFallbackSeed(
               :actions="previousActions"
               :current-properties="currentProperties"
               :required="boundEditor.kind === 'min'"
+              root
               @update:node="updateNode"
               @drop="handleDrop"
               @drag-node="startDraggingNode"

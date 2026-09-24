@@ -6,6 +6,7 @@ const props = defineProps<{
   label?: string;
   tone?: "default" | "remember" | "delete";
   required?: boolean;
+  root?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -40,7 +41,10 @@ function receiveDrop(event: DragEvent): void {
 <template>
   <div
     class="formula-drop-zone"
-    :class="`formula-drop-zone--${tone ?? 'default'}`"
+    :class="[
+      `formula-drop-zone--${tone ?? 'default'}`,
+      { 'formula-drop-zone--root': root },
+    ]"
     :data-formula-path="path"
     role="group"
     :aria-label="accessibleLabel"
