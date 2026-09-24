@@ -45,7 +45,11 @@ test("formula input opens a custom dialog and emits only after confirmation", as
   });
   mounted.push(wrapper);
 
-  await wrapper.get("#duration-formula").trigger("click");
+  const trigger = wrapper.get("#duration-formula");
+  assert.equal(trigger.find(".formula-input-range").exists(), false);
+  assert.match(trigger.attributes("aria-label") ?? "", /Min .*; Max /);
+
+  await trigger.trigger("click");
   const dialog = wrapper.get('[role="dialog"]');
   assert.deepEqual(
     dialog
@@ -58,6 +62,7 @@ test("formula input opens a custom dialog and emits only after confirmation", as
     dialog.findAll("legend").map((legend) => legend.text()),
     ["Formel", "Merken", "Löschen", "Hinzufügen", "Ergebnisbegrenzung"],
   );
+  assert.equal(dialog.findAll(".formula-field-scroll").length, 1);
   assert.deepEqual(
     dialog
       .get(".formula-palette-operators")
@@ -267,5 +272,6 @@ test("bound editors use the same formula tools layout", async () => {
   );
   assert.equal(wrapper.find("legend").text(), "Formel");
   assert.equal(wrapper.findAll("legend").some((legend) => legend.text() === "Ergebnisbegrenzung"), false);
+  assert.equal(wrapper.findAll(".formula-field-scroll").length, 1);
   assert.equal(wrapper.find(".formula-editor-tools").exists(), true);
 });

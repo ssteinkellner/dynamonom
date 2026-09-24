@@ -959,7 +959,6 @@ th {
   overflow-wrap: anywhere;
 }
 
-.formula-input-range,
 .formula-node-caption {
   color: var(--muted);
   font-size: 0.82rem;
@@ -1084,6 +1083,18 @@ th {
   margin: 0;
 }
 
+.formula-field-scroll {
+  min-width: 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+
+.formula-field-scroll > .formula-node-drag-wrapper,
+.formula-field-scroll > .formula-drop-zone {
+  width: max-content;
+  min-width: 100%;
+}
+
 .formula-palette {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1123,6 +1134,10 @@ th {
   border: 0.1rem solid var(--border);
   border-radius: 0.65rem;
   padding: 0.75rem;
+}
+
+.formula-node:not(.formula-node--static) {
+  padding-block: 5px;
 }
 
 .formula-node input,
@@ -1416,10 +1431,12 @@ th {
   }
 
   .formula-clamp-symbol {
-    display: none;
+    display: inline;
   }
 
-  .formula-operator-layout {
+  .formula-operator-layout,
+  .formula-fallback-layout,
+  .formula-round-layout {
     grid-template-columns: minmax(0, 1fr);
   }
 }

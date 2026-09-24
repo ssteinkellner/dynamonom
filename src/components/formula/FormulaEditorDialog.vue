@@ -786,16 +786,18 @@ function getFallbackSeed(
       <template v-if="!isEditingBound">
         <fieldset class="formula-editor-fieldset">
           <legend>Formel</legend>
-          <FormulaNodeRenderer
-            :node="working.expression"
-            path="expression"
-            :actions="previousActions"
-            :current-properties="currentProperties"
-            required
-            @update:node="updateNode"
-            @drop="handleDrop"
-            @drag-node="startDraggingNode"
-          />
+          <div class="formula-field-scroll">
+            <FormulaNodeRenderer
+              :node="working.expression"
+              path="expression"
+              :actions="previousActions"
+              :current-properties="currentProperties"
+              required
+              @update:node="updateNode"
+              @drop="handleDrop"
+              @drag-node="startDraggingNode"
+            />
+          </div>
         </fieldset>
       </template>
 
@@ -806,16 +808,18 @@ function getFallbackSeed(
         </p>
         <fieldset class="formula-editor-fieldset">
           <legend>Formel</legend>
-          <FormulaNodeRenderer
-            :node="boundEditor.node"
-            path="bound-root"
-            :actions="previousActions"
-            :current-properties="currentProperties"
-            :required="boundEditor.kind === 'min'"
-            @update:node="updateNode"
-            @drop="handleDrop"
-            @drag-node="startDraggingNode"
-          />
+          <div class="formula-field-scroll">
+            <FormulaNodeRenderer
+              :node="boundEditor.node"
+              path="bound-root"
+              :actions="previousActions"
+              :current-properties="currentProperties"
+              :required="boundEditor.kind === 'min'"
+              @update:node="updateNode"
+              @drop="handleDrop"
+              @drag-node="startDraggingNode"
+            />
+          </div>
         </fieldset>
       </template>
 

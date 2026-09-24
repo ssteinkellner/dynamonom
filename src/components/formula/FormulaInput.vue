@@ -80,7 +80,6 @@ function confirm(input: NumericFormulaInput): void {
     @click="isOpen = true"
   >
     <span class="formula-input-expression">{{ expressionLabel }}</span>
-    <span class="formula-input-range">{{ rangeLabel }}</span>
   </button>
 
   <FormulaEditorDialog
