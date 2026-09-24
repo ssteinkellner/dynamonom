@@ -2,16 +2,19 @@ import {
   ACTION_TYPES,
   getActionTypeLabel,
 } from "../action-model.ts";
-import type { MetronomeSettings } from "../action-model.ts";
+import type {
+  MetronomeSettings,
+  StopwatchSettings,
+} from "../action-model.ts";
 import { formatNumericFormulaInput } from "../formula-model.ts";
+import type { NumericFormulaInput } from "../formula-model.ts";
 import type {
   ActionResult,
   BreakRecord,
   FormulaValueRecord,
-  ManualActionResult,
   MetronomeActionResult,
   RuntimeMetronomeSettings,
-  SecondsActionResult,
+  RuntimeStopwatchSettings,
   SessionReport,
   StopwatchActionResult,
 } from "./session.ts";
@@ -65,14 +68,8 @@ export function getActionReportDetails(action: ActionResult): ReportDetail[] {
     case ACTION_TYPES.METRONOME:
       appendMetronomeDetails(details, action);
       break;
-    case ACTION_TYPES.SECONDS:
-      appendSecondsDetails(details, action);
-      break;
     case ACTION_TYPES.STOPWATCH:
       appendStopwatchDetails(details, action);
-      break;
-    case ACTION_TYPES.MANUAL:
-      appendManualDetails(details, action);
       break;
   }
   appendFormulaDetails(details, action.formulaValues ?? []);
@@ -150,28 +147,17 @@ function appendConfiguredActionDetails(
         appendConfiguredMetronomeDetails(details, action.settings);
       }
       break;
-    case ACTION_TYPES.SECONDS:
-      if (typeof action.settings.seconds !== "number") {
-        details.push({
-          label: "Dauer",
-          value: `${formatNumericFormulaInput(action.settings.seconds)} Sekunden`,
-        });
-      }
-      break;
     case ACTION_TYPES.STOPWATCH:
-      details.push({ label: "Aktion", value: "Zeit messen" });
-      break;
-    case ACTION_TYPES.MANUAL:
-      if (action.settings.limitSeconds === null) {
-        details.push({ label: "Limit", value: "Ohne Limit" });
-      } else if (typeof action.settings.limitSeconds !== "number") {
-        details.push({
-          label: "Limit",
-          value: `${formatNumericFormulaInput(action.settings.limitSeconds)} Sekunden`,
-        });
-      }
+      appendConfiguredStopwatchDetails(details, action.settings);
       break;
   }
+}
+
+function appendConfiguredStopwatchDetails(
+  details: ReportDetail[],
+  settings: StopwatchSettings | RuntimeStopwatchSettings,
+): void {
+  details.push({ label: "Ende", value: formatStopwatchEnd(settings) });
 }
 
 function appendConfiguredMetronomeDetails(
@@ -254,47 +240,13 @@ function appendMetronomeDetails(
   }
 }
 
-function appendSecondsDetails(
-  details: ReportDetail[],
-  action: SecondsActionResult,
-): void {
-  const settingSeconds =
-    typeof action.settings.seconds === "number"
-      ? action.settings.seconds
-      : action.configuredSeconds;
-  details.push({
-    label: "Dauer",
-    value:
-      settingSeconds === undefined
-        ? `${action.elapsedSeconds ?? 0} Sekunden`
-        : `${action.elapsedSeconds ?? 0} Sekunden (konfiguriert: ${settingSeconds} Sekunden)`,
-  });
-}
-
 function appendStopwatchDetails(
   details: ReportDetail[],
   action: StopwatchActionResult,
 ): void {
-  details.push({ label: "Dauer", value: `${action.elapsedSeconds ?? 0} Sekunden` });
-}
-
-function appendManualDetails(
-  details: ReportDetail[],
-  action: ManualActionResult,
-): void {
-  const configuredLimit =
-    typeof action.settings.limitSeconds === "number"
-      ? action.settings.limitSeconds
-      : action.limitSeconds;
   details.push(
-    { label: "Dauer", value: formatElapsed(action.elapsedSeconds ?? 0) },
-    {
-      label: "Limit",
-      value:
-        configuredLimit === null || configuredLimit === undefined
-          ? "Ohne Limit"
-          : `${configuredLimit} Sekunden`,
-    },
+    { label: "Dauer", value: `${action.elapsedSeconds ?? 0} Sekunden` },
+    { label: "Ende", value: formatStopwatchEnd(action.settings) },
   );
 }
 
@@ -328,12 +280,36 @@ function getActionStatusLabel(action: ActionResult): string {
       ? "Automatisch beendet"
       : "Manuell beendet";
   }
-  if (action.type === ACTION_TYPES.SECONDS) {
+  if (action.type === ACTION_TYPES.STOPWATCH) {
     return action.completedBy === "auto"
-      ? "Automatisch fortgesetzt"
-      : "Manuell fortgesetzt";
+      ? "Automatisch beendet"
+      : "Manuell beendet";
   }
-  return "Manuell fortgesetzt";
+  return "Manuell beendet";
+}
+
+function formatStopwatchEnd(
+  settings: StopwatchSettings | RuntimeStopwatchSettings,
+): string {
+  if (settings.endMode === "unlimited") {
+    return "Unbegrenzt";
+  }
+  if (settings.endMode === "automatic") {
+    return `Automatisch nach ${formatStopwatchSeconds(settings.automaticSeconds)} Sekunden`;
+  }
+  return `Manuell limitieren auf ${formatStopwatchSeconds(settings.manualLimitSeconds)} Sekunden`;
+}
+
+function formatStopwatchSeconds(
+  value: NumericFormulaInput | number | null,
+): string {
+  if (typeof value === "number") {
+    return String(value);
+  }
+  if (value === null) {
+    return "unbekannt";
+  }
+  return formatNumericFormulaInput(value);
 }
 
 function formatBpm(settings: RuntimeMetronomeSettings): string {
@@ -458,10 +434,4 @@ function formatBreakRecordsShort(records: readonly BreakRecord[]): string {
     return `${record.beat} (${duration}, ${record.bpm} BPM)`;
   });
   return `Pausen gebraucht bei: ${breaks.join(", ")}`;
-}
-
-function formatElapsed(totalSeconds: number): string {
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }

@@ -4,7 +4,11 @@ import assert from "node:assert/strict";
 import { createPinia, setActivePinia } from "pinia";
 import { afterEach, beforeEach, test, vi } from "vitest";
 import { ACTION_TYPES } from "../src/action-model.ts";
-import type { Action, MetronomeAction } from "../src/action-model.ts";
+import type {
+  Action,
+  MetronomeAction,
+  StopwatchAction,
+} from "../src/action-model.ts";
 import {
   createNumericFormulaInput,
   type FormulaNode,
@@ -12,6 +16,7 @@ import {
 } from "../src/formula-model.ts";
 import type { FormulaFallbackNode, FormulaReferenceNode } from "../src/formula-model.ts";
 import { createDefaultMetronomeSettings } from "../src/models/metronome-settings.ts";
+import { createDefaultStopwatchSettings } from "../src/action-model.ts";
 import { useMetronomeStore } from "../src/stores/metronome.ts";
 
 const originalAudioContext = window.AudioContext;
@@ -58,6 +63,14 @@ function metronomeAction(
   return { id, type: ACTION_TYPES.METRONOME, name, settings };
 }
 
+function stopwatchAction(
+  id: string,
+  settings: StopwatchAction["settings"] = createDefaultStopwatchSettings(),
+  name = id,
+): StopwatchAction {
+  return { id, type: ACTION_TYPES.STOPWATCH, name, settings };
+}
+
 function currentNode(property: string): FormulaNode {
   return { id: `current-${property}`, type: "current", property };
 }
@@ -99,38 +112,33 @@ afterEach(() => {
   });
 });
 
-test("seconds actions advance automatically and abort produces a partial report", async () => {
+test("automatic Stopwatch actions advance and abort produces a partial report", async () => {
   const store = useMetronomeStore();
+  const automaticSettings = {
+    ...createDefaultStopwatchSettings(),
+    endMode: "automatic" as const,
+    automaticSeconds: formula(1, 1, 600),
+  };
   const actions: Action[] = [
-    {
-      id: "seconds",
-      type: ACTION_TYPES.SECONDS,
-      name: "Vorbereitung",
-      settings: { seconds: formula(1, 1, 600) },
-    },
+    stopwatchAction("stopwatch", automaticSettings, "Vorbereitung"),
     metronomeAction("metronome", createDefaultMetronomeSettings(), "Metronom"),
-    {
-      id: "manual",
-      type: ACTION_TYPES.MANUAL,
-      name: "Abschluss",
-      settings: { limitSeconds: null },
-    },
+    stopwatchAction("final-stopwatch", undefined, "Abschluss"),
   ];
 
   assert.equal(store.replaceActionDefinitions(actions, true), true);
   assert.equal(await store.startSession(), true);
-  assert.equal(store.phase, "action-sekunden");
+  assert.equal(store.phase, "action-stoppuhr");
 
   await vi.advanceTimersByTimeAsync(1000);
 
-  const secondsResult = store.actionResults[0];
-  assert.ok(secondsResult);
-  if (secondsResult.type !== ACTION_TYPES.SECONDS) {
-    throw new Error("Expected a seconds-action result.");
+  const stopwatchResult = store.actionResults[0];
+  assert.ok(stopwatchResult);
+  if (stopwatchResult.type !== ACTION_TYPES.STOPWATCH) {
+    throw new Error("Expected a stopwatch-action result.");
   }
-  assert.equal(secondsResult.status, "completed");
-  assert.equal(secondsResult.completedBy, "auto");
-  assert.equal(secondsResult.configuredSeconds, 1);
+  assert.equal(stopwatchResult.status, "completed");
+  assert.equal(stopwatchResult.completedBy, "auto");
+  assert.equal(stopwatchResult.elapsedSeconds, 1);
   assert.equal(store.currentAction?.type, ACTION_TYPES.METRONOME);
   assert.equal(store.phase, "countdown");
   assert.equal(store.abortSession(), true);
@@ -173,12 +181,7 @@ test("metronome countdown and automatic end advance to the next action", async (
   };
   const actions: Action[] = [
     metronomeAction("metronome", metronomeSettings, "Metronom"),
-    {
-      id: "manual",
-      type: ACTION_TYPES.MANUAL,
-      name: "Abschluss",
-      settings: { limitSeconds: null },
-    },
+    stopwatchAction("stopwatch", undefined, "Abschluss"),
   ];
 
   assert.equal(store.replaceActionDefinitions(actions, true), true);
@@ -195,8 +198,8 @@ test("metronome countdown and automatic end advance to the next action", async (
   assert.equal(metronomeResult.endReason, "automatic");
   assert.equal(metronomeResult.beatCount, 2);
   assert.equal(metronomeResult.endBpm, 120);
-  assert.equal(store.currentAction?.type, ACTION_TYPES.MANUAL);
-  assert.equal(store.phase, "action-manuell");
+  assert.equal(store.currentAction?.type, ACTION_TYPES.STOPWATCH);
+  assert.equal(store.phase, "action-stoppuhr");
 });
 
 test("Stopwatch values affect a later Metronome only through explicit references", async () => {
@@ -222,7 +225,7 @@ test("Stopwatch values affect a later Metronome only through explicit references
       id: "stopwatch",
       type: ACTION_TYPES.STOPWATCH,
       name: "Dauer",
-      settings: {},
+      settings: createDefaultStopwatchSettings(),
     },
     metronomeAction("metronome", referencedSettings, "Metronom"),
   ];
@@ -301,12 +304,14 @@ test("multiple Metronomes run in sequence and may reference an earlier End-BPM",
 
 test("removing or moving a referenced action is rejected", () => {
   const store = useMetronomeStore();
-  const seconds = {
-    id: "seconds",
-    type: ACTION_TYPES.SECONDS,
+  const dependentStopwatch = {
+    id: "dependent-stopwatch",
+    type: ACTION_TYPES.STOPWATCH,
     name: "Wartezeit",
     settings: {
-      seconds: {
+      ...createDefaultStopwatchSettings(),
+      endMode: "automatic" as const,
+      automaticSeconds: {
         ...formula(10, 1, 600),
         expression: fallbackNode(
           "fallback-watch",
@@ -319,8 +324,8 @@ test("removing or moving a referenced action is rejected", () => {
   assert.equal(
     store.replaceActionDefinitions(
       [
-        { id: "stopwatch", type: ACTION_TYPES.STOPWATCH, name: "Messung", settings: {} },
-        seconds,
+        stopwatchAction("stopwatch", createDefaultStopwatchSettings(), "Messung"),
+        dependentStopwatch,
         metronomeAction("metronome", createDefaultMetronomeSettings(), "Lauf"),
       ],
       true,
@@ -332,7 +337,7 @@ test("removing or moving a referenced action is rejected", () => {
   assert.equal(store.removeAction("stopwatch"), false);
   assert.deepEqual(
     store.actionDefinitions.map((action) => action.id),
-    ["stopwatch", "seconds", "metronome"],
+    ["stopwatch", "dependent-stopwatch", "metronome"],
   );
 });
 

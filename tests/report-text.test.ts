@@ -1,10 +1,14 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { ACTION_TYPES } from "../src/action-model.ts";
+import {
+  ACTION_TYPES,
+  createDefaultStopwatchSettings,
+} from "../src/action-model.ts";
 import { createNumericFormulaInput } from "../src/formula-model.ts";
 import type {
   MetronomeActionResult,
   RuntimeMetronomeSettings,
+  RuntimeStopwatchSettings,
   SessionReport,
 } from "../src/models/session.ts";
 import {
@@ -35,26 +39,41 @@ const runtimeSettings: RuntimeMetronomeSettings = {
   sessionEndBeats: 8,
 };
 
+const unlimitedStopwatchSettings: RuntimeStopwatchSettings = {
+  endMode: "unlimited",
+  automaticSeconds: null,
+  hideDuration: false,
+  manualLimitSeconds: null,
+  earlyContinueWarning: false,
+  earlyContinueWarningSeconds: null,
+};
+
 test("long report headings identify each action and separate sections", () => {
   const report: SessionReport = {
     aborted: false,
     actions: [
       {
-        id: "seconds",
-        type: ACTION_TYPES.SECONDS,
+        id: "stopwatch",
+        type: ACTION_TYPES.STOPWATCH,
         name: "Vorbereitung",
         status: "completed",
-        settings: { seconds: 5 },
-        configuredSeconds: 5,
+        settings: {
+          ...unlimitedStopwatchSettings,
+          endMode: "automatic",
+          automaticSeconds: 5,
+        },
         completedBy: "auto",
         elapsedSeconds: 5,
       },
       {
-        id: "manual",
-        type: ACTION_TYPES.MANUAL,
+        id: "limited-stopwatch",
+        type: ACTION_TYPES.STOPWATCH,
         name: "Abschluss",
         status: "not-started",
-        settings: { limitSeconds: null },
+        settings: {
+          ...createDefaultStopwatchSettings(),
+          endMode: "manual",
+        },
       },
     ],
   };
@@ -62,13 +81,14 @@ test("long report headings identify each action and separate sections", () => {
   assert.equal(
     buildLongReportText(report),
     [
-      "**Sekunden - Vorbereitung**",
-      "Status: Automatisch fortgesetzt",
-      "Dauer: 5 Sekunden (konfiguriert: 5 Sekunden)",
+      "**Stoppuhr - Vorbereitung**",
+      "Status: Automatisch beendet",
+      "Dauer: 5 Sekunden",
+      "Ende: Automatisch nach 5 Sekunden",
       "",
-      "**Manuell - Abschluss**",
+      "**Stoppuhr - Abschluss**",
       "Status: Nicht gestartet",
-      "Limit: Ohne Limit",
+      "Ende: Manuell limitieren auf 60 Sekunden",
     ].join("\n"),
   );
 });
@@ -195,18 +215,21 @@ test("static formula values use the ordinary report value without a formula row"
   const report: SessionReport = {
     actions: [
       {
-        id: "seconds",
-        type: ACTION_TYPES.SECONDS,
+        id: "stopwatch",
+        type: ACTION_TYPES.STOPWATCH,
         name: "Wartezeit",
         status: "completed",
-        settings: { seconds: 12 },
-        configuredSeconds: 12,
+        settings: {
+          ...unlimitedStopwatchSettings,
+          endMode: "automatic",
+          automaticSeconds: 12,
+        },
         completedBy: "auto",
         elapsedSeconds: 12,
         formulaValues: [
           {
-            field: "seconds",
-            label: "Dauer",
+            field: "automaticSeconds",
+            label: "Automatisch beenden nach",
             expression: "12 [Min 1; Max 600]",
             value: 12,
             isStatic: true,
@@ -230,19 +253,26 @@ test("short reports use configured values for actions that have not started", ()
     aborted: true,
     actions: [
       {
-        id: "seconds",
-        type: ACTION_TYPES.SECONDS,
+        id: "stopwatch",
+        type: ACTION_TYPES.STOPWATCH,
         name: "Wartezeit",
         status: "not-started",
-        settings: { seconds: createNumericFormulaInput(12, 1, 600) },
+        settings: {
+          ...createDefaultStopwatchSettings(),
+          endMode: "automatic",
+          automaticSeconds: createNumericFormulaInput(12, 1, 600),
+        },
       },
     ],
   };
 
-  assert.equal(buildShortReportText(report), "**Wartezeit**\nDauer: 12 Sekunden");
+  assert.equal(
+    buildShortReportText(report),
+    "**Wartezeit**\nEnde: Automatisch nach 12 Sekunden",
+  );
   assert.equal(
     buildLongReportText(report),
-    "**Sekunden - Wartezeit**\nStatus: Nicht gestartet\nDauer: 12 Sekunden",
+    "**Stoppuhr - Wartezeit**\nStatus: Nicht gestartet\nEnde: Automatisch nach 12 Sekunden",
   );
 });
 
@@ -254,7 +284,7 @@ test("stopwatch reports omit the time-measurement hint", () => {
         type: ACTION_TYPES.STOPWATCH,
         name: "Messung",
         status: "completed",
-        settings: {},
+        settings: unlimitedStopwatchSettings,
         elapsedSeconds: 42,
       },
     ],

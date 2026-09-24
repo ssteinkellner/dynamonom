@@ -641,6 +641,10 @@ button[aria-invalid="true"] {
   gap: 1rem;
 }
 
+.stopwatch-metric-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .metric {
   border-radius: 0.65rem;
   padding: 0.85rem;
@@ -825,7 +829,7 @@ table {
 
 .action-clock {
   display: block;
-  margin-top: 1.25rem;
+  margin: 0.15rem 0;
   font-size: clamp(3rem, 16vw, 5rem);
   line-height: 1;
 }
@@ -1397,6 +1401,10 @@ th {
   .metric-grid,
   .button-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .stopwatch-metric-grid {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .button-row.settings-actions {

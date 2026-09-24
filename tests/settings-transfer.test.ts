@@ -3,6 +3,7 @@ import { test } from "vitest";
 import {
   ACTION_TYPES,
   createDefaultAction,
+  createDefaultStopwatchSettings,
 } from "../src/action-model.ts";
 import {
   createDefaultMetronomeSettings,
@@ -104,7 +105,7 @@ test("valid rows install unless an indexed action has validation errors", () => 
   const invalid = validateImportedActions([
     metronome,
     {
-      type: ACTION_TYPES.SECONDS,
+      type: "sekunden",
       name: "Sekunden",
       settings: { seconds: "keine Zahl" },
     },
@@ -115,22 +116,22 @@ test("valid rows install unless an indexed action has validation errors", () => 
     getSettingsImportIssues(invalid.errors, [
       metronome,
       {
-        type: ACTION_TYPES.SECONDS,
+        type: "sekunden",
         name: "Sekunden",
         settings: { seconds: "keine Zahl" },
       },
     ]).map((issue) => [issue.actionIndex, issue.fieldLabel]),
-    [[2, "Dauer in Sekunden"]],
+    [[2, "Aktionstyp"]],
   );
 });
 
 test("list-level missing-metronome errors retain otherwise-valid imported rows", () => {
-  const manual = {
-    type: ACTION_TYPES.MANUAL,
-    name: "Abschluss",
-    settings: { limitSeconds: null },
+  const stopwatch = {
+    type: ACTION_TYPES.STOPWATCH,
+    name: "Nur Stoppuhr",
+    settings: createDefaultStopwatchSettings(),
   };
-  const validation = validateImportedActions([manual]);
+  const validation = validateImportedActions([stopwatch]);
 
   assert.equal(validation.valid, false);
   assert.equal(validation.errors[0]?.index, -1);

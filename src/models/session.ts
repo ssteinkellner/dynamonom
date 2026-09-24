@@ -4,10 +4,10 @@ import type {
   BreakMode,
   MaximumMode,
   MetronomeAction,
-  ManualAction,
   NumericSetting,
-  SecondsAction,
+  StopwatchEndMode,
   StopwatchAction,
+  StopwatchSettings,
 } from "../action-model.ts";
 import type { NumericFormulaInput } from "../formula-model.ts";
 
@@ -19,9 +19,7 @@ export type SessionPhase =
   | "resume-countdown"
   | "transition"
   | "finished"
-  | "action-sekunden"
-  | "action-stoppuhr"
-  | "action-manuell";
+  | "action-stoppuhr";
 
 export type ActionResultStatus =
   | "not-started"
@@ -73,6 +71,15 @@ export interface RuntimeMetronomeSettings {
   sessionEndBeats: NumericSetting;
 }
 
+export interface RuntimeStopwatchSettings {
+  endMode: StopwatchEndMode;
+  automaticSeconds: number | null;
+  hideDuration: boolean;
+  manualLimitSeconds: number | null;
+  earlyContinueWarning: boolean;
+  earlyContinueWarningSeconds: number | null;
+}
+
 interface ActionResultBase<TType extends ActionType, TSettings> {
   id: string;
   type: TType;
@@ -96,34 +103,15 @@ export interface MetronomeActionResult
   endBpm?: number;
 }
 
-export interface SecondsActionResult
+export interface StopwatchActionResult
   extends ActionResultBase<
-    SecondsAction["type"],
-    SecondsAction["settings"] | { seconds: number }
+    StopwatchAction["type"],
+    StopwatchSettings | RuntimeStopwatchSettings
   > {
-  configuredSeconds?: number;
   completedBy?: "auto" | "manual";
 }
 
-export interface StopwatchActionResult
-  extends ActionResultBase<StopwatchAction["type"], StopwatchAction["settings"]> {
-  completedBy?: "manual";
-}
-
-export interface ManualActionResult
-  extends ActionResultBase<
-    ManualAction["type"],
-    ManualAction["settings"] | { limitSeconds: number | null }
-  > {
-  completedBy?: "manual";
-  limitSeconds?: number | null;
-}
-
-export type ActionResult =
-  | MetronomeActionResult
-  | SecondsActionResult
-  | StopwatchActionResult
-  | ManualActionResult;
+export type ActionResult = MetronomeActionResult | StopwatchActionResult;
 
 export interface SessionReport {
   actions: ActionResult[];

@@ -6,6 +6,7 @@ import { afterEach, test } from "vitest";
 import {
   ACTION_TYPES,
   createDefaultAction,
+  createDefaultStopwatchSettings,
 } from "../src/action-model.ts";
 import {
   createNumericFormulaInput,
@@ -16,15 +17,15 @@ import FormulaCurrentNode from "../src/components/formula/FormulaCurrentNode.vue
 import FormulaInput from "../src/components/formula/FormulaInput.vue";
 import FormulaReferenceNode from "../src/components/formula/FormulaReferenceNode.vue";
 
-const action = createDefaultAction(ACTION_TYPES.SECONDS, []);
+const action = createDefaultAction(ACTION_TYPES.STOPWATCH, []);
 const input = createNumericFormulaInput(10, 1, 600);
 
 const commonProps = {
   modelValue: input,
   action,
   previousActions: [],
-  field: "seconds",
-  label: "Dauer",
+  field: "automaticSeconds",
+  label: "Sekunden",
   defaultValue: 10,
   hardMin: 1,
   hardMax: 600,
@@ -216,17 +217,17 @@ test("redundant node captions are removed without losing control names", () => {
       actions: [
         {
           id: "previous",
-          type: ACTION_TYPES.SECONDS,
+            type: ACTION_TYPES.STOPWATCH,
           name: "Vorherige Aktion",
-          settings: { seconds: input },
+            settings: createDefaultStopwatchSettings(),
         },
       ],
     },
   });
   const currentWrapper = mount(FormulaCurrentNode, {
     props: {
-      node: { id: "current", type: "current", property: "seconds" },
-      currentProperties: [{ value: "seconds", label: "Sekunden" }],
+      node: { id: "current", type: "current", property: "automaticSeconds" },
+      currentProperties: [{ value: "automaticSeconds", label: "Sekunden" }],
     },
   });
   mounted.push(referenceWrapper, currentWrapper);

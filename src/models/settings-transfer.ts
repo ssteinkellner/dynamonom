@@ -9,6 +9,7 @@ import type {
   ActionValidationError,
 } from "../action-model.ts";
 import { validateMetronomeActionSettings } from "./metronome-settings.ts";
+import { validateStopwatchActionSettings } from "./stopwatch-settings.ts";
 
 const REQUIRED_PARAMETERS = ["version", "auto-start", "actions"] as const;
 const OPTIONAL_PARAMETERS = ["hide-progress"] as const;
@@ -23,13 +24,17 @@ const ACTION_FIELD_LABELS: Readonly<Record<string, string>> = Object.freeze({
   type: "Aktionstyp",
   name: "Name",
   settings: "Einstellungen",
-  seconds: "Dauer in Sekunden",
   formula: "Formel",
   rounding: "Rundung",
   roundingThreshold: "Rundungsschwelle",
   min: "Min",
   max: "Max",
-  limitSeconds: "Limit Sekunden",
+  endMode: "Ende",
+  automaticSeconds: "Automatisches Ende in Sekunden",
+  hideDuration: "Dauer ausblenden",
+  manualLimitSeconds: "Manuelles Limit in Sekunden",
+  earlyContinueWarning: "Warnung bei frühzeitigem Beenden",
+  earlyContinueWarningSeconds: "Frühwarnung in Sekunden",
   bpm: "BPM",
   accentuate: "Betonung",
   accentRepeat: "Betonungsintervall",
@@ -160,6 +165,7 @@ export function validateImportedActions(
 ): ImportedActionsValidation {
   const validation = validateActionDefinitions(rawActions, {
     validateMetronomeSettings: validateMetronomeActionSettings,
+    validateStopwatchSettings: validateStopwatchActionSettings,
     requireMetronome: true,
   });
   const indexedErrors = validation.errors.filter((error) => error.index >= 0);

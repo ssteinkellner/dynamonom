@@ -63,9 +63,9 @@ starting requires at least one **Metronom** action. The **Zurück zu den
 Voreinstellungen** and **Starten** buttons appear below the final settings
 section.
 
-**Globale Einstellungen** includes the unchecked-by-default **Fortschritt
-ausblenden** option. Progress is otherwise shown as **Aktion n von N** on
-each execution view.
+**Globale Einstellungen** includes the unchecked-by-default **Gesamtanzahl
+Aktionen ausblenden** option. Progress is otherwise shown as **Aktion n von N**
+on each execution view; when enabled, only **Aktion n** is shown.
 
 ### Action types
 
@@ -74,15 +74,14 @@ each execution view.
   tempo, and pause counters. **Weiter** ends that action and stays disabled
   until its configured lock threshold; an automatic Ende advances to the next
   action. Tempo, pause, and end settings use the visual formula editor.
-- **Sekunden** uses a formula-based duration from 1 to 600 seconds and
-  advances automatically when it expires. Continuing more than 10 seconds
-  early requires confirmation.
-- **Stoppuhr** only measures elapsed time until **Weiter**. Its result can be
-  referenced by formulas in later actions; it does not automatically set a
-  later Metronome's end or lock.
-- **Manuell** waits for **Weiter**. An optional 1-600 second limit is shown
-  while running but never advances the action automatically. The limit can
-  also be a formula.
+- **Stoppuhr** measures elapsed time until **Weiter** and supports three
+  **Ende** modes: **Unbegrenzt**, **Automatisch beenden nach** a
+  formula-based duration, or **Manuell limitieren auf** a formula-based
+  duration. Automatic mode advances when its duration expires; manual-limit
+  mode shows the limit and turns **Weiter** red after it is reached without
+  advancing automatically. Non-unlimited modes can warn before an early
+  termination and can optionally hide the automatic duration in the button.
+  Its result can be referenced by formulas in later actions.
 
 Every editable numeric setting opens the drag-and-drop formula editor. Palette
 items create formula nodes; existing nodes can be moved between empty drop

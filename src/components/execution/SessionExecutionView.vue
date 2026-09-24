@@ -1,9 +1,7 @@
 <script setup lang="ts">
 import { ACTION_TYPES } from "../../action-model.ts";
 import { useMetronomeStore } from "../../stores/metronome.ts";
-import ManualExecutionView from "./ManualExecutionView.vue";
 import MetronomeExecutionView from "./MetronomeExecutionView.vue";
-import SecondsExecutionView from "./SecondsExecutionView.vue";
 import StopwatchExecutionView from "./StopwatchExecutionView.vue";
 import { useDialog } from "../../services/dialog.ts";
 
@@ -32,18 +30,8 @@ async function requestAbort(): Promise<void> {
     :action="store.currentAction"
     @abort="requestAbort"
   />
-  <SecondsExecutionView
-    v-else-if="store.currentAction?.type === ACTION_TYPES.SECONDS"
-    :action="store.currentAction"
-    @abort="requestAbort"
-  />
   <StopwatchExecutionView
     v-else-if="store.currentAction?.type === ACTION_TYPES.STOPWATCH"
-    :action="store.currentAction"
-    @abort="requestAbort"
-  />
-  <ManualExecutionView
-    v-else-if="store.currentAction?.type === ACTION_TYPES.MANUAL"
     :action="store.currentAction"
     @abort="requestAbort"
   />

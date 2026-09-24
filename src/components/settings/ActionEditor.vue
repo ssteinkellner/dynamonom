@@ -8,12 +8,10 @@ import type {
   Action,
   ActionValidationError,
   MetronomeSettings,
-  ManualAction,
-  SecondsAction,
+  StopwatchAction,
 } from "../../action-model.ts";
-import ManualActionSettings from "./ManualActionSettings.vue";
 import MetronomeActionSettings from "./MetronomeActionSettings.vue";
-import SecondsActionSettings from "./SecondsActionSettings.vue";
+import StopwatchActionSettings from "./StopwatchActionSettings.vue";
 
 const props = defineProps<{
   draft: Action;
@@ -56,14 +54,8 @@ function updateMetronomeSettings(settings: MetronomeSettings): void {
   }
 }
 
-function updateSecondsSettings(settings: SecondsAction["settings"]): void {
-  if (props.draft.type === ACTION_TYPES.SECONDS) {
-    emit("update:draft", { ...props.draft, settings });
-  }
-}
-
-function updateManualSettings(settings: ManualAction["settings"]): void {
-  if (props.draft.type === ACTION_TYPES.MANUAL) {
+function updateStopwatchSettings(settings: StopwatchAction["settings"]): void {
+  if (props.draft.type === ACTION_TYPES.STOPWATCH) {
     emit("update:draft", { ...props.draft, settings });
   }
 }
@@ -96,21 +88,13 @@ function updateManualSettings(settings: ManualAction["settings"]): void {
       :previous-actions="previousActions"
       @update:settings="updateMetronomeSettings"
     />
-    <SecondsActionSettings
-      v-else-if="draft.type === ACTION_TYPES.SECONDS"
+    <StopwatchActionSettings
+      v-else-if="draft.type === ACTION_TYPES.STOPWATCH"
       :action="draft"
       :settings="draft.settings"
       :errors="settingsErrors"
       :previous-actions="previousActions"
-      @update:settings="updateSecondsSettings"
-    />
-    <ManualActionSettings
-      v-else-if="draft.type === ACTION_TYPES.MANUAL"
-      :action="draft"
-      :settings="draft.settings"
-      :errors="settingsErrors"
-      :previous-actions="previousActions"
-      @update:settings="updateManualSettings"
+      @update:settings="updateStopwatchSettings"
     />
 
     <div class="button-row action-editor-actions">

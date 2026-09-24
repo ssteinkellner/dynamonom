@@ -25,6 +25,7 @@ import type {
 import {
   METRONOME_NUMERIC_FIELD_BOUNDS,
 } from "./metronome-settings.ts";
+import { STOPWATCH_NUMERIC_FIELD_BOUNDS } from "./stopwatch-settings.ts";
 import type {
   ActionResult,
   FormulaValueRecord,
@@ -222,8 +223,9 @@ export function getFormulaFieldLabel(field: string): string {
     breakSeconds: "Pausendauer",
     sessionEndBeats: "Session-Ende",
     lockBeats: "Weiter-Sperre",
-    seconds: "Dauer",
-    limitSeconds: "Zeitlimit",
+    automaticSeconds: "Automatisches Ende",
+    manualLimitSeconds: "Manuelles Limit",
+    earlyContinueWarningSeconds: "Frühwarnung",
   };
   return labels[field] ?? field;
 }
@@ -377,11 +379,8 @@ function getFieldBounds(
   if (action.type === ACTION_TYPES.METRONOME) {
     return METRONOME_NUMERIC_FIELD_BOUNDS[field] ?? null;
   }
-  if (action.type === ACTION_TYPES.SECONDS && field === "seconds") {
-    return { min: 1, max: 600 };
-  }
-  if (action.type === ACTION_TYPES.MANUAL && field === "limitSeconds") {
-    return { min: 1, max: 600 };
+  if (action.type === ACTION_TYPES.STOPWATCH) {
+    return STOPWATCH_NUMERIC_FIELD_BOUNDS[field] ?? null;
   }
   return null;
 }
@@ -448,10 +447,12 @@ function getCurrentPropertyLabels(
       sessionEndBeats: "Session-Ende",
       lockBeats: "Weiter-Sperre",
     });
-  } else if (action.type === ACTION_TYPES.SECONDS) {
-    labels.seconds = "Dauer";
-  } else if (action.type === ACTION_TYPES.MANUAL) {
-    labels.limitSeconds = "Zeitlimit";
+  } else if (action.type === ACTION_TYPES.STOPWATCH) {
+    Object.assign(labels, {
+      automaticSeconds: "Automatisches Ende",
+      manualLimitSeconds: "Manuelles Limit",
+      earlyContinueWarningSeconds: "Frühwarnung",
+    });
   }
   return labels;
 }

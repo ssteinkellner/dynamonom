@@ -11,6 +11,7 @@ import type {
   ActionType,
   ActionValidationError,
   MetronomeSettings,
+  StopwatchSettings,
 } from "../../action-model.ts";
 import { createDefaultMetronomeSettings } from "../../models/metronome-settings.ts";
 import { formatNumericFormulaInput } from "../../formula-model.ts";
@@ -33,9 +34,7 @@ const draggedActionId = ref<string | null>(null);
 
 const actionTypes: readonly { value: ActionType; label: string }[] = [
   { value: ACTION_TYPES.METRONOME, label: "Metronom" },
-  { value: ACTION_TYPES.SECONDS, label: "Sekunden" },
   { value: ACTION_TYPES.STOPWATCH, label: "Stoppuhr" },
-  { value: ACTION_TYPES.MANUAL, label: "Manuell" },
 ];
 
 const draftIsDirty = computed(() => {
@@ -69,14 +68,8 @@ function actionSummary(action: Action, index: number): string {
     case ACTION_TYPES.METRONOME: {
       return formatMetronomeSummary(action.settings, previous);
     }
-    case ACTION_TYPES.SECONDS:
-      return `${formatNumericFormulaInput(action.settings.seconds, { actions: previous })} Sekunden`;
     case ACTION_TYPES.STOPWATCH:
-      return "";
-    case ACTION_TYPES.MANUAL:
-      return action.settings.limitSeconds === null
-        ? "Ohne Zeitlimit"
-        : `Limit ${formatNumericFormulaInput(action.settings.limitSeconds, { actions: previous })} Sekunden`;
+      return formatStopwatchSummary(action.settings, previous);
   }
 }
 
@@ -116,6 +109,21 @@ function formatMetronomeSummary(
   }
 
   return summary.join("; ");
+}
+
+function formatStopwatchSummary(
+  settings: StopwatchSettings,
+  previous: readonly { id: string; type: string; name: string }[],
+): string {
+  const format = (input: StopwatchSettings["automaticSeconds"]): string =>
+    formatNumericFormulaInput(input, { actions: previous });
+  if (settings.endMode === "automatic") {
+    return `Ende: Automatisch nach ${format(settings.automaticSeconds)} Sekunden`;
+  }
+  if (settings.endMode === "manual") {
+    return `Ende: Manuell limitieren auf ${format(settings.manualLimitSeconds)} Sekunden`;
+  }
+  return "Ende: Unbegrenzt";
 }
 
 async function confirmDiscard(): Promise<boolean> {

@@ -1,19 +1,23 @@
 // @vitest-environment jsdom
 
 import assert from "node:assert/strict";
+import { flushPromises, mount } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
-import { mount } from "@vue/test-utils";
 import { nextTick } from "vue";
 import { test } from "vitest";
 import {
   ACTION_TYPES,
+  createDefaultStopwatchSettings,
 } from "../src/action-model.ts";
 import MetronomeExecutionView from "../src/components/execution/MetronomeExecutionView.vue";
-import ManualExecutionView from "../src/components/execution/ManualExecutionView.vue";
-import SecondsExecutionView from "../src/components/execution/SecondsExecutionView.vue";
 import StopwatchExecutionView from "../src/components/execution/StopwatchExecutionView.vue";
+import AppDialogHost from "../src/components/common/AppDialogHost.vue";
 import { createDefaultMetronomeSettings } from "../src/models/metronome-settings.ts";
-import type { RuntimeMetronomeSettings } from "../src/models/session.ts";
+import type {
+  RuntimeStopwatchSettings,
+  RuntimeMetronomeSettings,
+  StopwatchActionResult,
+} from "../src/models/session.ts";
 import { useMetronomeStore } from "../src/stores/metronome.ts";
 
 function mountWithStore(component: Parameters<typeof mount>[0], props: object) {
@@ -21,6 +25,20 @@ function mountWithStore(component: Parameters<typeof mount>[0], props: object) {
     props,
     global: { plugins: [createPinia()] },
   });
+}
+
+function stopwatchRuntime(
+  overrides: Partial<RuntimeStopwatchSettings> = {},
+): RuntimeStopwatchSettings {
+  return {
+    endMode: "unlimited",
+    automaticSeconds: null,
+    hideDuration: false,
+    manualLimitSeconds: null,
+    earlyContinueWarning: false,
+    earlyContinueWarningSeconds: null,
+    ...overrides,
+  };
 }
 
 test("Metronome title is a section heading and Pause spans the first row", () => {
@@ -109,49 +127,170 @@ test("locked metronome actions describe the lock and can hide its threshold", as
   wrapper.unmount();
 });
 
-test("timer and manual execution views place Abbrechen before Weiter", () => {
-  const wrappers = [
-    mountWithStore(SecondsExecutionView, {
-      action: {
-        id: "seconds",
-        type: ACTION_TYPES.SECONDS,
-        name: "Wartezeit",
-        settings: { seconds: 30 },
-      },
+test("stopwatch end settings control its button label, limit text, and color", async () => {
+  const pinia = createPinia();
+  setActivePinia(pinia);
+  const store = useMetronomeStore();
+  const action = {
+    id: "stopwatch",
+    type: ACTION_TYPES.STOPWATCH,
+    name: "Dauer",
+    settings: createDefaultStopwatchSettings(),
+  };
+  store.actionPlan = [action];
+  const stopwatchResult: StopwatchActionResult = {
+    id: action.id,
+    type: action.type,
+    name: action.name,
+    status: "active",
+    settings: stopwatchRuntime({
+      endMode: "automatic",
+      automaticSeconds: 10,
+      earlyContinueWarning: true,
+      earlyContinueWarningSeconds: 10,
     }),
-    mountWithStore(StopwatchExecutionView, {
-      action: {
-        id: "stopwatch",
-        type: ACTION_TYPES.STOPWATCH,
-        name: "Dauer",
-        settings: {
-          formula: "sekunden",
-          rounding: "floor",
-          roundingThreshold: null,
-          min: 10,
-          max: null,
+  };
+  store.actionResults = [stopwatchResult];
+  store.currentActionIndex = 0;
+  store.phase = "action-stoppuhr";
+  store.activeElapsedSeconds = 3;
+
+  const wrapper = mount(StopwatchExecutionView, {
+    props: { action },
+    global: { plugins: [pinia] },
+  });
+  const continueButton = wrapper.get(".action-execution-actions .primary-button");
+  assert.equal(continueButton.text(), "Weiter (automatisch nach 10 Sekunden)");
+  assert.equal(
+    wrapper.get(".stopwatch-metric-grid .metric-label").text(),
+    "Vergangene Zeit",
+  );
+  assert.equal(
+    wrapper.get(".stopwatch-metric-grid .metric-value").text(),
+    "00:03",
+  );
+  assert.equal(wrapper.find(".action-options-summary").exists(), false);
+
+  const limitedStopwatchResult: StopwatchActionResult = {
+    ...stopwatchResult,
+    settings: stopwatchRuntime({
+      endMode: "manual",
+      manualLimitSeconds: 5,
+    }),
+  };
+  store.actionResults = [limitedStopwatchResult];
+  store.activeElapsedSeconds = 5;
+  await nextTick();
+
+  const limitedButton = wrapper.get(
+    ".action-execution-actions button:last-child",
+  );
+  assert.equal(limitedButton.text(), "Weiter");
+  assert.ok(limitedButton.classes().includes("danger-button"));
+  assert.equal(wrapper.get(".action-options-summary").text(), "Limit: 5 Sekunden");
+  wrapper.unmount();
+});
+
+test("an open early-continue dialog is accepted when a manual limit is reached", async () => {
+  const pinia = createPinia();
+  setActivePinia(pinia);
+  const store = useMetronomeStore();
+  const action = {
+    id: "stopwatch",
+    type: ACTION_TYPES.STOPWATCH,
+    name: "Dauer",
+    settings: {
+      ...createDefaultStopwatchSettings(),
+      endMode: "manual" as const,
+      manualLimitSeconds: {
+        ...createDefaultStopwatchSettings().manualLimitSeconds,
+        expression: {
+          id: "manual-limit",
+          type: "static" as const,
+          value: 20,
         },
       },
-    }),
-    mountWithStore(ManualExecutionView, {
-      action: {
-        id: "manual",
-        type: ACTION_TYPES.MANUAL,
-        name: "Abschluss",
-        settings: { limitSeconds: null },
+      earlyContinueWarningSeconds: {
+        ...createDefaultStopwatchSettings().earlyContinueWarningSeconds,
+        expression: {
+          id: "warning-threshold",
+          type: "static" as const,
+          value: 10,
+        },
       },
+    },
+  };
+  const stopwatchResult: StopwatchActionResult = {
+    id: action.id,
+    type: action.type,
+    name: action.name,
+    status: "active",
+    settings: stopwatchRuntime({
+      endMode: "manual",
+      manualLimitSeconds: 20,
+      earlyContinueWarning: true,
+      earlyContinueWarningSeconds: 10,
     }),
-  ];
+  };
+  store.actionPlan = [action];
+  store.actionResults = [stopwatchResult];
+  store.currentActionIndex = 0;
+  store.phase = "action-stoppuhr";
+  store.activeElapsedSeconds = 3;
 
-  for (const wrapper of wrappers) {
-    assert.equal(wrapper.get("#execution-title").element.tagName, "H2");
-    assert.deepEqual(
-      wrapper
-        .get(".action-execution-actions")
-        .findAll("button")
-        .map((button) => button.text()),
-      ["Abbrechen", "Weiter"],
-    );
-    wrapper.unmount();
-  }
+  const dialogHost = mount(AppDialogHost);
+  const wrapper = mount(StopwatchExecutionView, {
+    props: { action },
+    global: { plugins: [pinia] },
+  });
+
+  await wrapper.get(".action-execution-actions .primary-button").trigger("click");
+  await nextTick();
+  const dialog = document.body.querySelector('[role="alertdialog"]');
+  assert.ok(dialog);
+  assert.equal(dialog.querySelector("h2")?.textContent, "Nächste Aktion starten?");
+  assert.equal(
+    dialog.querySelector(".app-dialog-message")?.textContent,
+    "Wirklich vor dem konfigurierten Ende der Stoppuhr zur nächsten Aktion wechseln?",
+  );
+  assert.equal(
+    dialog.querySelector("[data-dialog-confirm]")?.textContent,
+    "Nächste Aktion starten",
+  );
+  assert.equal(
+    dialog.querySelector("[data-dialog-cancel]")?.textContent,
+    "Fortsetzen",
+  );
+
+  store.activeElapsedSeconds = 20;
+  await nextTick();
+  await flushPromises();
+  await nextTick();
+
+  assert.equal(store.phase, "finished");
+  assert.equal(stopwatchResult.status, "completed");
+  assert.equal(document.body.querySelector('[role="alertdialog"]'), null);
+  wrapper.unmount();
+  dialogHost.unmount();
+});
+
+test("stopwatch execution places Abbrechen before Weiter", () => {
+  const wrapper = mountWithStore(StopwatchExecutionView, {
+    action: {
+      id: "stopwatch",
+      type: ACTION_TYPES.STOPWATCH,
+      name: "Dauer",
+      settings: createDefaultStopwatchSettings(),
+    },
+  });
+
+  assert.equal(wrapper.get("#execution-title").element.tagName, "H2");
+  assert.deepEqual(
+    wrapper
+      .get(".action-execution-actions")
+      .findAll("button")
+      .map((button) => button.text()),
+    ["Abbrechen", "Weiter"],
+  );
+  wrapper.unmount();
 });

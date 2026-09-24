@@ -12,12 +12,14 @@ import type {
   ActionType,
   MetronomeAction,
   NumericSetting,
+  StopwatchSettings,
 } from "../action-model.ts";
 import type { MetronomePreset } from "../presets.ts";
 import {
   createDefaultMetronomeSettings,
   validateMetronomeActionSettings,
 } from "../models/metronome-settings.ts";
+import { validateStopwatchActionSettings } from "../models/stopwatch-settings.ts";
 import {
   createFormulaValueRecord,
   getFormulaFieldLabel,
@@ -34,6 +36,7 @@ import type {
   FormulaValueRecord,
   MetronomeActionResult,
   RuntimeMetronomeSettings,
+  RuntimeStopwatchSettings,
   SessionPhase,
   SessionReport,
   TempoDirection,
@@ -80,7 +83,6 @@ export const useMetronomeStore = defineStore("metronome", () => {
   const currentActionIndex = ref(-1);
   const activeActionStartedAt = ref<number | null>(null);
   const activeElapsedSeconds = ref(0);
-  const secondsRemaining = ref(0);
   const settings = shallowRef<RuntimeMetronomeSettings | null>(null);
   const beatCount = ref(0);
   const currentBpm = ref<number>(120);
@@ -102,6 +104,46 @@ export const useMetronomeStore = defineStore("metronome", () => {
   const currentActionResult = computed(
     () => actionResults.value[currentActionIndex.value] ?? null,
   );
+  const currentStopwatchSettings = computed<RuntimeStopwatchSettings | null>(() => {
+    const result = currentActionResult.value;
+    if (
+      result?.type !== ACTION_TYPES.STOPWATCH ||
+      !isRuntimeStopwatchSettings(result.settings)
+    ) {
+      return null;
+    }
+    return result.settings;
+  });
+  const stopwatchLimitReached = computed(() => {
+    const stopwatch = currentStopwatchSettings.value;
+    return (
+      stopwatch?.endMode === "manual" &&
+      stopwatch.manualLimitSeconds !== null &&
+      activeElapsedSeconds.value >= stopwatch.manualLimitSeconds
+    );
+  });
+  const shouldWarnBeforeContinue = computed(() => {
+    const stopwatch = currentStopwatchSettings.value;
+    if (
+      !stopwatch ||
+      stopwatch.endMode === "unlimited" ||
+      !stopwatch.earlyContinueWarning ||
+      stopwatch.earlyContinueWarningSeconds === null
+    ) {
+      return false;
+    }
+    const endSeconds =
+      stopwatch.endMode === "automatic"
+        ? stopwatch.automaticSeconds
+        : stopwatch.manualLimitSeconds;
+    if (endSeconds === null) {
+      return false;
+    }
+    return (
+      endSeconds - activeElapsedSeconds.value >
+      stopwatch.earlyContinueWarningSeconds
+    );
+  });
   const progressLabel = computed(() =>
     actionPlan.value.length === 0 || currentActionIndex.value < 0
       ? ""
@@ -124,6 +166,7 @@ export const useMetronomeStore = defineStore("metronome", () => {
   ) {
     return validateActionDefinitions(rawActions, {
       validateMetronomeSettings: validateMetronomeActionSettings,
+      validateStopwatchSettings: validateStopwatchActionSettings,
       requireMetronome,
     });
   }
@@ -309,11 +352,7 @@ export const useMetronomeStore = defineStore("metronome", () => {
     ) {
       return false;
     }
-    if (
-      action.type === ACTION_TYPES.SECONDS &&
-      getActiveSecondsRemaining() > 10 &&
-      !confirmEarly
-    ) {
+    if (shouldWarnBeforeContinue.value && !confirmEarly) {
       return false;
     }
     finishCurrentTimerAction("manual");
@@ -382,18 +421,8 @@ export const useMetronomeStore = defineStore("metronome", () => {
         result.endReason = "aborted";
         result.endBpm = currentBpm.value;
         break;
-      case ACTION_TYPES.SECONDS:
-        if (action.type !== ACTION_TYPES.SECONDS) {
-          return false;
-        }
-        break;
       case ACTION_TYPES.STOPWATCH:
         if (action.type !== ACTION_TYPES.STOPWATCH) {
-          return false;
-        }
-        break;
-      case ACTION_TYPES.MANUAL:
-        if (action.type !== ACTION_TYPES.MANUAL) {
           return false;
         }
         break;
@@ -425,7 +454,6 @@ export const useMetronomeStore = defineStore("metronome", () => {
     currentActionIndex.value = -1;
     activeActionStartedAt.value = null;
     activeElapsedSeconds.value = 0;
-    secondsRemaining.value = 0;
     beatCount.value = 0;
     breakRecords.value = [];
     activeBreak.value = null;
@@ -444,7 +472,7 @@ export const useMetronomeStore = defineStore("metronome", () => {
     }
 
     if (event.timer === "action-deadline" && event.kind === "timeout") {
-      if (phase.value === "action-sekunden") {
+      if (phase.value === "action-stoppuhr") {
         finishCurrentTimerAction("auto", event.now);
       }
       return;
@@ -504,7 +532,6 @@ export const useMetronomeStore = defineStore("metronome", () => {
     result.formulaValues = [...resolved.formulaValues];
     activeActionStartedAt.value = result.startedAt;
     activeElapsedSeconds.value = 0;
-    secondsRemaining.value = 0;
 
     switch (action.type) {
       case ACTION_TYPES.METRONOME:
@@ -518,9 +545,7 @@ export const useMetronomeStore = defineStore("metronome", () => {
           actionResults.value.slice(0, nextIndex),
         );
         break;
-      case ACTION_TYPES.SECONDS:
       case ACTION_TYPES.STOPWATCH:
-      case ACTION_TYPES.MANUAL:
         startTimerAction(action, result, resolved.values);
         break;
     }
@@ -556,54 +581,59 @@ export const useMetronomeStore = defineStore("metronome", () => {
     result: ActionResult,
     resolvedValues: Readonly<Record<string, number>>,
   ): void {
-    if (action.type === ACTION_TYPES.METRONOME) {
-      throw new Error("Metronome actions cannot use the timer execution view.");
+    if (
+      action.type !== ACTION_TYPES.STOPWATCH ||
+      result.type !== ACTION_TYPES.STOPWATCH
+    ) {
+      throw new Error("Only Stopwatch actions can use the timer execution view.");
     }
     settings.value = null;
     activeBreak.value = null;
     executionMessage.value = "";
-    phase.value =
-      action.type === ACTION_TYPES.SECONDS
-        ? "action-sekunden"
-        : action.type === ACTION_TYPES.STOPWATCH
-          ? "action-stoppuhr"
-          : "action-manuell";
+    phase.value = "action-stoppuhr";
 
-    let secondsDuration: number | null = null;
-    if (action.type === ACTION_TYPES.SECONDS) {
-      if (result.type !== ACTION_TYPES.SECONDS) {
-        throw new Error("Seconds action results must match their action.");
-      }
-      const seconds = resolvedValues.seconds;
-      if (typeof seconds !== "number") {
-        throw new Error("The resolved Seconds duration is unavailable.");
-      }
-      result.settings = { seconds };
-      result.configuredSeconds = seconds;
-      secondsDuration = seconds;
-    } else if (action.type === ACTION_TYPES.STOPWATCH) {
-      if (result.type !== ACTION_TYPES.STOPWATCH) {
-        throw new Error("Stopwatch action results must match their action.");
-      }
-      result.settings = {};
-    } else {
-      if (result.type !== ACTION_TYPES.MANUAL) {
-        throw new Error("Manual action results must match their action.");
-      }
-      const limitSeconds =
-        action.settings.limitSeconds === null
-          ? null
-          : resolvedValues.limitSeconds;
-      result.settings = { limitSeconds: limitSeconds ?? null };
-      result.limitSeconds = limitSeconds ?? null;
-    }
+    const automaticSeconds =
+      action.settings.endMode === "automatic"
+        ? getResolvedTimerValue(
+            resolvedValues,
+            "automaticSeconds",
+            "Automatisches Ende",
+          )
+        : null;
+    const manualLimitSeconds =
+      action.settings.endMode === "manual"
+        ? getResolvedTimerValue(
+            resolvedValues,
+            "manualLimitSeconds",
+            "Manuelles Limit",
+          )
+        : null;
+    const earlyContinueWarningSeconds =
+      action.settings.endMode !== "unlimited" &&
+      action.settings.earlyContinueWarning
+        ? getResolvedTimerValue(
+            resolvedValues,
+            "earlyContinueWarningSeconds",
+            "Frühwarnung",
+          )
+        : null;
+
+    const runtimeSettings: RuntimeStopwatchSettings = {
+      endMode: action.settings.endMode,
+      automaticSeconds,
+      hideDuration: action.settings.hideDuration,
+      manualLimitSeconds,
+      earlyContinueWarning: action.settings.earlyContinueWarning,
+      earlyContinueWarningSeconds,
+    };
+    result.settings = runtimeSettings;
     updateTimerDisplay(engine.now());
     engine.scheduleInterval("action-display", sessionToken.value, 250);
-    if (secondsDuration !== null) {
+    if (automaticSeconds !== null) {
       engine.scheduleTimeout(
         "action-deadline",
         sessionToken.value,
-        secondsDuration * 1000,
+        automaticSeconds * 1000,
       );
     }
   }
@@ -614,10 +644,6 @@ export const useMetronomeStore = defineStore("metronome", () => {
       return;
     }
     activeElapsedSeconds.value = getActiveActionElapsedSeconds(now);
-    secondsRemaining.value =
-      action.type === ACTION_TYPES.SECONDS
-        ? getActiveSecondsRemaining(now)
-        : 0;
   }
 
   function getActiveActionElapsedSeconds(now = engine.now()): number {
@@ -627,29 +653,6 @@ export const useMetronomeStore = defineStore("metronome", () => {
     return Math.max(
       0,
       Math.round((now - activeActionStartedAt.value) / 1000),
-    );
-  }
-
-  function getActiveSecondsRemaining(now = engine.now()): number {
-    const action = currentAction.value;
-    const result = currentActionResult.value;
-    if (
-      action?.type !== ACTION_TYPES.SECONDS ||
-      result?.type !== ACTION_TYPES.SECONDS ||
-      activeActionStartedAt.value === null
-    ) {
-      return 0;
-    }
-    const configuredSeconds =
-      typeof result.settings.seconds === "number"
-        ? result.settings.seconds
-        : result.configuredSeconds ?? 0;
-    return Math.max(
-      0,
-      Math.ceil(
-        (activeActionStartedAt.value + configuredSeconds * 1000 - now) /
-          1000,
-      ),
     );
   }
 
@@ -675,28 +678,8 @@ export const useMetronomeStore = defineStore("metronome", () => {
     const elapsedSeconds = getActiveActionElapsedSeconds(now);
     result.status = "completed";
     result.elapsedSeconds = elapsedSeconds;
-    if (
-      action.type === ACTION_TYPES.SECONDS &&
-      result.type === ACTION_TYPES.SECONDS
-    ) {
+    if (action.type === ACTION_TYPES.STOPWATCH && result.type === ACTION_TYPES.STOPWATCH) {
       result.completedBy = completedBy;
-      result.configuredSeconds =
-        typeof result.settings.seconds === "number"
-          ? result.settings.seconds
-          : result.configuredSeconds;
-    } else if (
-      action.type === ACTION_TYPES.MANUAL &&
-      result.type === ACTION_TYPES.MANUAL
-    ) {
-      result.completedBy = "manual";
-      result.limitSeconds = result.settings.limitSeconds === null
-        ? null
-        : result.limitSeconds ?? null;
-    } else if (
-      action.type === ACTION_TYPES.STOPWATCH &&
-      result.type === ACTION_TYPES.STOPWATCH
-    ) {
-      result.completedBy = "manual";
     } else {
       throw new Error("The active action and result types do not match.");
     }
@@ -1157,7 +1140,6 @@ export const useMetronomeStore = defineStore("metronome", () => {
     currentActionIndex,
     activeActionStartedAt,
     activeElapsedSeconds,
-    secondsRemaining,
     settings,
     beatCount,
     currentBpm,
@@ -1174,6 +1156,9 @@ export const useMetronomeStore = defineStore("metronome", () => {
     report,
     currentAction,
     currentActionResult,
+    currentStopwatchSettings,
+    stopwatchLimitReached,
+    shouldWarnBeforeContinue,
     progressLabel,
     isFinished,
     validateDefinitions,
@@ -1207,19 +1192,7 @@ function createPendingActionResult(action: Action): ActionResult {
         type: action.type,
         settings: cloneValue(action.settings),
       };
-    case ACTION_TYPES.SECONDS:
-      return {
-        ...base,
-        type: action.type,
-        settings: cloneValue(action.settings),
-      };
     case ACTION_TYPES.STOPWATCH:
-      return {
-        ...base,
-        type: action.type,
-        settings: cloneValue(action.settings),
-      };
-    case ACTION_TYPES.MANUAL:
       return {
         ...base,
         type: action.type,
@@ -1276,10 +1249,35 @@ function toNumber(value: NumericSetting, field: string): number {
   return numberValue;
 }
 
+function getResolvedTimerValue(
+  values: Readonly<Record<string, number>>,
+  field: string,
+  label: string,
+): number {
+  const value = values[field];
+  if (typeof value !== "number") {
+    throw new Error(`The resolved ${label} value is unavailable.`);
+  }
+  return value;
+}
+
 function getErrorMessage(error: unknown, fallback: string): string {
   return error instanceof Error && error.message ? error.message : fallback;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function isRuntimeStopwatchSettings(
+  settings: StopwatchSettings | RuntimeStopwatchSettings,
+): settings is RuntimeStopwatchSettings {
+  return (
+    (typeof settings.automaticSeconds === "number" ||
+      settings.automaticSeconds === null) &&
+    (typeof settings.manualLimitSeconds === "number" ||
+      settings.manualLimitSeconds === null) &&
+    (typeof settings.earlyContinueWarningSeconds === "number" ||
+      settings.earlyContinueWarningSeconds === null)
+  );
 }

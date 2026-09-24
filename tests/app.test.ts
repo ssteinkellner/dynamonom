@@ -5,7 +5,10 @@ import { mount, flushPromises } from "@vue/test-utils";
 import { createPinia } from "pinia";
 import { afterEach, beforeEach, test, vi } from "vitest";
 import App from "../src/App.vue";
-import { ACTION_TYPES } from "../src/action-model.ts";
+import {
+  ACTION_TYPES,
+  createDefaultStopwatchSettings,
+} from "../src/action-model.ts";
 import { createNumericFormulaInput } from "../src/formula-model.ts";
 import { createDefaultMetronomeSettings } from "../src/models/metronome-settings.ts";
 
@@ -49,7 +52,7 @@ test("the presets view opens first and manual settings can edit the initial acti
   wrapper.unmount();
 });
 
-test("action settings summaries show metronome progression and leave stopwatch settings blank", async () => {
+test("action settings summaries show metronome progression and stopwatch end mode", async () => {
   const settings = createDefaultMetronomeSettings();
   settings.maximum = "reverse";
   settings.breaks = "limited";
@@ -83,14 +86,18 @@ test("action settings summaries show metronome progression and leave stopwatch s
   await wrapper.get("#new-action-type").setValue(ACTION_TYPES.STOPWATCH);
   await flushPromises();
   assert.equal(wrapper.get("#action-editor-title").text(), "Stoppuhr-Einstellungen");
-  assert.equal(wrapper.find(".action-editor fieldset").exists(), false);
+  assert.equal(wrapper.get(".action-editor fieldset").get("legend").text(), "Ende");
+  assert.equal(
+    wrapper.get("#action-stopwatch-end-mode option[value='automatic']").text(),
+    "Automatisch beenden nach",
+  );
   await wrapper.get(".action-editor-actions .primary-button").trigger("click");
 
   const stopwatchRow = wrapper
     .findAll("#actions-table tbody tr.action-row")
     .find((row) => row.text().includes("Stoppuhr"));
   assert.ok(stopwatchRow);
-  assert.equal(stopwatchRow.findAll("td")[2]?.text(), "");
+  assert.equal(stopwatchRow.findAll("td")[2]?.text(), "Ende: Unbegrenzt");
   wrapper.unmount();
 });
 
@@ -136,12 +143,13 @@ test("action type dropdown creates a draft and returns to its disabled default",
   assert.equal(dropdown.get("option[value='']").text(), "Aktion hinzufügen");
   assert.equal(dropdown.get("option[value='']").attributes("disabled"), "");
 
-  await dropdown.setValue(ACTION_TYPES.SECONDS);
+  await dropdown.setValue(ACTION_TYPES.STOPWATCH);
   await flushPromises();
 
   assert.equal(wrapper.get<HTMLSelectElement>("#new-action-type").element.value, "");
-  assert.equal(wrapper.get("#action-editor-title").text(), "Sekunden-Einstellungen");
-  await wrapper.get("#action-seconds").trigger("click");
+  assert.equal(wrapper.get("#action-editor-title").text(), "Stoppuhr-Einstellungen");
+  await wrapper.get("#action-stopwatch-end-mode").setValue("automatic");
+  await wrapper.get("#action-stopwatch-automatic-seconds").trigger("click");
   const formulaDialog = wrapper.get('[role="dialog"]');
   assert.deepEqual(
     formulaDialog
@@ -154,7 +162,7 @@ test("action type dropdown creates a draft and returns to its disabled default",
   await formulaDialog.get(".formula-dialog-actions .primary-button").trigger("click");
   await wrapper.get(".action-editor-actions .primary-button").trigger("click");
 
-  assert.match(wrapper.get("#actions-table").text(), /Sekunden.*15 Sekunden/);
+  assert.match(wrapper.get("#actions-table").text(), /Stoppuhr.*Automatisch nach 15 Sekunden/);
   wrapper.unmount();
 });
 
@@ -185,7 +193,7 @@ test("invalid imported action rows preserve defaults while applying envelope opt
       settings: createDefaultMetronomeSettings(),
     },
     {
-      type: ACTION_TYPES.SECONDS,
+      type: "sekunden",
       name: "Ungültige Sekunden",
       settings: { seconds: "keine Zahl" },
     },
@@ -203,7 +211,7 @@ test("invalid imported action rows preserve defaults while applying envelope opt
 
   assert.equal(wrapper.get("h1").text(), "Metronom-Einstellungen");
   assert.ok(wrapper.find(".import-error-panel").exists());
-  assert.match(wrapper.get(".import-error-list").text(), /Dauer in Sekunden/);
+  assert.match(wrapper.get(".import-error-list").text(), /Aktionstyp/);
   assert.match(wrapper.get("#actions-table").text(), /Metronom/);
   assert.doesNotMatch(wrapper.get("#actions-table").text(), /Importiert/);
   const globalOptions = wrapper.findAll(".global-settings input[type=checkbox]");
@@ -270,9 +278,9 @@ test("list-level import errors retain otherwise valid action rows", async () => 
     "actions",
     JSON.stringify([
       {
-        type: ACTION_TYPES.MANUAL,
-        name: "Nur manuell",
-        settings: { limitSeconds: null },
+        type: ACTION_TYPES.STOPWATCH,
+        name: "Nur Stoppuhr",
+        settings: createDefaultStopwatchSettings(),
       },
     ]),
   );
@@ -283,7 +291,7 @@ test("list-level import errors retain otherwise valid action rows", async () => 
   await flushPromises();
 
   assert.match(wrapper.get(".import-error-list").text(), /Metronom/);
-  assert.match(wrapper.get("#actions-table").text(), /Nur manuell/);
+  assert.match(wrapper.get("#actions-table").text(), /Nur Stoppuhr/);
   assert.doesNotMatch(wrapper.get("#actions-table").text(), /Metronom/);
   wrapper.unmount();
 });

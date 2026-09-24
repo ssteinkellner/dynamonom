@@ -1,8 +1,6 @@
-import { PRE_TIMER_TYPES } from "./pre-timer-model.ts";
 import {
   collectFormulaNodes,
   createNumericFormulaInput,
-  normalizeNumericFormulaInput,
 } from "./formula-model.ts";
 import type {
   FormulaCurrentNode,
@@ -13,21 +11,18 @@ import type {
 
 export const ACTION_TYPES = Object.freeze({
   METRONOME: "metronom",
-  SECONDS: PRE_TIMER_TYPES.SECONDS,
-  STOPWATCH: PRE_TIMER_TYPES.STOPWATCH,
-  MANUAL: PRE_TIMER_TYPES.MANUAL,
+  STOPWATCH: "stoppuhr",
 } as const);
 
 export type ActionType = typeof ACTION_TYPES[keyof typeof ACTION_TYPES];
 export type MaximumMode = "none" | "stick" | "reset" | "reverse";
 export type BreakMode = "none" | "limited" | "unlimited";
+export type StopwatchEndMode = "unlimited" | "automatic" | "manual";
 export type NumericSetting = number | string;
 
 export const ACTION_TYPE_LABELS = Object.freeze({
   [ACTION_TYPES.METRONOME]: "Metronom",
-  [ACTION_TYPES.SECONDS]: "Sekunden",
   [ACTION_TYPES.STOPWATCH]: "Stoppuhr",
-  [ACTION_TYPES.MANUAL]: "Manuell",
 } satisfies Record<ActionType, string>);
 
 export const ACTIONS_VERSION = 1;
@@ -62,32 +57,23 @@ export interface MetronomeAction {
   settings: MetronomeSettings;
 }
 
-export interface SecondsAction {
-  id: string;
-  type: typeof ACTION_TYPES.SECONDS;
-  name: string;
-  settings: { seconds: NumericFormulaInput };
+export interface StopwatchSettings {
+  endMode: StopwatchEndMode;
+  automaticSeconds: NumericFormulaInput;
+  hideDuration: boolean;
+  manualLimitSeconds: NumericFormulaInput;
+  earlyContinueWarning: boolean;
+  earlyContinueWarningSeconds: NumericFormulaInput;
 }
 
 export interface StopwatchAction {
   id: string;
   type: typeof ACTION_TYPES.STOPWATCH;
   name: string;
-  settings: Record<string, never>;
+  settings: StopwatchSettings;
 }
 
-export interface ManualAction {
-  id: string;
-  type: typeof ACTION_TYPES.MANUAL;
-  name: string;
-  settings: { limitSeconds: NumericFormulaInput | null };
-}
-
-export type Action =
-  | MetronomeAction
-  | SecondsAction
-  | StopwatchAction
-  | ManualAction;
+export type Action = MetronomeAction | StopwatchAction;
 
 type NormalizedAction =
   | {
@@ -96,9 +82,12 @@ type NormalizedAction =
       name: string;
       settings: Record<string, unknown>;
     }
-  | SecondsAction
-  | StopwatchAction
-  | ManualAction;
+  | {
+      id: string;
+      type: typeof ACTION_TYPES.STOPWATCH;
+      name: string;
+      settings: Record<string, unknown>;
+    };
 
 export interface ActionValidationError {
   index: number;
@@ -125,8 +114,23 @@ export type MetronomeSettingsValidator = (
   actions: unknown[],
 ) => MetronomeSettingsValidation;
 
+export type StopwatchSettingsValidation =
+  | {
+      valid: true;
+      errors: MetronomeFieldError[];
+      settings: StopwatchSettings;
+    }
+  | { valid: false; errors: MetronomeFieldError[] };
+
+export type StopwatchSettingsValidator = (
+  rawSettings: Record<string, unknown>,
+  index: number,
+  actions: unknown[],
+) => StopwatchSettingsValidation;
+
 export interface ActionValidationOptions {
   validateMetronomeSettings?: MetronomeSettingsValidator;
+  validateStopwatchSettings?: StopwatchSettingsValidator;
   requireMetronome?: boolean;
 }
 
@@ -147,6 +151,17 @@ export type ParsedActionsPayload =
 export interface ActionFormulaField {
   field: string;
   input: NumericFormulaInput;
+}
+
+export function createDefaultStopwatchSettings(): StopwatchSettings {
+  return {
+    endMode: "unlimited",
+    automaticSeconds: createNumericFormulaInput(10, 1, 600),
+    hideDuration: false,
+    manualLimitSeconds: createNumericFormulaInput(60, 1, 600),
+    earlyContinueWarning: true,
+    earlyContinueWarningSeconds: createNumericFormulaInput(10, 1, 600),
+  };
 }
 
 let nextActionId = 1;
@@ -178,17 +193,9 @@ export function createDefaultAction(
   metronomeSettings: MetronomeSettings,
 ): MetronomeAction;
 export function createDefaultAction(
-  type: typeof ACTION_TYPES.SECONDS,
-  actions: readonly Action[],
-): SecondsAction;
-export function createDefaultAction(
   type: typeof ACTION_TYPES.STOPWATCH,
   actions: readonly Action[],
 ): StopwatchAction;
-export function createDefaultAction(
-  type: typeof ACTION_TYPES.MANUAL,
-  actions: readonly Action[],
-): ManualAction;
 export function createDefaultAction(
   type: ActionType,
   actions: readonly Action[],
@@ -216,18 +223,10 @@ export function createDefaultAction(
       settings: cloneValue(metronomeSettings),
     };
   }
-  if (type === ACTION_TYPES.SECONDS) {
-    return {
-      id,
-      type,
-      name,
-      settings: { seconds: createNumericFormulaInput(10, 1, 600) },
-    };
-  }
   if (type === ACTION_TYPES.STOPWATCH) {
-    return { id, type, name, settings: {} };
+    return { id, type, name, settings: createDefaultStopwatchSettings() };
   }
-  return { id, type, name, settings: { limitSeconds: null } };
+  throw new Error(`Unsupported action type: ${type}`);
 }
 
 export function normalizeActionDefinition(
@@ -275,68 +274,21 @@ export function normalizeActionDefinition(
     };
   }
 
-  if (type === ACTION_TYPES.SECONDS) {
-    const seconds = normalizeNumericFormulaInput(
-      rawAction.settings.seconds ?? 10,
-      10,
-      1,
-      600,
-    );
-    if (!seconds.valid) {
-      errors.seconds = seconds.errors.join(" ");
-    }
-    if (Object.keys(errors).length > 0) {
-      return { valid: false, errors };
-    }
-    return {
-      valid: true,
-      errors: {},
-      value: {
-        id,
-        type,
-        name,
-        settings: { seconds: seconds.value },
-      },
-    };
-  }
-
   if (type === ACTION_TYPES.STOPWATCH) {
     return {
       valid: true,
       errors: {},
-      value: { id, type, name, settings: {} },
+      value: { id, type, name, settings: cloneValue(rawAction.settings) },
     };
   }
-
-  const rawLimit = rawAction.settings.limitSeconds;
-  let limitSeconds: NumericFormulaInput | null = null;
-  if (rawLimit !== null && rawLimit !== undefined && rawLimit !== "") {
-    const normalized = normalizeNumericFormulaInput(rawLimit, 60, 1, 600);
-    if (!normalized.valid) {
-      errors.limitSeconds = normalized.errors.join(" ");
-    } else {
-      limitSeconds = normalized.value;
-    }
-  }
-  if (Object.keys(errors).length > 0) {
-    return { valid: false, errors };
-  }
-  return {
-    valid: true,
-    errors: {},
-    value: {
-      id,
-      type,
-      name,
-      settings: { limitSeconds },
-    },
-  };
+  return { valid: false, errors: { type: "Ungültigen Aktionstyp auswählen." } };
 }
 
 export function validateActionDefinitions(
   rawActions: unknown,
   {
     validateMetronomeSettings,
+    validateStopwatchSettings,
     requireMetronome = false,
   }: ActionValidationOptions = {},
 ): ActionValidationResult {
@@ -422,6 +374,39 @@ export function validateActionDefinitions(
       return;
     }
 
+    if (value.type === ACTION_TYPES.STOPWATCH) {
+      if (!validateStopwatchSettings) {
+        errors.push({
+          index,
+          field: "settings",
+          message: "Stoppuhr-Einstellungen müssen validiert werden.",
+        });
+        return;
+      }
+      const rawSettings = isRecord(rawAction) && isRecord(rawAction.settings)
+        ? rawAction.settings
+        : {};
+      const validation = validateStopwatchSettings(
+        rawSettings,
+        index,
+        rawActions,
+      );
+      if (!validation.valid) {
+        validation.errors.forEach(({ field, message }) => {
+          errors.push({ index, field, message });
+        });
+        return;
+      }
+      actions.push({
+        id: value.id,
+        type: value.type,
+        name: value.name,
+        settings: validation.settings,
+      });
+      actionIndices.push(index);
+      return;
+    }
+
     actions.push(value);
     actionIndices.push(index);
   });
@@ -461,11 +446,15 @@ export function getActionFormulaFields(action: Action): ActionFormulaField[] {
     }
     return fields;
   }
-  if (action.type === ACTION_TYPES.SECONDS) {
-    return [{ field: "seconds", input: action.settings.seconds }];
-  }
-  if (action.type === ACTION_TYPES.MANUAL && action.settings.limitSeconds) {
-    return [{ field: "limitSeconds", input: action.settings.limitSeconds }];
+  if (action.type === ACTION_TYPES.STOPWATCH) {
+    return [
+      { field: "automaticSeconds", input: action.settings.automaticSeconds },
+      { field: "manualLimitSeconds", input: action.settings.manualLimitSeconds },
+      {
+        field: "earlyContinueWarningSeconds",
+        input: action.settings.earlyContinueWarningSeconds,
+      },
+    ];
   }
   return [];
 }
@@ -500,11 +489,21 @@ export function getEnabledCurrentFormulaProperties(
     }
     return fields;
   }
-  if (action.type === ACTION_TYPES.SECONDS) {
-    return ["seconds"];
-  }
-  if (action.type === ACTION_TYPES.MANUAL && action.settings.limitSeconds) {
-    return ["limitSeconds"];
+  if (action.type === ACTION_TYPES.STOPWATCH) {
+    const fields: string[] = [];
+    if (action.settings.endMode === "automatic") {
+      fields.push("automaticSeconds");
+    }
+    if (action.settings.endMode === "manual") {
+      fields.push("manualLimitSeconds");
+    }
+    if (
+      action.settings.endMode !== "unlimited" &&
+      action.settings.earlyContinueWarning
+    ) {
+      fields.push("earlyContinueWarningSeconds");
+    }
+    return fields;
   }
   return [];
 }
