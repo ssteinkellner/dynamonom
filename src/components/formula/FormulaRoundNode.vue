@@ -22,7 +22,6 @@ function updateThreshold(event: Event, node: FormulaRoundNode): void {
   <div class="formula-node formula-node--round">
     <div class="formula-round-layout">
       <div class="formula-node-slot">
-        <span class="formula-node-caption">Minutenreferenz</span>
         <slot name="input" />
       </div>
       <label>

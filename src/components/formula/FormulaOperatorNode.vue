@@ -27,7 +27,6 @@ function updateOperator(event: Event, node: FormulaOperatorNode): void {
   <div class="formula-node formula-node--operator">
     <div class="formula-operator-layout">
       <div class="formula-node-slot">
-        <span class="formula-node-caption">Links</span>
         <slot name="left" />
       </div>
       <label class="visually-hidden" :for="`formula-operator-${node.id}`">
@@ -44,7 +43,6 @@ function updateOperator(event: Event, node: FormulaOperatorNode): void {
         </option>
       </select>
       <div class="formula-node-slot">
-        <span class="formula-node-caption">Rechts</span>
         <slot name="right" />
       </div>
     </div>

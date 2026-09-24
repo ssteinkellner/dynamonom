@@ -65,10 +65,10 @@ function updateMetric(event: Event, node: FormulaReferenceNode): void {
 
 <template>
   <div class="formula-node formula-node--reference">
-    <label :for="`formula-reference-action-${node.id}`">Aktion</label>
     <select
       :id="`formula-reference-action-${node.id}`"
       :value="node.actionId"
+      aria-label="Aktion"
       @change="updateAction($event, node)"
     >
       <option value="" disabled>Vorherige Aktion auswählen</option>
@@ -76,10 +76,10 @@ function updateMetric(event: Event, node: FormulaReferenceNode): void {
         {{ getActionTypeLabel(action.type) }} – {{ action.name }}
       </option>
     </select>
-    <label :for="`formula-reference-metric-${node.id}`">Wert</label>
     <select
       :id="`formula-reference-metric-${node.id}`"
       :value="node.metric"
+      aria-label="Wert"
       @change="updateMetric($event, node)"
     >
       <option v-for="metric in metrics" :key="metric" :value="metric">

@@ -22,7 +22,6 @@ function updateFallback(event: Event, node: FormulaFallbackNode): void {
   <div class="formula-node formula-node--fallback">
     <div class="formula-fallback-layout">
       <div class="formula-node-slot">
-        <span class="formula-node-caption">Formel</span>
         <slot name="input" />
       </div>
       <label class="formula-fallback-value">

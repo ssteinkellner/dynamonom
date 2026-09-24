@@ -16,6 +16,7 @@ const props = defineProps<{
   path: string;
   actions: readonly Action[];
   currentProperties: readonly { value: string; label: string }[];
+  required?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -79,6 +80,7 @@ function forwardDragNode(nodeId: string, event: DragEvent): void {
     v-if="node === null"
     :path="path"
     label="Ablegen"
+    :required="required"
     @drop="handleDrop"
   />
   <div
@@ -99,6 +101,7 @@ function forwardDragNode(nodeId: string, event: DragEvent): void {
           :path="`${node.id}.left`"
           :actions="actions"
           :current-properties="currentProperties"
+          required
           @update:node="handleNodeUpdate"
           @drop="handleDrop"
           @drag-node="forwardDragNode"
@@ -110,6 +113,7 @@ function forwardDragNode(nodeId: string, event: DragEvent): void {
           :path="`${node.id}.right`"
           :actions="actions"
           :current-properties="currentProperties"
+          required
           @update:node="handleNodeUpdate"
           @drop="handleDrop"
           @drag-node="forwardDragNode"
@@ -121,6 +125,7 @@ function forwardDragNode(nodeId: string, event: DragEvent): void {
           :path="`${node.id}.min`"
           :actions="actions"
           :current-properties="currentProperties"
+          required
           @update:node="handleNodeUpdate"
           @drop="handleDrop"
           @drag-node="forwardDragNode"
@@ -138,6 +143,7 @@ function forwardDragNode(nodeId: string, event: DragEvent): void {
           :path="`${node.id}.input`"
           :actions="actions"
           :current-properties="currentProperties"
+          required
           @update:node="handleNodeUpdate"
           @drop="handleDrop"
           @drag-node="forwardDragNode"

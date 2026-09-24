@@ -12,7 +12,9 @@ import {
   type FormulaNode,
 } from "../src/formula-model.ts";
 import FormulaEditorDialog from "../src/components/formula/FormulaEditorDialog.vue";
+import FormulaCurrentNode from "../src/components/formula/FormulaCurrentNode.vue";
 import FormulaInput from "../src/components/formula/FormulaInput.vue";
+import FormulaReferenceNode from "../src/components/formula/FormulaReferenceNode.vue";
 
 const action = createDefaultAction(ACTION_TYPES.SECONDS, []);
 const input = createNumericFormulaInput(10, 1, 600);
@@ -51,6 +53,26 @@ test("formula input opens a custom dialog and emits only after confirmation", as
       .findAll("button")
       .map((button) => button.text()),
     ["Abbrechen", "Bestätigen"],
+  );
+  assert.deepEqual(
+    dialog.findAll("legend").map((legend) => legend.text()),
+    ["Formel", "Merken", "Löschen", "Hinzufügen", "Ergebnisbegrenzung"],
+  );
+  assert.deepEqual(
+    dialog
+      .get(".formula-palette-operators")
+      .findAll("button")
+      .map((button) => button.text()),
+    ["+", "−", "×", "÷"],
+  );
+  assert.equal(dialog.get(".formula-palette-items").findAll("button").length, 6);
+  assert.equal(
+    dialog.get(".formula-bound-card").find("button").text(),
+    "Minimum einschränken",
+  );
+  assert.equal(
+    dialog.findAll(".formula-bound-card")[1]?.find("button").text(),
+    "Maximum einschränken",
   );
   await dialog.get(".formula-node--static input").setValue("15");
   await dialog.get(".formula-dialog-actions .primary-button").trigger("click");
@@ -118,6 +140,8 @@ test("palette nodes can be dropped into empty operator slots", async () => {
     dropEffect: "",
   };
   await paletteItem.trigger("dragstart", { dataTransfer });
+  await rightSlot.trigger("dragover", { dataTransfer });
+  assert.equal(dataTransfer.dropEffect, "copy");
   await rightSlot.trigger("drop", { dataTransfer });
 
   assert.equal(
@@ -125,6 +149,69 @@ test("palette nodes can be dropped into empty operator slots", async () => {
     false,
   );
   assert.equal(wrapper.findAll(".formula-node--static input").length, 2);
+});
+
+test("required formula drop zones show a marker and accessible required text", () => {
+  const operator: FormulaNode = {
+    id: "required-operator",
+    type: "operator",
+    operator: "+",
+    left: { id: "required-left", type: "static", value: 2 },
+    right: null,
+  };
+  const wrapper = mount(FormulaEditorDialog, {
+    props: { ...commonProps, modelValue: { ...input, expression: operator } },
+  });
+  mounted.push(wrapper);
+
+  const rightSlot = wrapper.get(
+    '[data-formula-path="required-operator.right"]',
+  );
+  assert.equal(rightSlot.get(".required-marker").text(), "*");
+  assert.equal(rightSlot.attributes("aria-label"), "Ablegen, Pflichtfeld");
+});
+
+test("redundant node captions are removed without losing control names", () => {
+  const referenceWrapper = mount(FormulaReferenceNode, {
+    props: {
+      node: {
+        id: "reference",
+        type: "reference",
+        actionId: "previous",
+        metric: "minutes",
+      },
+      actions: [
+        {
+          id: "previous",
+          type: ACTION_TYPES.SECONDS,
+          name: "Vorherige Aktion",
+          settings: { seconds: input },
+        },
+      ],
+    },
+  });
+  const currentWrapper = mount(FormulaCurrentNode, {
+    props: {
+      node: { id: "current", type: "current", property: "seconds" },
+      currentProperties: [{ value: "seconds", label: "Sekunden" }],
+    },
+  });
+  mounted.push(referenceWrapper, currentWrapper);
+
+  assert.equal(referenceWrapper.findAll("label").length, 0);
+  assert.equal(
+    referenceWrapper.get("select").attributes("aria-label"),
+    "Aktion",
+  );
+  assert.equal(
+    referenceWrapper.findAll("select")[1]?.attributes("aria-label"),
+    "Wert",
+  );
+  assert.equal(currentWrapper.findAll("label").length, 0);
+  assert.equal(
+    currentWrapper.get("select").attributes("aria-label"),
+    "Aktuelle Einstellung",
+  );
 });
 
 test("dynamic expressions use the field's current static value as fallback", async () => {
@@ -166,4 +253,19 @@ test("dynamic expressions use the field's current static value as fallback", asy
     ).element.value,
     "25",
   );
+});
+
+test("bound editors use the same formula tools layout", async () => {
+  const wrapper = mount(FormulaEditorDialog, { props: commonProps });
+  mounted.push(wrapper);
+
+  await wrapper.get(".formula-bound-card .secondary-button").trigger("click");
+
+  assert.deepEqual(
+    wrapper.findAll("legend").map((legend) => legend.text()),
+    ["Formel", "Merken", "Löschen", "Hinzufügen"],
+  );
+  assert.equal(wrapper.find("legend").text(), "Formel");
+  assert.equal(wrapper.findAll("legend").some((legend) => legend.text() === "Ergebnisbegrenzung"), false);
+  assert.equal(wrapper.find(".formula-editor-tools").exists(), true);
 });

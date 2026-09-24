@@ -76,6 +76,8 @@ const paletteItems: readonly FormulaPaletteItem[] = [
   { type: "round", label: "Runden" },
   { type: "current", label: "Aktuell" },
 ];
+const operatorPaletteItems = paletteItems.filter((item) => item.operator);
+const otherPaletteItems = paletteItems.filter((item) => !item.operator);
 
 const activeRemembered = computed(() =>
   boundEditor.value ? boundEditor.value.remembered : mainRemembered.value,
@@ -782,106 +784,19 @@ function getFallbackSeed(
       </header>
 
       <template v-if="!isEditingBound">
-        <p class="field-help">
-          Formelbausteine in freie Felder ziehen. Vorherige Aktionen können als
-          Referenz verwendet werden.
-        </p>
-        <div class="formula-editor-layout">
-          <div class="formula-editor-main">
-            <fieldset class="formula-editor-fieldset">
-              <legend>Formel</legend>
-              <FormulaNodeRenderer
-                :node="working.expression"
-                path="expression"
-                :actions="previousActions"
-                :current-properties="currentProperties"
-                @update:node="updateNode"
-                @drop="handleDrop"
-                @drag-node="startDraggingNode"
-              />
-            </fieldset>
-
-            <fieldset class="formula-editor-fieldset">
-              <legend>Ergebnisbegrenzung</legend>
-              <p class="field-help">
-                Zulässiger Bereich: {{ hardMin }} bis
-                {{ hardMax ?? "unbegrenzt" }}. Diese Grenzen können nicht
-                erweitert werden.
-              </p>
-              <div class="formula-bound-list">
-                <div class="formula-bound-card">
-                  <strong>Minimum</strong>
-                  <span>{{ formatNode(working.min) }}</span>
-                  <button
-                    class="secondary-button"
-                    type="button"
-                    @click="editBound('min')"
-                  >
-                    Minimum bearbeiten
-                  </button>
-                </div>
-                <div class="formula-bound-card">
-                  <strong>Maximum</strong>
-                  <span>{{ formatNode(working.max) }}</span>
-                  <button
-                    class="secondary-button"
-                    type="button"
-                    @click="editBound('max')"
-                  >
-                    {{
-                      working.max ? "Maximum bearbeiten" : "Maximum hinzufügen"
-                    }}
-                  </button>
-                </div>
-              </div>
-            </fieldset>
-          </div>
-
-          <aside class="formula-editor-sidebar" aria-label="Formelbausteine">
-            <h3>Bausteine</h3>
-            <div class="formula-palette">
-              <button
-                v-for="item in paletteItems"
-                :key="item.type"
-                class="formula-palette-item"
-                :class="`formula-node--${item.type}`"
-                type="button"
-                draggable="true"
-                @click="addPaletteNode(item)"
-                @dragstart="startDraggingPalette(item, $event)"
-                @dragend="endDraggingPalette"
-              >
-                {{ item.label }}
-              </button>
-            </div>
-            <FormulaDropZone
-              path="remember"
-              label="Merken – hier können mehrere Bausteine abgelegt werden"
-              tone="remember"
-              @drop="handleDrop"
-            >
-              <div class="formula-remembered-list">
-                <FormulaNodeRenderer
-                  v-for="node in activeRemembered"
-                  :key="node.id"
-                  :node="node"
-                  :path="`remembered.${node.id}`"
-                  :actions="previousActions"
-                  :current-properties="currentProperties"
-                  @update:node="updateNode"
-                  @drop="handleDrop"
-                  @drag-node="startDraggingNode"
-                />
-              </div>
-            </FormulaDropZone>
-            <FormulaDropZone
-              path="delete"
-              label="Löschen – Baustein oder gesamten Teilbaum hier ablegen"
-              tone="delete"
-              @drop="handleDrop"
-            />
-          </aside>
-        </div>
+        <fieldset class="formula-editor-fieldset">
+          <legend>Formel</legend>
+          <FormulaNodeRenderer
+            :node="working.expression"
+            path="expression"
+            :actions="previousActions"
+            :current-properties="currentProperties"
+            required
+            @update:node="updateNode"
+            @drop="handleDrop"
+            @drag-node="startDraggingNode"
+          />
+        </fieldset>
       </template>
 
       <template v-else-if="boundEditor">
@@ -889,37 +804,31 @@ function getFallbackSeed(
           Die Änderung wird zunächst nur im Formeldialog übernommen. Erst
           „Bestätigen“ speichert die gesamte Formel.
         </p>
-        <FormulaNodeRenderer
-          :node="boundEditor.node"
-          path="bound-root"
-          :actions="previousActions"
-          :current-properties="currentProperties"
-          @update:node="updateNode"
-          @drop="handleDrop"
-          @drag-node="startDraggingNode"
-        />
-        <div class="formula-palette formula-bound-palette">
-          <button
-            v-for="item in paletteItems"
-            :key="item.type"
-            class="formula-palette-item"
-            :class="`formula-node--${item.type}`"
-            type="button"
-            draggable="true"
-            @click="addPaletteNode(item)"
-            @dragstart="startDraggingPalette(item, $event)"
-            @dragend="endDraggingPalette"
-          >
-            {{ item.label }}
-          </button>
-        </div>
-        <FormulaDropZone
-          path="remember"
-          label="Merken – hier können mehrere Bausteine abgelegt werden"
-          tone="remember"
-          @drop="handleDrop"
-        >
-          <div class="formula-remembered-list">
+        <fieldset class="formula-editor-fieldset">
+          <legend>Formel</legend>
+          <FormulaNodeRenderer
+            :node="boundEditor.node"
+            path="bound-root"
+            :actions="previousActions"
+            :current-properties="currentProperties"
+            :required="boundEditor.kind === 'min'"
+            @update:node="updateNode"
+            @drop="handleDrop"
+            @drag-node="startDraggingNode"
+          />
+        </fieldset>
+      </template>
+
+      <div class="formula-editor-tools">
+        <fieldset class="formula-tool-fieldset">
+          <legend>Merken</legend>
+          <FormulaDropZone
+            path="remember"
+            label="Ablegen"
+            tone="remember"
+            @drop="handleDrop"
+          />
+          <div v-if="activeRemembered.length > 0" class="formula-remembered-list">
             <FormulaNodeRenderer
               v-for="node in activeRemembered"
               :key="node.id"
@@ -932,14 +841,84 @@ function getFallbackSeed(
               @drag-node="startDraggingNode"
             />
           </div>
-        </FormulaDropZone>
-        <FormulaDropZone
-          path="delete"
-          label="Löschen – Baustein oder gesamten Teilbaum hier ablegen"
-          tone="delete"
-          @drop="handleDrop"
-        />
-      </template>
+        </fieldset>
+
+        <fieldset class="formula-tool-fieldset formula-tool-fieldset--delete">
+          <legend>Löschen</legend>
+          <FormulaDropZone
+            path="delete"
+            label="Ablegen"
+            tone="delete"
+            @drop="handleDrop"
+          />
+        </fieldset>
+
+        <fieldset class="formula-tool-fieldset">
+          <legend>Hinzufügen</legend>
+          <div class="formula-palette-operators">
+            <button
+              v-for="item in operatorPaletteItems"
+              :key="item.label"
+              class="formula-palette-item"
+              :class="`formula-node--${item.type}`"
+              type="button"
+              draggable="true"
+              @click="addPaletteNode(item)"
+              @dragstart="startDraggingPalette(item, $event)"
+              @dragend="endDraggingPalette"
+            >
+              {{ item.label }}
+            </button>
+          </div>
+          <div class="formula-palette formula-palette-items">
+            <button
+              v-for="item in otherPaletteItems"
+              :key="item.type"
+              class="formula-palette-item"
+              :class="`formula-node--${item.type}`"
+              type="button"
+              draggable="true"
+              @click="addPaletteNode(item)"
+              @dragstart="startDraggingPalette(item, $event)"
+              @dragend="endDraggingPalette"
+            >
+              {{ item.label }}
+            </button>
+          </div>
+        </fieldset>
+      </div>
+
+      <fieldset v-if="!isEditingBound" class="formula-editor-fieldset">
+        <legend>Ergebnisbegrenzung</legend>
+        <p class="field-help">
+          Zulässiger Bereich: {{ hardMin }} bis
+          {{ hardMax ?? "unbegrenzt" }}.
+        </p>
+        <div class="formula-bound-list">
+          <div class="formula-bound-card">
+            <strong>Minimum</strong>
+            <span>{{ formatNode(working.min) }}</span>
+            <button
+              class="secondary-button"
+              type="button"
+              @click="editBound('min')"
+            >
+              Minimum einschränken
+            </button>
+          </div>
+          <div class="formula-bound-card">
+            <strong>Maximum</strong>
+            <span>{{ formatNode(working.max) }}</span>
+            <button
+              class="secondary-button"
+              type="button"
+              @click="editBound('max')"
+            >
+              Maximum einschränken
+            </button>
+          </div>
+        </div>
+      </fieldset>
 
       <ul v-if="errors.length > 0" class="formula-validation-errors" role="alert">
         <li v-for="error in errors" :key="error">{{ error }}</li>

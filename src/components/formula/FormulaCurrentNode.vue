@@ -20,10 +20,10 @@ function updateProperty(event: Event, node: FormulaCurrentNode): void {
 
 <template>
   <div class="formula-node formula-node--current">
-    <label :for="`formula-current-${node.id}`">Aktuelle Einstellung</label>
     <select
       :id="`formula-current-${node.id}`"
       :value="node.property"
+      aria-label="Aktuelle Einstellung"
       @change="updateProperty($event, node)"
     >
       <option value="" disabled>Eigenschaft auswählen</option>

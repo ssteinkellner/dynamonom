@@ -1055,22 +1055,28 @@ th {
   gap: 1rem;
 }
 
-.formula-dialog-header h2,
-.formula-editor-sidebar h3 {
+.formula-dialog-header h2 {
   margin: 0;
 }
 
-.formula-editor-layout {
+.formula-editor-tools {
   display: grid;
-  gap: 1rem;
-}
-
-.formula-editor-main,
-.formula-editor-sidebar {
-  display: grid;
-  align-content: start;
   gap: 1rem;
   min-width: 0;
+}
+
+.formula-tool-fieldset {
+  min-width: 0;
+  margin: 0;
+}
+
+.formula-tool-fieldset--delete {
+  display: flex;
+  flex-direction: column;
+}
+
+.formula-tool-fieldset--delete > .formula-drop-zone {
+  flex: 1;
 }
 
 .formula-editor-fieldset {
@@ -1082,6 +1088,16 @@ th {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.5rem;
+}
+
+.formula-palette-operators {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.formula-palette-items {
+  margin-top: 0.5rem;
 }
 
 .formula-palette-item {
@@ -1207,19 +1223,11 @@ th {
 }
 
 .formula-clamp-symbol {
-  align-self: end;
-  padding-bottom: 0.65rem;
+  align-self: center;
   font-size: 1.2rem;
   font-weight: 800;
 }
 
-.formula-node--operator .formula-node-caption,
-.formula-node--static .formula-node-caption,
-.formula-node--clamp .formula-node-caption,
-.formula-node--fallback .formula-node-caption,
-.formula-node--reference label,
-.formula-node--current label,
-.formula-node--round .formula-node-caption,
 .formula-fallback-value {
   color: #fff;
 }
@@ -1246,7 +1254,7 @@ th {
 }
 
 .formula-drop-zone--delete {
-  min-height: 4rem;
+  min-height: 5rem;
   border-color: var(--danger);
   color: var(--danger);
   background: color-mix(in srgb, var(--danger) 10%, var(--surface));
@@ -1280,11 +1288,19 @@ th {
   overflow-wrap: anywhere;
 }
 
+.formula-drop-label .required-marker {
+  margin-left: 0.2rem;
+}
+
 .formula-bound-list,
 .formula-remembered-list {
   display: grid;
   gap: 0.6rem;
   min-width: 0;
+}
+
+.formula-remembered-list {
+  margin-top: 0.6rem;
 }
 
 .formula-bound-card {
@@ -1307,10 +1323,6 @@ th {
 }
 
 .formula-dialog-actions {
-  margin-top: 1rem;
-}
-
-.formula-bound-palette {
   margin-top: 1rem;
 }
 
@@ -1378,8 +1390,11 @@ th {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .formula-editor-layout {
-    grid-template-columns: minmax(0, 1fr) minmax(14rem, 18rem);
+  .formula-editor-tools {
+    grid-template-columns:
+      minmax(0, 10fr)
+      minmax(0, 3fr)
+      minmax(0, 7fr);
   }
 
   .formula-bound-list {
