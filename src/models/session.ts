@@ -102,6 +102,7 @@ export interface MetronomeActionResult
   breakRecords?: BreakRecord[];
   endReason?: "automatic" | "manual" | "aborted";
   endBpm?: number;
+  maximumBpm?: number;
 }
 
 export interface StopwatchActionResult

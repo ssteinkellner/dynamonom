@@ -89,6 +89,7 @@ export const useMetronomeStore = defineStore("metronome", () => {
   const direction = ref<TempoDirection>("up");
   const tempoCounter = ref(0);
   const stuckAtMaximum = ref(false);
+  const maximumPlayedBpm = ref<number | null>(null);
   const countdownValue = ref(3);
   const resumeCountdownValue = ref(0);
   const breakSessions = ref(0);
@@ -445,6 +446,7 @@ export const useMetronomeStore = defineStore("metronome", () => {
         result.breakRecords = cloneBreakRecords(breakRecords.value);
         result.endReason = "aborted";
         result.endBpm = currentBpm.value;
+        result.maximumBpm = maximumPlayedBpm.value ?? undefined;
         break;
       case ACTION_TYPES.STOPWATCH:
         if (action.type !== ACTION_TYPES.STOPWATCH) {
@@ -480,6 +482,7 @@ export const useMetronomeStore = defineStore("metronome", () => {
     activeActionStartedAt.value = null;
     activeElapsedSeconds.value = 0;
     beatCount.value = 0;
+    maximumPlayedBpm.value = null;
     breakRecords.value = [];
     activeBreak.value = null;
     activeBreakElapsedSeconds.value = 0;
@@ -731,6 +734,7 @@ export const useMetronomeStore = defineStore("metronome", () => {
     direction.value = "up";
     tempoCounter.value = 0;
     stuckAtMaximum.value = false;
+    maximumPlayedBpm.value = null;
     countdownValue.value = 3;
     resumeCountdownValue.value = 0;
     breakSessions.value = 0;
@@ -792,6 +796,10 @@ export const useMetronomeStore = defineStore("metronome", () => {
       return;
     }
 
+    maximumPlayedBpm.value = Math.max(
+      maximumPlayedBpm.value ?? 0,
+      currentBpm.value,
+    );
     beatCount.value += 1;
     if (
       runtimeSettings.sessionEndEnabled &&
@@ -1145,6 +1153,7 @@ export const useMetronomeStore = defineStore("metronome", () => {
     result.breakRecords = cloneBreakRecords(breakRecords.value);
     result.endReason = endReason;
     result.endBpm = currentBpm.value;
+    result.maximumBpm = maximumPlayedBpm.value ?? undefined;
 
     cancelSessionTimers();
     sessionToken.value += 1;

@@ -144,11 +144,12 @@ settings. Long reports also show formula expressions, resolved values,
 fallbacks, clamp adjustments, and used breaks.
 
 The long-copy report follows the UI and separates sections with headings such
-as `**Metronom - Warm-up**`. The short-copy report uses `**<action name>**`
-followed by one compact line containing that action's parameters and outcome.
-For each Metronom, the next line is exactly **Keine Pausen gebraucht** when
-there were no breaks, or starts with **Pausen gebraucht bei:** followed by the
-used break list.
+as `*Metronom - Warm-up*`. The short-copy report uses `*<action name>*`
+followed by compact resolved values. Metronom entries include the executed beat
+count, start-to-peak BPM range, tempo changes, and compact pause records;
+Stoppuhr entries use `auto <seconds>`, `manual`, or `manual <limit>s`.
+Not-started and aborted actions are marked on their name line. Unlimited
+pauses are omitted from the short report.
 
 Report buttons are arranged in two rows: the copy actions first, then **Zurück
 zu Voreinstellungen**, **Zurück zu Einstellungen**, and **Wiederholen**.

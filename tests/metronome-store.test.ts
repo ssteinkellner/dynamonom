@@ -202,6 +202,38 @@ test("metronome countdown and automatic end advance to the next action", async (
   assert.equal(store.phase, "action-stoppuhr");
 });
 
+test("metronome results record the highest BPM that actually sounded", async () => {
+  const store = useMetronomeStore();
+  const settings = {
+    ...createDefaultMetronomeSettings(),
+    bpm: createNumericFormulaInput(100, 20, 300),
+    increaseTempo: true,
+    increaseBy: formula(10),
+    increaseAfter: formula(1),
+    maximum: "none" as const,
+    sessionEndEnabled: true,
+    sessionEndBeats: formula(3),
+    breaks: "none" as const,
+  };
+
+  assert.equal(
+    store.replaceActionDefinitions(
+      [metronomeAction("metronome", settings)],
+      true,
+    ),
+    true,
+  );
+  assert.equal(await store.startSession(), true);
+
+  await vi.advanceTimersByTimeAsync(4200);
+
+  const result = store.actionResults[0];
+  assert.ok(result?.type === ACTION_TYPES.METRONOME);
+  assert.equal(result.beatCount, 3);
+  assert.equal(result.endBpm, 120);
+  assert.equal(result.maximumBpm, 120);
+});
+
 test("next BPM previews the scheduled change at progression boundaries", async () => {
   const store = useMetronomeStore();
   assert.equal(

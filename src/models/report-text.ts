@@ -89,7 +89,7 @@ export function buildLongReportText(report: SessionReport): string {
       ) {
         lines.push(...formatBreakRecordsLong(action.breakRecords ?? []));
       }
-      return `**${title}**\n${lines.join("\n")}`;
+      return `*${title}*\n${lines.join("\n")}`;
     })
     .join("\n\n");
 }
@@ -97,9 +97,22 @@ export function buildLongReportText(report: SessionReport): string {
 export function buildShortReportText(report: SessionReport): string {
   return report.actions
     .map((action) => {
-      const lines = [`**${action.name}**`, getActionShortLine(action)];
+      if (action.status === "not-started") {
+        return `*${action.name}* nicht gestartet`;
+      }
+
+      const statusSuffix =
+        action.status === "active-aborted" ? " abgebrochen" : "";
+      const lines = [
+        `*${action.name}*${statusSuffix}`,
+        getActionShortLine(action),
+      ];
       if (action.type === ACTION_TYPES.METRONOME) {
-        lines.push(formatBreakRecordsShort(action.breakRecords ?? []));
+        const pauseLines = getShortPauseLines(action);
+        if (pauseLines.length > 0) {
+          lines[1] = `${lines[1]}; ${pauseLines[0]}`;
+          lines.push(...pauseLines.slice(1));
+        }
       }
       return lines.join("\n");
     })
@@ -107,34 +120,82 @@ export function buildShortReportText(report: SessionReport): string {
 }
 
 function getActionShortLine(action: ActionResult): string {
-  const details = getActionReportDetails(action).filter(
-    ({ label }) => label !== "Status" && !label.startsWith("Formel ·"),
+  if (action.type === ACTION_TYPES.METRONOME) {
+    return formatMetronomeShortLine(action);
+  }
+  return formatStopwatchShortLine(action);
+}
+
+function formatMetronomeShortLine(action: MetronomeActionResult): string {
+  const settings = action.settings;
+  if (!("initialBpm" in settings)) {
+    return `${formatNumericFormulaInput(settings.bpm)}BPM`;
+  }
+
+  const maximumBpm = Math.max(
+    settings.initialBpm,
+    action.maximumBpm ?? action.endBpm ?? settings.initialBpm,
   );
-  if (action.type === ACTION_TYPES.METRONOME && "initialBpm" in action.settings) {
-    const pauseIndex = details.findIndex(({ label }) => label === "Pausen");
-    if (pauseIndex >= 0) {
-      details[pauseIndex] = {
-        label: "Pausen",
-        value: formatBreaksShort(
-          action.settings,
-          action.formulaValues?.find((entry) => entry.field === "breakSeconds"),
-        ),
-      };
+  const bpm =
+    maximumBpm === settings.initialBpm
+      ? `${settings.initialBpm}BPM`
+      : `${settings.initialBpm}-${maximumBpm}BPM`;
+  const parts = [
+    action.beatCount === undefined ? bpm : `${action.beatCount}x ${bpm}`,
+  ];
+
+  if (settings.increaseTempo) {
+    parts.push(`+${settings.increaseBy}/${settings.increaseAfter}`);
+    if (settings.maximum === "reverse") {
+      parts.push(`-${settings.decreaseBy}/${settings.decreaseAfter}`);
     }
   }
-  const settings = details.map(({ label, value }) => `${label}: ${value}`);
-  const formulaValues = (action.formulaValues ?? [])
-    .filter(
-      ({ field, isStatic }) =>
-        !isStatic &&
-        (action.type !== ACTION_TYPES.METRONOME || field !== "breakSeconds"),
-    )
-    .map(
-      ({ label, value, fallbackUsed, clamped }) =>
-        `${label}: ${value}${fallbackUsed ? " (Ersatzwert)" : ""}${clamped ? " (begrenzt)" : ""}`,
-    );
-  settings.push(...formulaValues);
-  return settings.join("; ");
+
+  return parts.join("; ");
+}
+
+function formatStopwatchShortLine(action: StopwatchActionResult): string {
+  const settings = action.settings;
+  const elapsed = `${action.elapsedSeconds ?? 0}s`;
+  if (settings.endMode === "unlimited") {
+    return `${elapsed}; manual`;
+  }
+  if (settings.endMode === "automatic") {
+    return `${elapsed}; auto ${formatShortSeconds(settings.automaticSeconds)}s`;
+  }
+  return `${elapsed}; manual ${formatShortSeconds(settings.manualLimitSeconds)}s`;
+}
+
+function formatShortSeconds(
+  value: number | NumericFormulaInput | null,
+): string {
+  if (value === null) {
+    return "?";
+  }
+  return typeof value === "number"
+    ? String(value)
+    : formatNumericFormulaInput(value);
+}
+
+function getShortPauseLines(action: MetronomeActionResult): string[] {
+  const settings = action.settings;
+  if (!("initialBpm" in settings) || settings.breaks === "unlimited") {
+    return [];
+  }
+
+  const records = (action.breakRecords ?? []).filter(
+    (record) => record.durationSeconds !== null,
+  );
+  if (records.length === 0) {
+    return ["Pausen: keine"];
+  }
+  return [
+    "Pausen:",
+    ...records.map(
+      (record) =>
+        `- ${record.beat}(${record.durationSeconds}s, ${record.bpm}BPM)`,
+    ),
+  ];
 }
 
 function appendConfiguredActionDetails(
@@ -364,28 +425,6 @@ function formatBreaks(settings: RuntimeMetronomeSettings): string {
   return `Begrenzt: ${count}; ${duration}`;
 }
 
-function formatBreaksShort(
-  settings: RuntimeMetronomeSettings,
-  durationFormula?: FormulaValueRecord,
-): string {
-  if (settings.breaks === "none") {
-    return "Keine";
-  }
-  if (settings.breaks === "unlimited") {
-    return "Unbegrenzt";
-  }
-  const count =
-    settings.breakCount === null
-      ? "unbegrenzte Anzahl"
-      : String(settings.breakCount);
-  const duration = durationFormula
-    ? `${durationFormula.value}s`
-    : settings.breakSecondsFormula
-      ? "Formel nicht ausgewertet"
-      : "manuelle Dauer";
-  return `Begrenzt: ${count}; Dauer ${duration}`;
-}
-
 function formatSessionEnd(settings: RuntimeMetronomeSettings): string {
   const end = settings.sessionEndEnabled
     ? `Nach ${settings.sessionEndBeats} Beats`
@@ -420,18 +459,4 @@ function formatBreakRecordsLong(records: readonly BreakRecord[]): string[] {
       return `- ${record.number}. Beat ${record.beat}; ${record.bpm} BPM; ${record.ended}; Dauer ${duration}${planned}${adjustmentText}; Limit ${record.overLimit ? "überschritten" : "eingehalten"}`;
     }),
   ];
-}
-
-function formatBreakRecordsShort(records: readonly BreakRecord[]): string {
-  if (records.length === 0) {
-    return "Keine Pausen gebraucht";
-  }
-  const breaks = records.map((record) => {
-    const duration =
-      record.durationSeconds === null
-        ? "aktiv"
-        : `${record.durationSeconds}s`;
-    return `${record.beat} (${duration}, ${record.bpm} BPM)`;
-  });
-  return `Pausen gebraucht bei: ${breaks.join(", ")}`;
 }

@@ -48,8 +48,7 @@ test("report sections and action buttons preserve their requested order and styl
 
   await rows[0]?.findAll("button")[1]?.trigger("click");
   await flushPromises();
-  assert.match(writeText.mock.calls[0]?.[0] ?? "", /\*\*Warm-up\*\*/);
-  assert.match(writeText.mock.calls[0]?.[0] ?? "", /Keine Pausen gebraucht/);
+  assert.equal(writeText.mock.calls[0]?.[0], "*Warm-up*\n120BPM");
   assert.equal(rows[0]?.findAll("button")[1]?.text(), "Kopiert!");
   wrapper.unmount();
 });
