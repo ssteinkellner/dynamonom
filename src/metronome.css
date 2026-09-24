@@ -179,13 +179,6 @@ label {
   margin-bottom: 1.25rem;
 }
 
-.view-header h1,
-.view-header h2 {
-  margin: 0.15rem 0 0.5rem;
-  font-size: clamp(2rem, 10vw, 3rem);
-  line-height: 1.05;
-}
-
 .view-header p {
   margin: 0;
   color: var(--muted);
@@ -448,7 +441,7 @@ label {
   background: var(--surface-muted);
 }
 
-.action-editor h2 {
+.action-editor-title {
   margin: 0 0 1rem;
   font-size: 1.35rem;
 }
@@ -816,7 +809,7 @@ table {
   color: var(--muted);
 }
 
-.action-execution-card h2 {
+.action-execution-title {
   margin: 0 0 1rem;
   font-size: 1.7rem;
 }

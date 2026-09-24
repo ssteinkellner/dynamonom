@@ -26,11 +26,9 @@ afterEach(() => {
 
 test("the presets view opens first and manual settings can edit the initial action", async () => {
   const wrapper = mountApp();
-  assert.equal(wrapper.get("h1").text(), "Metronom - Voreinstellungen");
   assert.equal(wrapper.find("#settings-import-error").exists(), false);
 
   await wrapper.get("button.secondary-button").trigger("click");
-  assert.equal(wrapper.get("h1").text(), "Metronom-Einstellungen");
   await wrapper.get('button[aria-label="Metronom bearbeiten"]').trigger("click");
   assert.equal(wrapper.get("#action-editor-title").text(), "Metronom-Einstellungen");
   const hideNextTempo = wrapper.get<HTMLInputElement>("#action-hide-next-tempo");
@@ -121,7 +119,6 @@ test("dirty action drafts guard navigation and can be discarded", async () => {
   assert.match(discardDialog.textContent ?? "", /Nicht gespeicherte Änderungen verwerfen/);
   discardDialog.querySelector<HTMLButtonElement>("[data-dialog-cancel]")?.click();
   await flushPromises();
-  assert.equal(wrapper.get("h1").text(), "Metronom-Einstellungen");
   assert.ok(wrapper.find("#action-editor-title").exists());
 
   await backButton.trigger("click");
@@ -132,7 +129,6 @@ test("dirty action drafts guard navigation and can be discarded", async () => {
     .querySelector<HTMLButtonElement>("[data-dialog-confirm]")
     ?.click();
   await flushPromises();
-  assert.equal(wrapper.get("h1").text(), "Metronom - Voreinstellungen");
   wrapper.unmount();
 });
 
@@ -211,7 +207,6 @@ test("invalid imported action rows preserve defaults while applying envelope opt
   await wrapper.get("#settings-import").trigger("keydown", { key: "Enter" });
   await flushPromises();
 
-  assert.equal(wrapper.get("h1").text(), "Metronom-Einstellungen");
   assert.ok(wrapper.find(".import-error-panel").exists());
   assert.match(wrapper.get(".import-error-list").text(), /Aktionstyp/);
   assert.match(wrapper.get("#actions-table").text(), /Metronom/);
@@ -241,7 +236,6 @@ test("valid imported actions are installed and the import field is cleared", asy
   await wrapper.get("#settings-import").trigger("keydown", { key: "Enter" });
   await flushPromises();
 
-  assert.equal(wrapper.get("h1").text(), "Metronom-Einstellungen");
   assert.equal(wrapper.find("#settings-import").exists(), false);
   assert.match(wrapper.get("#actions-table").text(), /Abendtraining/);
   assert.equal(wrapper.find(".import-error-panel").exists(), false);
@@ -267,7 +261,6 @@ test("a versioned query in the page URL is imported on mount", async () => {
   const wrapper = mountApp();
   await flushPromises();
 
-  assert.equal(wrapper.get("h1").text(), "Metronom-Einstellungen");
   assert.match(wrapper.get("#actions-table").text(), /URL-Import/);
   wrapper.unmount();
 });

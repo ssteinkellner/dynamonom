@@ -100,11 +100,7 @@ async function exportSettings(format: "settings" | "url"): Promise<void> {
 </script>
 
 <template>
-  <section class="view" aria-labelledby="settings-title">
-    <header class="view-header">
-      <h1 id="settings-title" tabindex="-1">Metronom-Einstellungen</h1>
-    </header>
-
+  <section class="view">
     <p class="field-help required-field-legend">
       <span class="required-marker" aria-hidden="true">*</span> Pflichtfeld
     </p>

@@ -35,11 +35,7 @@ function processPaste(): void {
 </script>
 
 <template>
-  <section class="view" aria-labelledby="presets-title">
-    <header class="view-header">
-      <h1 id="presets-title" tabindex="-1">Metronom - Voreinstellungen</h1>
-    </header>
-
+  <section class="view">
     <div class="report-card presets-card">
       <div class="presets-card-content">
         <div class="settings-import-wrapper">

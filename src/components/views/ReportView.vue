@@ -55,9 +55,8 @@ async function copyReport(format: "long" | "short"): Promise<void> {
 </script>
 
 <template>
-  <section class="view" aria-labelledby="report-title">
-    <header class="view-header">
-      <h1 id="report-title" tabindex="-1">Bericht</h1>
+  <section class="view">
+    <header v-if="report.aborted" class="view-header">
       <p v-if="report.aborted" class="error-status">Aktion abgebrochen</p>
     </header>
 

@@ -1,6 +1,6 @@
 {
-  "name": "Metronom",
-  "short_name": "Metronom",
+  "name": "Dynamonom",
+  "short_name": "Dynamonom",
   "description": "Ein Metronom, dessen Tempo über verschiedene Einstellungen dynamisch angepasst werden kann.",
   "lang": "de",
   "start_url": "./",
