@@ -20,6 +20,11 @@ import FormulaReferenceNode from "../src/components/formula/FormulaReferenceNode
 
 const action = createDefaultAction(ACTION_TYPES.STOPWATCH, []);
 const input = createNumericFormulaInput(10, 1, 600);
+const getFutureFormulaDate = (): string => {
+  const date = new Date();
+  date.setDate(date.getDate() + 1);
+  return getLocalFormulaDate(date);
+};
 
 const commonProps = {
   modelValue: input,
@@ -109,7 +114,7 @@ test("formula input opens a custom dialog and emits only after confirmation", as
   }
 });
 
-test("date palette nodes use the agreed colors and automatic fallback", async () => {
+test("date palette nodes stay bare until a future date is selected", async () => {
   const wrapper = mount(FormulaEditorDialog, {
     props: {
       ...commonProps,
@@ -131,11 +136,36 @@ test("date palette nodes use the agreed colors and automatic fallback", async ()
       .value,
     getLocalFormulaDate(),
   );
-  assert.equal(wrapper.find(".formula-node--fallback").exists(), true);
+  assert.equal(
+    wrapper.find(".formula-field-scroll .formula-node--fallback").exists(),
+    false,
+  );
+  assert.equal(wrapper.get(".formula-date-marker").text(), "D:");
+  assert.equal(
+    wrapper.get<HTMLInputElement>(".formula-node--days input[type=date]")
+      .attributes("aria-label"),
+    "Tage-Datum",
+  );
+
+  await wrapper
+    .get<HTMLInputElement>(".formula-node--days input[type=date]")
+    .setValue(getFutureFormulaDate());
+
+  assert.equal(
+    wrapper.find(".formula-field-scroll .formula-node--fallback").exists(),
+    true,
+  );
   assert.equal(
     wrapper.get<HTMLInputElement>(".formula-node--fallback input[type=number]")
       .element.value,
     "1",
+  );
+  await wrapper
+    .get<HTMLInputElement>(".formula-node--days input[type=date]")
+    .setValue(getLocalFormulaDate(new Date()));
+  assert.equal(
+    wrapper.find(".formula-field-scroll .formula-node--fallback").exists(),
+    true,
   );
 });
 
@@ -190,6 +220,9 @@ test("date palette nodes added to a bound editor use fallback one", async () => 
     .find((button) => button.text() === "Monate");
   assert.ok(paletteItem);
   await paletteItem.trigger("click");
+  await wrapper
+    .get<HTMLInputElement>(".formula-node--months input[type=date]")
+    .setValue(getFutureFormulaDate());
 
   assert.equal(wrapper.find(".formula-node--months").exists(), true);
   assert.equal(wrapper.find(".formula-node--fallback").exists(), true);
@@ -197,6 +230,128 @@ test("date palette nodes added to a bound editor use fallback one", async () => 
     wrapper.get<HTMLInputElement>(".formula-node--fallback input[type=number]")
       .element.value,
     "1",
+  );
+});
+
+test("slash, reference, and current palette nodes are wrapped immediately", async () => {
+  const slashWrapper = mount(FormulaEditorDialog, {
+    props: { ...commonProps, modelValue: { ...input, expression: null } },
+  });
+  const referenceWrapper = mount(FormulaEditorDialog, {
+    props: { ...commonProps, modelValue: { ...input, expression: null } },
+  });
+  const currentWrapper = mount(FormulaEditorDialog, {
+    props: { ...commonProps, modelValue: { ...input, expression: null } },
+  });
+  mounted.push(slashWrapper, referenceWrapper, currentWrapper);
+
+  const slashPalette = slashWrapper
+    .findAll(".formula-palette-operators button")
+    .find((button) => button.text() === "÷");
+  const referencePalette = referenceWrapper
+    .findAll(".formula-palette-item")
+    .find((button) => button.text() === "Referenz");
+  const currentPalette = currentWrapper
+    .findAll(".formula-palette-item")
+    .find((button) => button.text() === "Aktuell");
+  assert.ok(slashPalette);
+  assert.ok(referencePalette);
+  assert.ok(currentPalette);
+  await slashPalette.trigger("click");
+  await referencePalette.trigger("click");
+  await currentPalette.trigger("click");
+
+  assert.equal(
+    slashWrapper.find(".formula-field-scroll .formula-node--fallback").exists(),
+    true,
+  );
+  assert.equal(
+    slashWrapper.get<HTMLInputElement>(
+      ".formula-field-scroll .formula-node--fallback input[type=number]",
+    ).element.value,
+    "10",
+  );
+  assert.equal(slashWrapper.get(".formula-operator-symbol").text(), "÷");
+  assert.equal(slashWrapper.find(".formula-node--operator select").exists(), false);
+  assert.equal(
+    referenceWrapper.find(".formula-field-scroll .formula-node--fallback").exists(),
+    true,
+  );
+  assert.equal(referenceWrapper.find(".formula-node--reference").exists(), true);
+  assert.equal(
+    currentWrapper.find(".formula-field-scroll .formula-node--fallback").exists(),
+    true,
+  );
+  assert.equal(currentWrapper.find(".formula-node--current").exists(), true);
+});
+
+test("palette targets avoid redundant wrappers inside an existing fallback", async () => {
+  const wrapper = mount(FormulaEditorDialog, {
+    props: {
+      ...commonProps,
+      modelValue: {
+        ...input,
+        expression: {
+          id: "outer-fallback",
+          type: "fallback",
+          input: null,
+          fallback: 10,
+        },
+      },
+    },
+  });
+  mounted.push(wrapper);
+
+  const paletteItem = wrapper
+    .findAll(".formula-palette-item")
+    .find((button) => button.text() === "Referenz");
+  const inputSlot = wrapper.get('[data-formula-path="outer-fallback.input"]');
+  assert.ok(paletteItem);
+
+  const dataTransfer = {
+    setData() {},
+    effectAllowed: "",
+    dropEffect: "",
+  };
+  await paletteItem.trigger("dragstart", { dataTransfer });
+  await inputSlot.trigger("dragover", { dataTransfer });
+  await inputSlot.trigger("drop", { dataTransfer });
+
+  assert.equal(
+    wrapper.findAll(".formula-field-scroll .formula-node--fallback").length,
+    1,
+  );
+  assert.equal(wrapper.find(".formula-node--reference").exists(), true);
+});
+
+test("future dates do not add a nested fallback under an existing ancestor", async () => {
+  const wrapper = mount(FormulaEditorDialog, {
+    props: {
+      ...commonProps,
+      modelValue: {
+        ...input,
+        expression: {
+          id: "outer-fallback",
+          type: "fallback",
+          input: {
+            id: "days",
+            type: "days",
+            date: getLocalFormulaDate(),
+          },
+          fallback: 10,
+        },
+      },
+    },
+  });
+  mounted.push(wrapper);
+
+  await wrapper
+    .get<HTMLInputElement>(".formula-node--days input[type=date]")
+    .setValue(getFutureFormulaDate());
+
+  assert.equal(
+    wrapper.findAll(".formula-field-scroll .formula-node--fallback").length,
+    1,
   );
 });
 
@@ -346,7 +501,7 @@ test("redundant node captions are removed without losing control names", () => {
   );
 });
 
-test("dynamic expressions use the field's current static value as fallback", async () => {
+test("non-target operators remain bare and display a fixed symbol", async () => {
   const wrapper = mount(FormulaEditorDialog, {
     props: {
       ...commonProps,
@@ -380,11 +535,10 @@ test("dynamic expressions use the field's current static value as fallback", asy
   });
 
   assert.equal(
-    wrapper.get<HTMLInputElement>(
-      ".formula-node--fallback input[type=number]",
-    ).element.value,
-    "25",
+    wrapper.find(".formula-field-scroll .formula-node--fallback").exists(),
+    false,
   );
+  assert.equal(wrapper.get(".formula-operator-symbol").text(), "+");
 });
 
 test("bound editors use the same formula tools layout", async () => {

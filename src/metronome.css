@@ -1150,6 +1150,30 @@ th {
   font-size: 0.85rem;
 }
 
+.formula-date-control {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.formula-date-marker {
+  flex: 0 0 auto;
+  font-weight: 800;
+}
+
+.formula-date-control .formula-date-input {
+  flex: 1 1 auto;
+}
+
+.formula-operator-symbol {
+  display: grid;
+  min-width: 2.5rem;
+  min-height: 2.5rem;
+  place-items: center;
+  font-size: 1.4rem;
+  font-weight: 800;
+}
+
 .formula-node--operator {
   border-color: #63329a;
   color: #fff;

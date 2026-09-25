@@ -3,8 +3,10 @@ import { test } from "vitest";
 import {
   formatFormulaNode,
   getFormulaRoundConfig,
+  getLocalFormulaDate,
   normalizeFormulaNode,
   normalizeNumericFormulaInput,
+  validateNumericFormulaInput,
 } from "../src/formula-model.ts";
 
 test("date nodes validate and format their stored ISO dates", () => {
@@ -31,7 +33,7 @@ test("date nodes validate and format their stored ISO dates", () => {
   );
 });
 
-test("date expressions may remain unwrapped while other dynamic expressions keep fallbacks", () => {
+test("only target nodes require fallback ancestors", () => {
   const dateInput = normalizeNumericFormulaInput(
     {
       expression: {
@@ -62,11 +64,98 @@ test("date expressions may remain unwrapped while other dynamic expressions keep
     1,
     600,
   );
+  const additionInput = normalizeNumericFormulaInput(
+    {
+      expression: {
+        id: "addition",
+        type: "operator",
+        operator: "+",
+        left: { id: "left", type: "static", value: 1 },
+        right: { id: "right", type: "static", value: 2 },
+      },
+      min: { id: "min", type: "static", value: 1 },
+      max: { id: "max", type: "static", value: 600 },
+    },
+    10,
+    1,
+    600,
+  );
 
   assert.equal(dateInput.valid, true);
   assert.equal(dateInput.value.expression?.type, "days");
-  assert.equal(divisionInput.valid, true);
-  assert.equal(divisionInput.value.expression?.type, "fallback");
+  assert.equal(divisionInput.valid, false);
+  assert.equal(divisionInput.value.expression?.type, "operator");
+  assert.match(divisionInput.errors.join(" "), /Ersatzwert/);
+  assert.equal(additionInput.valid, true);
+  assert.equal(additionInput.value.expression?.type, "operator");
+
+  const futureDate = getLocalFormulaDate(new Date(2026, 8, 26));
+  const futureNow = new Date(2026, 8, 25, 12, 0, 0);
+  const bareFuture = validateNumericFormulaInput(
+    {
+      expression: {
+        id: "future",
+        type: "days",
+        date: futureDate,
+      },
+      min: { id: "min", type: "static", value: 1 },
+      max: { id: "max", type: "static", value: 600 },
+    },
+    futureNow,
+  );
+  const protectedFuture = validateNumericFormulaInput(
+    {
+      expression: {
+        id: "outer-fallback",
+        type: "fallback",
+        fallback: 1,
+        input: {
+          id: "future",
+          type: "days",
+          date: futureDate,
+        },
+      },
+      min: { id: "min", type: "static", value: 1 },
+      max: { id: "max", type: "static", value: 600 },
+    },
+    futureNow,
+  );
+  assert.equal(bareFuture.valid, false);
+  assert.equal(protectedFuture.valid, true);
+
+  const bareReferenceBound = validateNumericFormulaInput({
+    expression: { id: "value", type: "static", value: 10 },
+    min: {
+      id: "reference-bound",
+      type: "reference",
+      actionId: "action",
+      metric: "minutes",
+    },
+    max: { id: "max", type: "static", value: 600 },
+  });
+  const protectedNestedReference = validateNumericFormulaInput({
+    expression: {
+      id: "nested-fallback",
+      type: "fallback",
+      fallback: 1,
+      input: {
+        id: "addition",
+        type: "operator",
+        operator: "+",
+        left: {
+          id: "reference",
+          type: "reference",
+          actionId: "action",
+          metric: "minutes",
+        },
+        right: { id: "right", type: "static", value: 1 },
+      },
+    },
+    min: { id: "min", type: "static", value: 1 },
+    max: { id: "max", type: "static", value: 600 },
+  });
+  assert.equal(bareReferenceBound.valid, false);
+  assert.equal(protectedNestedReference.valid, true);
 });
 
 test("round configurations identify supported sources and units", () => {

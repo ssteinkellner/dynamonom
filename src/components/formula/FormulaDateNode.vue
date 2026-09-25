@@ -17,16 +17,18 @@ function updateDate(event: Event): void {
 
 <template>
   <div class="formula-node" :class="`formula-node--${node.type}`">
-    <label :for="`formula-date-${node.id}`">
-      Datum
+    <div class="formula-date-control">
+      <span class="formula-date-marker" aria-hidden="true">
+        {{ node.type === "days" ? "D:" : "M:" }}
+      </span>
       <input
         :id="`formula-date-${node.id}`"
         class="formula-date-input"
         type="date"
         :value="node.date"
-        aria-label="Datum"
+        :aria-label="node.type === 'days' ? 'Tage-Datum' : 'Monate-Datum'"
         @input="updateDate"
       />
-    </label>
+    </div>
   </div>
 </template>

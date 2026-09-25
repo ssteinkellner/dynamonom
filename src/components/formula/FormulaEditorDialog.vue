@@ -11,8 +11,9 @@ import {
   ensureFormulaFallback,
   formatFormulaNode,
   getFormulaRoundConfig,
+  formulaNodeRequiresFallback,
+  isFormulaDateInFuture,
   isFormulaDateNode,
-  isFormulaDateNodeType,
   normalizeNumericFormulaInput,
   validateFormulaNodeTree,
   validateNumericFormulaInput,
@@ -165,6 +166,42 @@ function findActiveNode(id: string): FormulaNode | null {
   return null;
 }
 
+function hasFallbackAncestorInTree(
+  node: FormulaNode | null,
+  id: string,
+  hasFallbackAncestor = false,
+): boolean {
+  if (!node) {
+    return false;
+  }
+  if (node.id === id) {
+    return hasFallbackAncestor;
+  }
+  const childHasFallbackAncestor =
+    hasFallbackAncestor || node.type === "fallback";
+  return getChildren(node).some((child) =>
+    hasFallbackAncestorInTree(child, id, childHasFallbackAncestor),
+  );
+}
+
+function hasFallbackAncestor(nodeId: string): boolean {
+  const roots = boundEditor.value
+    ? [boundEditor.value.node]
+    : [working.value.expression, working.value.min, working.value.max];
+  return [...roots, ...activeRemembered.value].some((root) =>
+    hasFallbackAncestorInTree(root, nodeId),
+  );
+}
+
+function pathHasFallbackAncestor(path: string): boolean {
+  const [parentId, childKey] = path.split(".");
+  if (!childKey || !parentId) {
+    return false;
+  }
+  const parent = findActiveNode(parentId);
+  return parent?.type === "fallback" || hasFallbackAncestor(parentId);
+}
+
 function getNodeAtPath(path: string): FormulaNode | null {
   const [rootName, childKey] = path.split(".");
   if (!rootName) {
@@ -251,15 +288,21 @@ function setNodeAtPath(path: string, node: FormulaNode | null): void {
 }
 
 function updateNode(updated: FormulaNode): void {
-  if (working.value.expression?.id === updated.id) {
+  const replacement =
+    isFormulaDateNode(updated) &&
+    isFormulaDateInFuture(updated.date) &&
+    !hasFallbackAncestor(updated.id)
+      ? ensureFormulaFallback(updated, 1) ?? updated
+      : updated;
+  if (working.value.expression?.id === updated.id && replacement === updated) {
     fallbackSeed.value = getFallbackSeed(updated, fallbackSeed.value);
   }
   if (boundEditor.value) {
     boundEditor.value = {
       ...boundEditor.value,
-      node: replaceNodeById(boundEditor.value.node, updated.id, updated),
+      node: replaceNodeById(boundEditor.value.node, updated.id, replacement),
       remembered: boundEditor.value.remembered.map(
-        (node) => replaceNodeById(node, updated.id, updated) ?? node,
+        (node) => replaceNodeById(node, updated.id, replacement) ?? node,
       ),
     };
     return;
@@ -269,13 +312,13 @@ function updateNode(updated: FormulaNode): void {
     expression: replaceNodeById(
       working.value.expression,
       updated.id,
-      updated,
+      replacement,
     ),
-    min: replaceNodeById(working.value.min, updated.id, updated),
-    max: replaceNodeById(working.value.max, updated.id, updated),
+    min: replaceNodeById(working.value.min, updated.id, replacement),
+    max: replaceNodeById(working.value.max, updated.id, replacement),
   };
   mainRemembered.value = mainRemembered.value.map(
-    (node) => replaceNodeById(node, updated.id, updated) ?? node,
+    (node) => replaceNodeById(node, updated.id, replacement) ?? node,
   );
 }
 
@@ -309,15 +352,18 @@ function startDraggingPalette(
 function createPaletteNode(item: FormulaPaletteItem): FormulaNode {
   let node = createPaletteFormulaNode(
     item.type,
-    isFormulaDateNodeType(item.type) ? 1 : fallbackSeed.value,
+    fallbackSeed.value,
   );
   if (item.operator && node.type === "operator") {
     node = { ...node, operator: item.operator };
   }
-  if (isFormulaDateNode(node)) {
-    return ensureFormulaFallback(node, 1) ?? node;
+  if (!formulaNodeRequiresFallback(node)) {
+    return node;
   }
-  return node;
+  return ensureFormulaFallback(
+    node,
+    isFormulaDateNode(node) ? 1 : fallbackSeed.value,
+  ) ?? node;
 }
 
 function addPaletteNode(item: FormulaPaletteItem): void {
@@ -362,7 +408,7 @@ function handleDrop(path: string): void {
   if (source.kind === "palette") {
     const node = createPaletteNode(source.item);
     if (canAccept(path, node) && getNodeAtPath(path) === null) {
-      setNodeAtPath(path, normalizeForPath(path, node));
+      setNodeAtPath(path, normalizeForPath(path, node, true));
     }
     return;
   }
@@ -419,36 +465,29 @@ function canAccept(path: string, node: FormulaNode): boolean {
   return true;
 }
 
-function normalizeForPath(path: string, node: FormulaNode): FormulaNode {
-  if (path === "expression") {
-    return wrapExpression(node);
-  }
-  const [parentId, childKey] = path.split(".");
-  const parent = childKey ? findActiveNode(parentId ?? "") : null;
+function normalizeForPath(
+  path: string,
+  node: FormulaNode,
+  fromPalette = false,
+): FormulaNode {
   if (
-    (path === "min" ||
-      path === "max" ||
-      path === "bound-root" ||
-      parent?.type === "clamp" && (childKey === "min" || childKey === "max")) &&
-    node.type !== "static" &&
-    node.type !== "fallback"
+    fromPalette &&
+    node.type === "fallback" &&
+    node.input &&
+    formulaNodeRequiresFallback(node.input) &&
+    pathHasFallbackAncestor(path)
   ) {
-    return ensureFormulaFallback(node, fallbackSeed.value) ?? node;
+    return node.input;
   }
   return node;
 }
 
 function wrapExpression(node: FormulaNode): FormulaNode {
-  if (isFormulaDateNode(node)) {
-    return node;
-  }
-  return ensureFormulaFallback(node, fallbackSeed.value) ?? node;
+  return node;
 }
 
 function normalizeBoundNode(node: FormulaNode): FormulaNode {
-  return node.type === "static" || node.type === "fallback"
-    ? node
-    : ensureFormulaFallback(node, fallbackSeed.value) ?? node;
+  return node;
 }
 
 function removeNode(nodeId: string): void {

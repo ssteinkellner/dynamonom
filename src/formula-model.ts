@@ -248,6 +248,41 @@ export function isFormulaDateNode(node: FormulaNode): node is FormulaDateNode {
   return isFormulaDateNodeType(node.type);
 }
 
+function compareFormulaDateParts(
+  left: FormulaDateParts,
+  right: FormulaDateParts,
+): number {
+  return (
+    left.year - right.year ||
+    left.month - right.month ||
+    left.day - right.day
+  );
+}
+
+export function isFormulaDateInFuture(
+  value: string,
+  now = new Date(),
+): boolean {
+  const date = parseFormulaDate(value);
+  return (
+    date !== null &&
+    compareFormulaDateParts(date, getLocalFormulaDateParts(now)) > 0
+  );
+}
+
+export function formulaNodeRequiresFallback(
+  node: FormulaNode,
+  now = new Date(),
+): boolean {
+  if (node.type === "operator") {
+    return node.operator === "/";
+  }
+  if (node.type === "reference" || node.type === "current") {
+    return true;
+  }
+  return isFormulaDateNode(node) && isFormulaDateInFuture(node.date, now);
+}
+
 export function getFormulaRoundSourceNode(
   node: FormulaNode | null,
 ): FormulaNode | null {
@@ -489,15 +524,9 @@ export function normalizeFormulaNode(
       };
     }
     case "clamp": {
-      let min = normalizeChild(rawNode.min);
+      const min = normalizeChild(rawNode.min);
       const input = normalizeChild(rawNode.input);
-      let max = normalizeChild(rawNode.max);
-      if (min && min.type !== "static" && min.type !== "fallback") {
-        min = ensureFormulaFallback(min, getStaticValue(min) ?? 1);
-      }
-      if (max && max.type !== "static" && max.type !== "fallback") {
-        max = ensureFormulaFallback(max, getStaticValue(max) ?? 1);
-      }
+      const max = normalizeChild(rawNode.max);
       return {
         valid: errors.length === 0,
         node: { id, type: "clamp", min, input, max },
@@ -644,21 +673,17 @@ export function normalizeNumericFormulaInput(
   const errors: string[] = [];
   const expressionResult = normalizeFormulaNode(rawInput.expression);
   errors.push(...expressionResult.errors);
-  let expression = expressionResult.node;
-  if (
-    expression &&
-    expression.type !== "static" &&
-    expression.type !== "fallback" &&
-    !isFormulaDateNode(expression)
-  ) {
-    expression = ensureFormulaFallback(expression, defaultValue);
-  }
+  const expression = expressionResult.node;
 
   const rawMin = rawInput.min;
   const minResult =
     rawMin === undefined || rawMin === null
       ? { valid: true, node: createStaticFormulaNode(hardMin), errors: [] }
-      : normalizeBoundNode(rawMin, hardMin, hardMin, hardMax ?? Number.MAX_SAFE_INTEGER);
+      : normalizeBoundNode(
+          rawMin,
+          hardMin,
+          hardMax ?? Number.MAX_SAFE_INTEGER,
+        );
   errors.push(...minResult.errors);
 
   const rawMax = rawInput.max;
@@ -668,7 +693,6 @@ export function normalizeNumericFormulaInput(
   } else {
     const maxResult = normalizeBoundNode(
       rawMax,
-      hardMax ?? Number.MAX_SAFE_INTEGER,
       hardMin,
       hardMax ?? Number.MAX_SAFE_INTEGER,
     );
@@ -681,7 +705,7 @@ export function normalizeNumericFormulaInput(
     min: minResult.node,
     max,
   };
-  errors.push(...validateNumericFormulaInput(value).errors);
+  errors.push(...validateNumericFormulaInput(value, new Date()).errors);
 
   return {
     valid: errors.length === 0,
@@ -690,9 +714,11 @@ export function normalizeNumericFormulaInput(
   };
 }
 
-export function validateFormulaNodeTree(
+function validateFormulaNodeTreeInternal(
   node: FormulaNode | null,
-  path = "Formel",
+  path: string,
+  hasFallbackAncestor: boolean,
+  now: Date,
 ): FormulaTreeValidationResult {
   const errors: string[] = [];
   if (!node) {
@@ -700,7 +726,12 @@ export function validateFormulaNodeTree(
   }
 
   const validateChild = (child: FormulaNode | null, label: string): void => {
-    const result = validateFormulaNodeTree(child, `${path} ${label}`);
+    const result = validateFormulaNodeTreeInternal(
+      child,
+      `${path} ${label}`,
+      hasFallbackAncestor || node.type === "fallback",
+      now,
+    );
     errors.push(...result.errors);
   };
 
@@ -714,6 +745,9 @@ export function validateFormulaNodeTree(
       if (!isFormulaOperator(node.operator)) {
         errors.push(`${path}: Eine gültige Rechenart auswählen.`);
       }
+      if (formulaNodeRequiresFallback(node, now) && !hasFallbackAncestor) {
+        errors.push(`${path}: Dieser Formelbaustein benötigt einen Ersatzwert.`);
+      }
       validateChild(node.left, "links");
       validateChild(node.right, "rechts");
       break;
@@ -722,20 +756,6 @@ export function validateFormulaNodeTree(
       validateChild(node.input, "Ausdruck");
       if (node.max) {
         validateChild(node.max, "Maximum");
-      }
-      if (
-        node.min &&
-        node.min.type !== "static" &&
-        node.min.type !== "fallback"
-      ) {
-        errors.push(`${path}: Das dynamische Minimum benötigt einen Ersatzwert.`);
-      }
-      if (
-        node.max &&
-        node.max.type !== "static" &&
-        node.max.type !== "fallback"
-      ) {
-        errors.push(`${path}: Das dynamische Maximum benötigt einen Ersatzwert.`);
       }
       if (
         node.min?.type === "static" &&
@@ -755,16 +775,27 @@ export function validateFormulaNodeTree(
       if (!node.actionId || !isFormulaMetric(node.metric)) {
         errors.push(`${path}: Eine gültige vorherige Aktion und einen Wert auswählen.`);
       }
+      if (formulaNodeRequiresFallback(node, now) && !hasFallbackAncestor) {
+        errors.push(`${path}: Dieser Formelbaustein benötigt einen Ersatzwert.`);
+      }
       break;
     case "current":
       if (!node.property) {
         errors.push(`${path}: Eine Aktuell-Eigenschaft auswählen.`);
+      }
+      if (formulaNodeRequiresFallback(node, now) && !hasFallbackAncestor) {
+        errors.push(`${path}: Dieser Formelbaustein benötigt einen Ersatzwert.`);
       }
       break;
     case "days":
     case "months":
       if (!parseFormulaDate(node.date)) {
         errors.push(`${path}: Ein gültiges Datum auswählen.`);
+      } else if (
+        formulaNodeRequiresFallback(node, now) &&
+        !hasFallbackAncestor
+      ) {
+        errors.push(`${path}: Ein zukünftiges Formel-Datum benötigt einen Ersatzwert.`);
       }
       break;
     case "round":
@@ -793,28 +824,23 @@ export function validateFormulaNodeTree(
   return { valid: errors.length === 0, errors };
 }
 
+export function validateFormulaNodeTree(
+  node: FormulaNode | null,
+  path = "Formel",
+  now = new Date(),
+): FormulaTreeValidationResult {
+  return validateFormulaNodeTreeInternal(node, path, false, now);
+}
+
 export function validateNumericFormulaInput(
   input: NumericFormulaInput,
+  now = new Date(),
 ): FormulaTreeValidationResult {
   const errors: string[] = [];
-  errors.push(...validateFormulaNodeTree(input.expression, "Formel").errors);
-  errors.push(...validateFormulaNodeTree(input.min, "Minimum").errors);
-  if (
-    input.expression &&
-    input.expression.type !== "static" &&
-    input.expression.type !== "fallback" &&
-    !isFormulaDateNode(input.expression)
-  ) {
-    errors.push("Eine dynamische Formel benötigt einen Ersatzwert.");
-  }
-  if (input.min && input.min.type !== "static" && input.min.type !== "fallback") {
-    errors.push("Ein dynamisches Clamp-Minimum benötigt einen Ersatzwert.");
-  }
+  errors.push(...validateFormulaNodeTree(input.expression, "Formel", now).errors);
+  errors.push(...validateFormulaNodeTree(input.min, "Minimum", now).errors);
   if (input.max) {
-    errors.push(...validateFormulaNodeTree(input.max, "Maximum").errors);
-    if (input.max.type !== "static" && input.max.type !== "fallback") {
-      errors.push("Ein dynamisches Clamp-Maximum benötigt einen Ersatzwert.");
-    }
+    errors.push(...validateFormulaNodeTree(input.max, "Maximum", now).errors);
     if (
       input.min?.type === "static" &&
       input.max.type === "static" &&
@@ -952,7 +978,6 @@ export const FORMULA_METRIC_LABELS: Readonly<Record<FormulaMetric, string>> =
 
 function normalizeBoundNode(
   rawNode: unknown,
-  fallback: number,
   hardMin: number,
   hardMax: number,
 ): FormulaNodeNormalizationResult {
@@ -965,13 +990,6 @@ function normalizeBoundNode(
         })
       : normalizeFormulaNode(rawNode);
   if (
-    result.node &&
-    result.node.type !== "static" &&
-    result.node.type !== "fallback"
-  ) {
-    result.node = ensureFormulaFallback(result.node, fallback);
-  }
-  if (
     result.node?.type === "static" &&
     (!Number.isSafeInteger(result.node.value) ||
       result.node.value < hardMin ||
@@ -981,10 +999,6 @@ function normalizeBoundNode(
     result.valid = false;
   }
   return result;
-}
-
-function getStaticValue(node: FormulaNode): number | null {
-  return node.type === "static" ? node.value : null;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
