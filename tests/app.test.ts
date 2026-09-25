@@ -16,6 +16,16 @@ function mountApp() {
   return mount(App, { global: { plugins: [createPinia()] } });
 }
 
+async function openManualSettings(
+  wrapper: ReturnType<typeof mountApp>,
+): Promise<void> {
+  const manualButton = wrapper
+    .findAll("button")
+    .find((button) => button.text() === "Manuell");
+  assert.ok(manualButton);
+  await manualButton.trigger("click");
+}
+
 beforeEach(() => {
   window.history.replaceState({}, "", "/");
 });
@@ -28,7 +38,7 @@ test("the presets view opens first and manual settings can edit the initial acti
   const wrapper = mountApp();
   assert.equal(wrapper.find("#settings-import-error").exists(), false);
 
-  await wrapper.get("button.secondary-button").trigger("click");
+  await openManualSettings(wrapper);
   await wrapper.get('button[aria-label="Metronom bearbeiten"]').trigger("click");
   assert.equal(wrapper.get("#action-editor-title").text(), "Metronom-Einstellungen");
   const hideNextTempo = wrapper.get<HTMLInputElement>("#action-hide-next-tempo");
@@ -104,7 +114,7 @@ test("action settings summaries show metronome progression and stopwatch end mod
 test("dirty action drafts guard navigation and can be discarded", async () => {
   const wrapper = mountApp();
 
-  await wrapper.get("button.secondary-button").trigger("click");
+  await openManualSettings(wrapper);
   await wrapper.get('button[aria-label="Metronom bearbeiten"]').trigger("click");
   await wrapper.get("#action-name").setValue("Noch nicht gespeichert");
 
@@ -134,7 +144,7 @@ test("dirty action drafts guard navigation and can be discarded", async () => {
 
 test("action type dropdown creates a draft and returns to its disabled default", async () => {
   const wrapper = mountApp();
-  await wrapper.get("button.secondary-button").trigger("click");
+  await openManualSettings(wrapper);
 
   const dropdown = wrapper.get<HTMLSelectElement>("#new-action-type");
   assert.equal(dropdown.element.value, "");
@@ -166,7 +176,7 @@ test("action type dropdown creates a draft and returns to its disabled default",
 
 test("settings navigation and start controls follow the final settings section", async () => {
   const wrapper = mountApp();
-  await wrapper.get("button.secondary-button").trigger("click");
+  await openManualSettings(wrapper);
 
   const settingsView = wrapper.get(".view");
   assert.equal(

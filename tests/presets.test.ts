@@ -2,12 +2,15 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import {
   ACTION_TYPES,
+  getActionFormulaFields,
+  getEnabledCurrentFormulaProperties,
   validateActionDefinitions,
 } from "../src/action-model.ts";
 import {
   validateMetronomeActionSettings,
 } from "../src/models/metronome-settings.ts";
 import { validateStopwatchActionSettings } from "../src/models/stopwatch-settings.ts";
+import { resolveActionFormulaValues } from "../src/models/action-formulas.ts";
 import { METRONOME_PRESETS } from "../src/presets.ts";
 
 function validatePreset(id: keyof typeof METRONOME_PRESETS) {
@@ -16,19 +19,6 @@ function validatePreset(id: keyof typeof METRONOME_PRESETS) {
     validateStopwatchSettings: validateStopwatchActionSettings,
     requireMetronome: true,
   });
-}
-
-function staticValue(input: {
-  expression: { type: string; value?: number } | null;
-}) {
-  return input.expression?.type === "static" ? input.expression.value : null;
-}
-
-function getNode(
-  input: { expression: import("../src/formula-model.ts").FormulaNode | null },
-) {
-  assert.ok(input.expression);
-  return input.expression;
 }
 
 test("built-in presets keep hideProgress beside autoStart", () => {
@@ -42,128 +32,110 @@ test("built-in presets keep hideProgress beside autoStart", () => {
   }
 });
 
-test("new built-in presets validate with stable action references", () => {
-  for (const id of [
-    "unterwegs",
-    "zu-hause",
-    "two-stopwatches-metronome",
-  ] as const) {
+test("all built-in presets validate with stable action references", () => {
+  for (const id of Object.keys(METRONOME_PRESETS) as Array<
+    keyof typeof METRONOME_PRESETS
+  >) {
     const validation = validatePreset(id);
     assert.equal(
       validation.valid,
       true,
       validation.errors.map((error) => error.message).join(" "),
     );
-    assert.deepEqual(
-      validation.actions.map((action) => action.id),
-      METRONOME_PRESETS[id].actions.map((action) => action.id),
+    const configuredIds = METRONOME_PRESETS[id].actions.map(
+      (action) => action.id,
     );
+    if (configuredIds.every((actionId) => typeof actionId === "string")) {
+      assert.deepEqual(
+        validation.actions.map((action) => action.id),
+        configuredIds,
+      );
+    } else {
+      assert.equal(validation.actions.length, configuredIds.length);
+    }
   }
 });
 
-test("unterwegs uses the requested date-based session end and lock", () => {
-  const preset = METRONOME_PRESETS.unterwegs;
-  const action = preset.actions[0];
-  assert.equal(preset.label, "unterwegs");
-  assert.equal(preset.autoStart, true);
-  assert.ok(action?.type === ACTION_TYPES.METRONOME);
-  assert.equal(action.name, "unterwegs");
-  assert.equal(staticValue(action.settings.bpm), 160);
-  assert.equal(action.settings.increaseTempo, false);
-  assert.equal(action.settings.sessionEndEnabled, true);
-  assert.equal(action.settings.lockSettings, true);
+test("test - maximal activates all action settings with formulas", () => {
+  const preset = METRONOME_PRESETS["test-maximal"];
+  assert.equal(preset.label, "test - maximal");
+  assert.equal(preset.autoStart, false);
+  assert.equal(preset.hideProgress, true);
+  assert.deepEqual(
+    preset.actions.map((action) => [action.id, action.name, action.type]),
+    [
+      [
+        "test-maximal-stopwatch-unlimited",
+        "Stoppuhr unbegrenzt",
+        ACTION_TYPES.STOPWATCH,
+      ],
+      [
+        "test-maximal-stopwatch-manual",
+        "Stoppuhr manuell",
+        ACTION_TYPES.STOPWATCH,
+      ],
+      [
+        "test-maximal-stopwatch-automatic",
+        "Stoppuhr automatisch",
+        ACTION_TYPES.STOPWATCH,
+      ],
+      ["test-maximal-metronome-1", "Metronom 1", ACTION_TYPES.METRONOME],
+      ["test-maximal-metronome-2", "Metronom 2", ACTION_TYPES.METRONOME],
+    ],
+  );
 
-  const sessionEnd = getNode(action.settings.sessionEndBeats);
-  assert.equal(sessionEnd.type, "operator");
-  assert.equal(sessionEnd.operator, "*");
-  assert.equal(sessionEnd.right?.type, "static");
-  assert.equal(sessionEnd.right?.value, 10);
-  assert.equal(sessionEnd.left?.type, "operator");
-  assert.equal(sessionEnd.left?.operator, "+");
-  assert.equal(sessionEnd.left?.right?.type, "static");
-  assert.equal(sessionEnd.left?.right?.value, 2);
-  assert.equal(sessionEnd.left?.left?.type, "fallback");
-  assert.equal(sessionEnd.left?.left?.fallback, 1);
-  assert.equal(sessionEnd.left?.left?.input?.type, "days");
-  assert.equal(sessionEnd.left?.left?.input?.date, "2026-09-13");
+  const validatedActions = validatePreset("test-maximal").actions;
+  for (const action of validatedActions) {
+    const resolution = resolveActionFormulaValues(action, []);
+    assert.equal(
+      resolution.valid,
+      true,
+      resolution.valid ? "" : `${action.name}.${resolution.field}: ${resolution.error}`,
+    );
+    for (const { field, input } of getActionFormulaFields(action)) {
+      assert.notEqual(
+        input.expression?.type,
+        "static",
+        `${action.name}.${field} should contain a formula`,
+      );
+    }
+    for (const field of getEnabledCurrentFormulaProperties(action)) {
+      assert.ok(
+        getActionFormulaFields(action).some(
+          (formula) => formula.field === field,
+        ),
+        `${action.name}.${field} should be represented by a formula field`,
+      );
+    }
+  }
 
-  const lock = getNode(action.settings.lockBeats);
-  assert.equal(lock.type, "fallback");
-  assert.equal(lock.fallback, 1);
-  assert.equal(lock.input?.type, "current");
-  assert.equal(lock.input?.property, "sessionEndBeats");
-});
+  const [unlimited, manual, automatic, firstMetronome, secondMetronome] =
+    preset.actions;
+  assert.ok(unlimited?.type === ACTION_TYPES.STOPWATCH);
+  assert.ok(manual?.type === ACTION_TYPES.STOPWATCH);
+  assert.ok(automatic?.type === ACTION_TYPES.STOPWATCH);
+  assert.ok(firstMetronome?.type === ACTION_TYPES.METRONOME);
+  assert.ok(secondMetronome?.type === ACTION_TYPES.METRONOME);
+  assert.equal(unlimited.settings.endMode, "unlimited");
+  assert.equal(manual.settings.endMode, "manual");
+  assert.equal(automatic.settings.endMode, "automatic");
+  assert.equal(unlimited.settings.hideDuration, true);
+  assert.equal(manual.settings.hideDuration, true);
+  assert.equal(automatic.settings.hideDuration, true);
+  assert.equal(unlimited.settings.earlyContinueWarning, true);
+  assert.equal(manual.settings.earlyContinueWarning, true);
+  assert.equal(automatic.settings.earlyContinueWarning, true);
 
-test("zu hause keeps unterwegs settings with a static session end", () => {
-  const preset = METRONOME_PRESETS["zu-hause"];
-  const action = preset.actions[0];
-  assert.equal(preset.label, "zu hause");
-  assert.equal(preset.autoStart, true);
-  assert.ok(action?.type === ACTION_TYPES.METRONOME);
-  assert.equal(action.name, "zu hause");
-  assert.equal(staticValue(action.settings.bpm), 160);
-  assert.equal(action.settings.increaseTempo, false);
-  assert.equal(action.settings.sessionEndEnabled, true);
-  assert.equal(staticValue(action.settings.sessionEndBeats), 200);
-  assert.equal(action.settings.lockSettings, true);
-});
-
-test("the two-stopwatch preset chains manual stopwatches into the metronome formulas", () => {
-  const preset = METRONOME_PRESETS["two-stopwatches-metronome"];
-  assert.equal(preset.label, "2x Stoppuhr + Metronom");
-  assert.equal(preset.autoStart, true);
-  assert.equal(preset.actions.length, 3);
-
-  const [stopwatch1, stopwatch2, summe] = preset.actions;
-  assert.ok(stopwatch1?.type === ACTION_TYPES.STOPWATCH);
-  assert.ok(stopwatch2?.type === ACTION_TYPES.STOPWATCH);
-  assert.ok(summe?.type === ACTION_TYPES.METRONOME);
-  assert.equal(stopwatch1.id, "preset-stoppuhr-1");
-  assert.equal(stopwatch1.name, "Stoppuhr 1");
-  assert.equal(stopwatch1.settings.endMode, "manual");
-  assert.equal(stopwatch2.id, "preset-stoppuhr-2");
-  assert.equal(stopwatch2.name, "Stoppuhr 2");
-  assert.equal(stopwatch2.settings.endMode, "manual");
-  assert.equal(summe.name, "summe");
-  assert.equal(staticValue(summe.settings.bpm), 160);
-  assert.equal(summe.settings.increaseTempo, false);
-  assert.equal(summe.settings.breaks, "limited");
-  assert.equal(summe.settings.breakSeconds, null);
-
-  const breakCount = getNode(summe.settings.breakCount!);
-  assert.equal(breakCount.type, "operator");
-  assert.equal(breakCount.operator, "+");
-  assert.equal(breakCount.left?.type, "fallback");
-  assert.equal(breakCount.left?.input?.type, "reference");
-  assert.equal(breakCount.left?.input?.actionId, stopwatch1.id);
-  assert.equal(breakCount.left?.input?.metric, "minutes");
-  assert.equal(breakCount.right?.type, "fallback");
-  assert.equal(breakCount.right?.input?.type, "reference");
-  assert.equal(breakCount.right?.input?.actionId, stopwatch2.id);
-  assert.equal(breakCount.right?.input?.metric, "minutes");
-
-  const sessionEnd = getNode(summe.settings.sessionEndBeats);
-  assert.equal(sessionEnd.type, "clamp");
-  assert.equal(sessionEnd.min?.type, "static");
-  assert.equal(sessionEnd.min?.value, 200);
-  assert.equal(sessionEnd.max, null);
-  assert.equal(sessionEnd.input?.type, "operator");
-  assert.equal(sessionEnd.input?.operator, "*");
-  assert.equal(sessionEnd.input?.right?.type, "static");
-  assert.equal(sessionEnd.input?.right?.value, 10);
-  assert.equal(sessionEnd.input?.left?.type, "operator");
-  assert.equal(sessionEnd.input?.left?.operator, "+");
-  assert.equal(sessionEnd.input?.left?.left?.type, "fallback");
-  assert.equal(sessionEnd.input?.left?.left?.input?.type, "reference");
-  assert.equal(sessionEnd.input?.left?.left?.input?.actionId, stopwatch1.id);
-  assert.equal(sessionEnd.input?.left?.left?.input?.metric, "sum-minutes");
-  assert.equal(sessionEnd.input?.left?.right?.type, "fallback");
-  assert.equal(sessionEnd.input?.left?.right?.input?.type, "reference");
-  assert.equal(sessionEnd.input?.left?.right?.input?.actionId, stopwatch2.id);
-  assert.equal(sessionEnd.input?.left?.right?.input?.metric, "sum-minutes");
-
-  const lock = getNode(summe.settings.lockBeats);
-  assert.equal(lock.type, "fallback");
-  assert.equal(lock.input?.type, "current");
-  assert.equal(lock.input?.property, "sessionEndBeats");
+  for (const action of [firstMetronome, secondMetronome]) {
+    assert.equal(action.settings.accentuate, true);
+    assert.equal(action.settings.increaseTempo, true);
+    assert.equal(action.settings.maximum, "reverse");
+    assert.equal(action.settings.breaks, "limited");
+    assert.notEqual(action.settings.breakCount, null);
+    assert.notEqual(action.settings.breakSeconds, null);
+    assert.equal(action.settings.sessionEndEnabled, true);
+    assert.equal(action.settings.lockSettings, true);
+    assert.equal(action.settings.hideLockText, true);
+    assert.equal(action.settings.hideNextTempo, true);
+  }
 });
