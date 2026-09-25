@@ -1,10 +1,48 @@
 <script setup lang="ts">
-import type { FormulaRoundNode } from "../../formula-model.ts";
+import { computed, watch } from "vue";
+import {
+  getFormulaRoundConfig,
+  type FormulaRoundNode,
+} from "../../formula-model.ts";
 
-defineProps<{ node: FormulaRoundNode }>();
+const props = defineProps<{ node: FormulaRoundNode }>();
 const emit = defineEmits<{
   "update:node": [node: FormulaRoundNode];
 }>();
+
+const roundConfig = computed(() => getFormulaRoundConfig(props.node.input));
+const thresholdLabel = computed(() => {
+  if (roundConfig.value?.kind === "days") {
+    return "Stunden";
+  }
+  if (
+    roundConfig.value?.kind === "months" ||
+    roundConfig.value?.kind === "division"
+  ) {
+    return "Tage";
+  }
+  return "Sekunden";
+});
+const thresholdMin = computed(() => roundConfig.value?.min ?? 0);
+const thresholdMax = computed(() => roundConfig.value?.max ?? 60);
+
+watch(
+  () => roundConfig.value?.kind,
+  (kind, previousKind) => {
+    if (
+      !kind ||
+      kind === "division" ||
+      kind === previousKind ||
+      !roundConfig.value
+    ) {
+      return;
+    }
+    emit("update:node", {
+      ...props.node,
+      threshold: roundConfig.value.defaultThreshold,
+    });
+  },
+);
 
 function updateThreshold(event: Event, node: FormulaRoundNode): void {
   const input = event.target;
@@ -12,7 +50,14 @@ function updateThreshold(event: Event, node: FormulaRoundNode): void {
     return;
   }
   const threshold = Number(input.value);
-  if (Number.isSafeInteger(threshold) && threshold >= 0 && threshold <= 60) {
+  const config = roundConfig.value;
+  if (
+    config &&
+    config.kind !== "division" &&
+    Number.isSafeInteger(threshold) &&
+    threshold >= config.min &&
+    threshold <= config.max
+  ) {
     emit("update:node", { ...node, threshold });
   }
 }
@@ -24,12 +69,12 @@ function updateThreshold(event: Event, node: FormulaRoundNode): void {
       <div class="formula-node-slot">
         <slot name="input" />
       </div>
-      <label>
-        Schwelle (Sekunden)
+      <label v-if="roundConfig?.kind !== 'division'">
+        Schwelle ({{ thresholdLabel }})
         <input
           type="number"
-          min="0"
-          max="60"
+          :min="thresholdMin"
+          :max="thresholdMax"
           step="1"
           :value="node.threshold"
           @input="updateThreshold($event, node)"

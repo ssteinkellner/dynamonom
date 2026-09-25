@@ -1181,6 +1181,13 @@ th {
 }
 
 .formula-node--current {
+  border-color: #087477;
+  color: #fff;
+  background: #13858a;
+}
+
+.formula-node--days,
+.formula-node--months {
   border-color: #b94e08;
   color: #fff;
   background: #ce641b;
@@ -1197,6 +1204,8 @@ th {
 .formula-node--fallback input,
 .formula-node--reference select,
 .formula-node--current select,
+.formula-node--days input,
+.formula-node--months input,
 .formula-node--round input {
   border-color: rgb(255 255 255 / 55%);
   color: #18212b;
@@ -1296,6 +1305,20 @@ th {
   background: #c58c33;
 }
 
+.formula-node--reference .formula-drop-zone,
+.formula-node--current .formula-drop-zone {
+  border-color: #7bc4c7;
+  color: #fff;
+  background: #2d9ca0;
+}
+
+.formula-node--days .formula-drop-zone,
+.formula-node--months .formula-drop-zone {
+  border-color: #f0a56b;
+  color: #fff;
+  background: #df7b32;
+}
+
 .formula-drop-label {
   overflow-wrap: anywhere;
 }
@@ -1365,6 +1388,11 @@ th {
 }
 
 .formula-node--current.formula-palette-item {
+  background: #13858a;
+}
+
+.formula-node--days.formula-palette-item,
+.formula-node--months.formula-palette-item {
   background: #ce641b;
 }
 
@@ -1436,6 +1464,14 @@ th {
     > .formula-node-drag-wrapper--root
     > .formula-node--round
     input[type="number"],
+  .formula-field-scroll
+    > .formula-node-drag-wrapper--root
+    > .formula-node--days
+    input[type="date"],
+  .formula-field-scroll
+    > .formula-node-drag-wrapper--root
+    > .formula-node--months
+    input[type="date"],
   .formula-field-scroll > .formula-drop-zone--root {
     max-width: none;
   }

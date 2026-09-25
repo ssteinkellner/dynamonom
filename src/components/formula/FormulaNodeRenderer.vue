@@ -4,6 +4,7 @@ import type { Action } from "../../action-model.ts";
 import type { FormulaNode } from "../../formula-model.ts";
 import FormulaClampNode from "./FormulaClampNode.vue";
 import FormulaCurrentNode from "./FormulaCurrentNode.vue";
+import FormulaDateNode from "./FormulaDateNode.vue";
 import FormulaDropZone from "./FormulaDropZone.vue";
 import FormulaFallbackNode from "./FormulaFallbackNode.vue";
 import FormulaOperatorNode from "./FormulaOperatorNode.vue";
@@ -33,6 +34,8 @@ const nodeComponents: Record<FormulaNode["type"], Component> = {
   fallback: FormulaFallbackNode,
   reference: FormulaReferenceNode,
   current: FormulaCurrentNode,
+  days: FormulaDateNode,
+  months: FormulaDateNode,
   round: FormulaRoundNode,
 };
 const componentProps = computed(() => {

@@ -10,6 +10,9 @@ import {
   createPaletteFormulaNode,
   ensureFormulaFallback,
   formatFormulaNode,
+  getFormulaRoundConfig,
+  isFormulaDateNode,
+  isFormulaDateNodeType,
   normalizeNumericFormulaInput,
   validateFormulaNodeTree,
   validateNumericFormulaInput,
@@ -71,10 +74,12 @@ const paletteItems: readonly FormulaPaletteItem[] = [
   { type: "operator", label: "÷", operator: "/" },
   { type: "static", label: "Zahl" },
   { type: "clamp", label: "Clamp" },
-  { type: "fallback", label: "Ersatzwert" },
+  { type: "days", label: "Tage" },
+  { type: "months", label: "Monate" },
   { type: "reference", label: "Referenz" },
-  { type: "round", label: "Runden" },
   { type: "current", label: "Aktuell" },
+  { type: "fallback", label: "Ersatzwert" },
+  { type: "round", label: "Runden" },
 ];
 const operatorPaletteItems = paletteItems.filter((item) => item.operator);
 const otherPaletteItems = paletteItems.filter((item) => !item.operator);
@@ -302,10 +307,17 @@ function startDraggingPalette(
 }
 
 function createPaletteNode(item: FormulaPaletteItem): FormulaNode {
-  const node = createPaletteFormulaNode(item.type, fallbackSeed.value);
-  return item.operator && node.type === "operator"
-    ? { ...node, operator: item.operator }
-    : node;
+  let node = createPaletteFormulaNode(
+    item.type,
+    isFormulaDateNodeType(item.type) ? 1 : fallbackSeed.value,
+  );
+  if (item.operator && node.type === "operator") {
+    node = { ...node, operator: item.operator };
+  }
+  if (isFormulaDateNode(node)) {
+    return ensureFormulaFallback(node, 1) ?? node;
+  }
+  return node;
 }
 
 function addPaletteNode(item: FormulaPaletteItem): void {
@@ -400,8 +412,7 @@ function canAccept(path: string, node: FormulaNode): boolean {
   if (
     parent.type === "round" &&
     childKey === "input" &&
-    (node.type !== "reference" ||
-      (node.metric !== "minutes" && node.metric !== "sum-minutes"))
+    !getFormulaRoundConfig(node)
   ) {
     return false;
   }
@@ -428,6 +439,9 @@ function normalizeForPath(path: string, node: FormulaNode): FormulaNode {
 }
 
 function wrapExpression(node: FormulaNode): FormulaNode {
+  if (isFormulaDateNode(node)) {
+    return node;
+  }
   return ensureFormulaFallback(node, fallbackSeed.value) ?? node;
 }
 
@@ -608,6 +622,8 @@ function getChildren(node: FormulaNode): (FormulaNode | null)[] {
     case "static":
     case "reference":
     case "current":
+    case "days":
+    case "months":
       return [];
   }
 }
@@ -659,6 +675,8 @@ function replaceNodeById(
     case "static":
     case "reference":
     case "current":
+    case "days":
+    case "months":
       return node;
   }
 }
@@ -707,6 +725,8 @@ function replaceChildInTree(
     case "static":
     case "reference":
     case "current":
+    case "days":
+    case "months":
       return node;
   }
 }
@@ -738,6 +758,8 @@ function removeNodeFromTree(
     case "static":
     case "reference":
     case "current":
+    case "days":
+    case "months":
       return node;
   }
 }

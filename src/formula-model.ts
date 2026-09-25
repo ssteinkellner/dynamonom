@@ -49,6 +49,20 @@ export interface FormulaCurrentNode {
   property: string;
 }
 
+export interface FormulaDaysNode {
+  id: string;
+  type: "days";
+  date: string;
+}
+
+export interface FormulaMonthsNode {
+  id: string;
+  type: "months";
+  date: string;
+}
+
+export type FormulaDateNode = FormulaDaysNode | FormulaMonthsNode;
+
 export interface FormulaRoundNode {
   id: string;
   type: "round";
@@ -63,6 +77,7 @@ export type FormulaNode =
   | FormulaFallbackNode
   | FormulaReferenceNode
   | FormulaCurrentNode
+  | FormulaDateNode
   | FormulaRoundNode;
 
 export interface NumericFormulaInput {
@@ -80,6 +95,22 @@ export interface FormulaActionInfo {
 export interface FormulaFormatContext {
   actions?: readonly FormulaActionInfo[];
   currentPropertyLabels?: Readonly<Record<string, string>>;
+}
+
+export interface FormulaDateParts {
+  year: number;
+  month: number;
+  day: number;
+}
+
+export type FormulaRoundKind = "minutes" | "days" | "months" | "division";
+
+export interface FormulaRoundConfig {
+  kind: FormulaRoundKind;
+  min: number;
+  max: number;
+  defaultThreshold: number;
+  unitLabel: string;
 }
 
 export interface FormulaNodeNormalizationResult {
@@ -105,6 +136,39 @@ const FORMULA_METRICS = new Set<FormulaMetric>([
 
 const FORMULA_OPERATORS = new Set<FormulaOperator>(["+", "-", "*", "/"]);
 
+const FORMULA_ROUND_CONFIGS: Readonly<
+  Record<FormulaRoundKind, FormulaRoundConfig>
+> = Object.freeze({
+  minutes: {
+    kind: "minutes",
+    min: 0,
+    max: 60,
+    defaultThreshold: 30,
+    unitLabel: "s",
+  },
+  days: {
+    kind: "days",
+    min: 0,
+    max: 23,
+    defaultThreshold: 12,
+    unitLabel: "h",
+  },
+  months: {
+    kind: "months",
+    min: 0,
+    max: 31,
+    defaultThreshold: 15,
+    unitLabel: "Tage",
+  },
+  division: {
+    kind: "division",
+    min: 0,
+    max: 0,
+    defaultThreshold: 30,
+    unitLabel: "",
+  },
+});
+
 export function createFormulaNodeId(): string {
   const id = `formula-${Date.now().toString(36)}-${nextFormulaNodeId}`;
   nextFormulaNodeId += 1;
@@ -113,6 +177,113 @@ export function createFormulaNodeId(): string {
 
 export function createStaticFormulaNode(value: number): FormulaStaticNode {
   return { id: createFormulaNodeId(), type: "static", value };
+}
+
+export function getDaysInFormulaMonth(year: number, month: number): number {
+  if (month === 2) {
+    return (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0
+      ? 29
+      : 28;
+  }
+  return [4, 6, 9, 11].includes(month) ? 30 : 31;
+}
+
+export function parseFormulaDate(value: unknown): FormulaDateParts | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) {
+    return null;
+  }
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  if (
+    year < 1 ||
+    year > 9999 ||
+    month < 1 ||
+    month > 12 ||
+    day < 1 ||
+    day > getDaysInFormulaMonth(year, month)
+  ) {
+    return null;
+  }
+  return { year, month, day };
+}
+
+export function getLocalFormulaDateParts(date = new Date()): FormulaDateParts {
+  const source = Number.isNaN(date.getTime()) ? new Date() : date;
+  return {
+    year: source.getFullYear(),
+    month: source.getMonth() + 1,
+    day: source.getDate(),
+  };
+}
+
+export function getLocalFormulaDate(date = new Date()): string {
+  const parts = getLocalFormulaDateParts(date);
+  return [
+    String(parts.year).padStart(4, "0"),
+    String(parts.month).padStart(2, "0"),
+    String(parts.day).padStart(2, "0"),
+  ].join("-");
+}
+
+export function formatFormulaDate(value: string): string {
+  const parts = parseFormulaDate(value);
+  if (!parts) {
+    return "Datum auswählen";
+  }
+  return `${String(parts.day).padStart(2, "0")}.${String(parts.month).padStart(2, "0")}.${parts.year}`;
+}
+
+export function isFormulaDateNodeType(
+  value: unknown,
+): value is FormulaDateNode["type"] {
+  return value === "days" || value === "months";
+}
+
+export function isFormulaDateNode(node: FormulaNode): node is FormulaDateNode {
+  return isFormulaDateNodeType(node.type);
+}
+
+export function getFormulaRoundSourceNode(
+  node: FormulaNode | null,
+): FormulaNode | null {
+  return node?.type === "fallback" ? node.input : node;
+}
+
+export function getFormulaRoundConfig(
+  node: FormulaNode | null,
+): FormulaRoundConfig | null {
+  const source = getFormulaRoundSourceNode(node);
+  if (!source) {
+    return null;
+  }
+  if (
+    source.type === "reference" &&
+    (source.metric === "minutes" || source.metric === "sum-minutes")
+  ) {
+    return FORMULA_ROUND_CONFIGS.minutes;
+  }
+  if (source.type === "days") {
+    return FORMULA_ROUND_CONFIGS.days;
+  }
+  if (source.type === "months") {
+    return FORMULA_ROUND_CONFIGS.months;
+  }
+  if (source.type === "operator" && source.operator === "/") {
+    return FORMULA_ROUND_CONFIGS.division;
+  }
+  return null;
+}
+
+export function createFormulaDateNode(
+  type: FormulaDateNode["type"],
+  date = getLocalFormulaDate(),
+): FormulaDateNode {
+  return { id: createFormulaNodeId(), type, date };
 }
 
 export function createNumericFormulaInput(
@@ -166,6 +337,9 @@ export function createPaletteFormulaNode(
       };
     case "current":
       return { id: createFormulaNodeId(), type, property: "" };
+    case "days":
+    case "months":
+      return createFormulaDateNode(type);
     case "round":
       return {
         id: createFormulaNodeId(),
@@ -201,6 +375,8 @@ export function cloneFormulaNode(node: FormulaNode): FormulaNode {
       };
     case "reference":
     case "current":
+    case "days":
+    case "months":
       return { ...node };
   }
 }
@@ -379,16 +555,36 @@ export function normalizeFormulaNode(
         errors,
       };
     }
+    case "days":
+    case "months": {
+      const date = typeof rawNode.date === "string" ? rawNode.date : "";
+      if (!parseFormulaDate(date)) {
+        errors.push("Ein gültiges Datum auswählen.");
+      }
+      return {
+        valid: errors.length === 0,
+        node: { id, type: rawNode.type, date },
+        errors,
+      };
+    }
     case "round": {
       const input = normalizeChild(rawNode.input);
       const threshold = rawNode.threshold;
-      if (
-        typeof threshold !== "number" ||
-        !Number.isSafeInteger(threshold) ||
-        threshold < 0 ||
-        threshold > 60
+      const config = getFormulaRoundConfig(input);
+      if (!config) {
+        errors.push(
+          "Runden unterstützt nur Minutenreferenzen, Tage, Monate oder Divisionen.",
+        );
+      } else if (
+        config.kind !== "division" &&
+        (typeof threshold !== "number" ||
+          !Number.isSafeInteger(threshold) ||
+          threshold < config.min ||
+          threshold > config.max)
       ) {
-        errors.push("Eine ganze Rundungsschwelle von 0 bis 60 eingeben.");
+        errors.push(
+          `Eine ganze Rundungsschwelle von ${config.min} bis ${config.max} ${config.unitLabel} eingeben.`,
+        );
       }
       return {
         valid: errors.length === 0,
@@ -399,7 +595,7 @@ export function normalizeFormulaNode(
           threshold:
             typeof threshold === "number" && Number.isSafeInteger(threshold)
               ? threshold
-              : 30,
+              : config?.defaultThreshold ?? 30,
         },
         errors,
       };
@@ -449,7 +645,12 @@ export function normalizeNumericFormulaInput(
   const expressionResult = normalizeFormulaNode(rawInput.expression);
   errors.push(...expressionResult.errors);
   let expression = expressionResult.node;
-  if (expression && expression.type !== "static" && expression.type !== "fallback") {
+  if (
+    expression &&
+    expression.type !== "static" &&
+    expression.type !== "fallback" &&
+    !isFormulaDateNode(expression)
+  ) {
     expression = ensureFormulaFallback(expression, defaultValue);
   }
 
@@ -560,22 +761,32 @@ export function validateFormulaNodeTree(
         errors.push(`${path}: Eine Aktuell-Eigenschaft auswählen.`);
       }
       break;
-    case "round":
-      if (
-        !Number.isSafeInteger(node.threshold) ||
-        node.threshold < 0 ||
-        node.threshold > 60
-      ) {
-        errors.push(`${path}: Eine Rundungsschwelle von 0 bis 60 eingeben.`);
+    case "days":
+    case "months":
+      if (!parseFormulaDate(node.date)) {
+        errors.push(`${path}: Ein gültiges Datum auswählen.`);
       }
-      if (
-        node.input?.type !== "reference" ||
-        (node.input.metric !== "minutes" &&
-          node.input.metric !== "sum-minutes")
-      ) {
-        errors.push(`${path}: Runden ist nur für Minutenwerte verfügbar.`);
-      } else {
-        validateChild(node.input, "Minutenwert");
+      break;
+    case "round":
+      {
+        const config = getFormulaRoundConfig(node.input);
+        if (!config) {
+          errors.push(
+            `${path}: Runden unterstützt nur Minutenreferenzen, Tage, Monate oder Divisionen.`,
+          );
+        } else if (
+          config.kind !== "division" &&
+          (!Number.isSafeInteger(node.threshold) ||
+            node.threshold < config.min ||
+            node.threshold > config.max)
+        ) {
+          errors.push(
+            `${path}: Eine Rundungsschwelle von ${config.min} bis ${config.max} ${config.unitLabel} eingeben.`,
+          );
+        }
+        if (node.input) {
+          validateChild(node.input, "Wert");
+        }
       }
       break;
   }
@@ -591,7 +802,8 @@ export function validateNumericFormulaInput(
   if (
     input.expression &&
     input.expression.type !== "static" &&
-    input.expression.type !== "fallback"
+    input.expression.type !== "fallback" &&
+    !isFormulaDateNode(input.expression)
   ) {
     errors.push("Eine dynamische Formel benötigt einen Ersatzwert.");
   }
@@ -645,6 +857,8 @@ export function collectFormulaNodes(node: FormulaNode): FormulaNode[] {
     case "static":
     case "reference":
     case "current":
+    case "days":
+    case "months":
       break;
   }
   return nodes;
@@ -700,8 +914,23 @@ export function formatFormulaNode(
     }
     case "current":
       return `Aktuell: ${context.currentPropertyLabels?.[node.property] ?? node.property}`;
+    case "days":
+      return `Tage seit ${formatFormulaDate(node.date)}`;
+    case "months":
+      return `Monate seit ${formatFormulaDate(node.date)}`;
     case "round":
-      return `Runden(${formatFormulaNode(node.input, context)}; ${node.threshold}s)`;
+      {
+        const config = getFormulaRoundConfig(node.input);
+        const threshold =
+          config?.kind === "division"
+            ? ""
+            : `; ${
+                config?.kind === "months"
+                  ? `${node.threshold} Tage`
+                  : `${node.threshold}${config?.unitLabel ?? "s"}`
+              }`;
+        return `Runden(${formatFormulaNode(node.input, context)}${threshold})`;
+      }
   }
 }
 

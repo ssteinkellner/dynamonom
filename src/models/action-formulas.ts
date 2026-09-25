@@ -43,6 +43,7 @@ export type ActionFormulaResolution =
 export function resolveActionFormulaValues(
   action: Action,
   previousResults: readonly ActionResult[],
+  now = new Date(),
 ): ActionFormulaResolution {
   const formulas = new Map(
     getActionFormulaFields(action).map(({ field, input }) => [field, input]),
@@ -109,6 +110,7 @@ export function resolveActionFormulaValues(
     const context: FormulaEvaluationContext = {
       previousActions,
       currentValues,
+      now,
     };
     const evaluation = evaluateNumericFormulaInput(
       input,
@@ -145,6 +147,7 @@ export function resolvePauseDuration(
   previousResults: readonly ActionResult[],
   currentValues: Readonly<Record<string, number>>,
   liveBpm: number,
+  now = new Date(),
 ): FormulaResolution | { valid: false; error: string } {
   const bounds: FormulaOutputBounds = {
     min: METRONOME_NUMERIC_FIELD_BOUNDS.breakSeconds?.min ?? 1,
@@ -156,6 +159,7 @@ export function resolvePauseDuration(
       previousActions: getFormulaRuntimeActions(previousResults),
       currentValues,
       liveBpm,
+      now,
     },
     bounds,
   );

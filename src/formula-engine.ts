@@ -5,6 +5,13 @@ import type {
   FormulaNode,
   NumericFormulaInput,
 } from "./formula-model.ts";
+import {
+  getFormulaRoundConfig,
+  getFormulaRoundSourceNode,
+  getLocalFormulaDateParts,
+  getDaysInFormulaMonth,
+  parseFormulaDate,
+} from "./formula-model.ts";
 
 export interface FormulaRuntimeAction {
   id: string;
@@ -18,6 +25,7 @@ export interface FormulaEvaluationContext {
   previousActions: readonly FormulaRuntimeAction[];
   currentValues: Readonly<Record<string, number>>;
   liveBpm?: number;
+  now?: Date;
 }
 
 export interface FormulaOutputBounds {
@@ -65,6 +73,9 @@ export function evaluateFormulaNode(
         ? { valid: true, value, fallbackUsed: false, clamped: false }
         : { valid: false, error: "Der aktuelle Formelwert ist nicht verfügbar." };
     }
+    case "days":
+    case "months":
+      return evaluateDateNode(node, context);
     case "operator":
       return evaluateOperator(node, context);
     case "clamp":
@@ -191,6 +202,8 @@ export function getFormulaCurrentDependencies(
       return getFormulaCurrentDependencies(node.input);
     case "static":
     case "reference":
+    case "days":
+    case "months":
       return [];
   }
 }
@@ -322,48 +335,119 @@ function evaluateRound(
   node: Extract<FormulaNode, { type: "round" }>,
   context: FormulaEvaluationContext,
 ): FormulaNodeEvaluation {
-  const reference = node.input;
-  if (reference?.type !== "reference") {
+  const config = getFormulaRoundConfig(node.input);
+  if (!config) {
     return {
       valid: false,
-      error: "Runden ist nur für Minutenwerte verfügbar.",
+      error:
+        "Runden unterstützt nur Minutenreferenzen, Tage, Monate oder Divisionen.",
     };
   }
-  if (
-    reference.metric !== "minutes" &&
-    reference.metric !== "sum-minutes"
-  ) {
+
+  const source = getFormulaRoundSourceNode(node.input);
+  if (!source) {
+    return { valid: false, error: "Ein Formelbestandteil fehlt." };
+  }
+  const inputResult = evaluateFormulaNode(node.input, context);
+  if (!inputResult.valid) {
+    return inputResult;
+  }
+  const sourceResult = evaluateFormulaNode(source, context);
+  if (!sourceResult.valid) {
+    return inputResult.fallbackUsed ? inputResult : sourceResult;
+  }
+
+  if (config.kind === "division") {
+    return {
+      valid: true,
+      value: Math.round(sourceResult.value),
+      fallbackUsed: sourceResult.fallbackUsed,
+      clamped: sourceResult.clamped,
+    };
+  }
+
+  if (config.kind === "minutes") {
+    if (source.type !== "reference") {
+      return {
+        valid: false,
+        error: "Runden ist nur für Minutenwerte verfügbar.",
+      };
+    }
+    const action = context.previousActions.find(
+      (candidate) => candidate.id === source.actionId,
+    );
+    const elapsed = getElapsedSeconds(action);
+    if (elapsed === null) {
+      return {
+        valid: false,
+        error: "Die Stoppuhrzeit für die Rundung ist nicht verfügbar.",
+      };
+    }
+    const baseMinutes = Math.floor(elapsed / 60);
+    const restSeconds = elapsed % 60;
+    const roundedMinutes =
+      restSeconds > 0 && restSeconds >= node.threshold
+        ? baseMinutes + 1
+        : baseMinutes;
+    const minutes =
+      source.metric === "sum-minutes"
+        ? (roundedMinutes * (roundedMinutes + 1)) / 2
+        : roundedMinutes;
+    return {
+      valid: true,
+      value: minutes,
+      fallbackUsed: sourceResult.fallbackUsed,
+      clamped: sourceResult.clamped,
+    };
+  }
+
+  if (source.type !== "days" && source.type !== "months") {
     return {
       valid: false,
-      error: "Runden ist nur für Minutenwerte verfügbar.",
+      error: "Runden ist nur für Tage oder Monate verfügbar.",
     };
   }
-  const source = context.previousActions.find(
-    (action) => action.id === reference.actionId,
-  );
-  const elapsed = getElapsedSeconds(source);
-  if (elapsed === null) {
-    return {
-      valid: false,
-      error: "Die Stoppuhrzeit für die Rundung ist nicht verfügbar.",
-    };
+  const date = parseFormulaDate(source.date);
+  if (!date) {
+    return { valid: false, error: "Das Formel-Datum ist ungültig." };
   }
-  const baseMinutes = Math.floor(elapsed / 60);
-  const restSeconds = elapsed % 60;
-  const roundedMinutes =
-    restSeconds > 0 && restSeconds >= node.threshold
-      ? baseMinutes + 1
-      : baseMinutes;
-  const minutes =
-    reference.metric === "sum-minutes"
-      ? (roundedMinutes * (roundedMinutes + 1)) / 2
-      : roundedMinutes;
+  const today = getLocalFormulaDateParts(getEvaluationNow(context));
+  const remainder =
+    source.type === "days"
+      ? getDayRemainderHours(getEvaluationNow(context))
+      : getMonthRemainderDays(date, sourceResult.value, today);
+  const value =
+    remainder > 0 && remainder >= node.threshold
+      ? sourceResult.value + 1
+      : sourceResult.value;
   return {
     valid: true,
-    value: minutes,
-    fallbackUsed: false,
-    clamped: false,
+    value,
+    fallbackUsed: sourceResult.fallbackUsed,
+    clamped: sourceResult.clamped,
   };
+}
+
+function evaluateDateNode(
+  node: Extract<FormulaNode, { type: "days" | "months" }>,
+  context: FormulaEvaluationContext,
+): FormulaNodeEvaluation {
+  const date = parseFormulaDate(node.date);
+  if (!date) {
+    return { valid: false, error: "Das Formel-Datum ist ungültig." };
+  }
+  const today = getLocalFormulaDateParts(getEvaluationNow(context));
+  if (compareFormulaDates(date, today) > 0) {
+    return {
+      valid: false,
+      error: "Das Formel-Datum darf nicht in der Zukunft liegen.",
+    };
+  }
+  const value =
+    node.type === "days"
+      ? getCalendarDayDifference(date, today)
+      : getCompletedCalendarMonths(date, today);
+  return { valid: true, value, fallbackUsed: false, clamped: false };
 }
 
 function evaluateReference(
@@ -418,6 +502,82 @@ function getElapsedSeconds(action: FormulaRuntimeAction | undefined): number | n
     return null;
   }
   return Math.max(0, Math.round(action.elapsedSeconds));
+}
+
+function getEvaluationNow(context: FormulaEvaluationContext): Date {
+  return context.now && !Number.isNaN(context.now.getTime())
+    ? context.now
+    : new Date();
+}
+
+function compareFormulaDates(
+  left: { year: number; month: number; day: number },
+  right: { year: number; month: number; day: number },
+): number {
+  return (
+    left.year - right.year ||
+    left.month - right.month ||
+    left.day - right.day
+  );
+}
+
+function getCalendarDayNumber(date: {
+  year: number;
+  month: number;
+  day: number;
+}): number {
+  const utcDate = new Date(0);
+  utcDate.setUTCFullYear(date.year, date.month - 1, date.day);
+  utcDate.setUTCHours(0, 0, 0, 0);
+  return Math.floor(utcDate.getTime() / 86_400_000);
+}
+
+function getCalendarDayDifference(
+  start: { year: number; month: number; day: number },
+  end: { year: number; month: number; day: number },
+): number {
+  return getCalendarDayNumber(end) - getCalendarDayNumber(start);
+}
+
+function getCompletedCalendarMonths(
+  start: { year: number; month: number; day: number },
+  end: { year: number; month: number; day: number },
+): number {
+  const difference =
+    (end.year - start.year) * 12 + end.month - start.month;
+  return difference - (end.day < start.day ? 1 : 0);
+}
+
+function addCalendarMonths(
+  date: { year: number; month: number; day: number },
+  months: number,
+): { year: number; month: number; day: number } {
+  const totalMonths = date.year * 12 + date.month - 1 + months;
+  const year = Math.floor(totalMonths / 12);
+  const month = (totalMonths % 12) + 1;
+  return {
+    year,
+    month,
+    day: Math.min(date.day, getDaysInFormulaMonth(year, month)),
+  };
+}
+
+function getMonthRemainderDays(
+  start: { year: number; month: number; day: number },
+  completedMonths: number,
+  today: { year: number; month: number; day: number },
+): number {
+  const anniversary = addCalendarMonths(start, completedMonths);
+  return getCalendarDayDifference(anniversary, today);
+}
+
+function getDayRemainderHours(date: Date): number {
+  return (
+    date.getHours() +
+    date.getMinutes() / 60 +
+    date.getSeconds() / 3_600 +
+    date.getMilliseconds() / 3_600_000
+  );
 }
 
 function clampInteger(value: number, bounds: FormulaOutputBounds): number {

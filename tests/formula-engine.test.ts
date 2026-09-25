@@ -110,6 +110,157 @@ test("Round applies the seconds threshold before triangular minute summation", (
   });
 });
 
+test("date nodes count local calendar days and strict completed months", () => {
+  const context = {
+    previousActions: [],
+    currentValues: {},
+    now: new Date(2026, 1, 28, 12, 0, 0),
+  };
+
+  assert.deepEqual(
+    evaluateFormulaNode(
+      { id: "days", type: "days", date: "2026-02-27" },
+      context,
+    ),
+    { valid: true, value: 1, fallbackUsed: false, clamped: false },
+  );
+  assert.deepEqual(
+    evaluateFormulaNode(
+      { id: "months", type: "months", date: "2026-01-31" },
+      context,
+    ),
+    { valid: true, value: 0, fallbackUsed: false, clamped: false },
+  );
+  assert.deepEqual(
+    evaluateFormulaNode(
+      { id: "months", type: "months", date: "2026-01-15" },
+      context,
+    ),
+    { valid: true, value: 1, fallbackUsed: false, clamped: false },
+  );
+  const future = evaluateFormulaNode(
+    { id: "future", type: "days", date: "2026-03-01" },
+    context,
+  );
+  assert.deepEqual(future, {
+    valid: false,
+    error: "Das Formel-Datum darf nicht in der Zukunft liegen.",
+  });
+});
+
+test("date-aware Runden uses hours, clamped month anniversaries, and date fallbacks", () => {
+  const dayContext = {
+    previousActions: [],
+    currentValues: {},
+    now: new Date(2026, 1, 28, 5, 30, 0),
+  };
+  const dayRound = (threshold: number): FormulaNode => ({
+    id: `round-days-${threshold}`,
+    type: "round",
+    input: {
+      id: "days",
+      type: "days",
+      date: "2026-02-27",
+    },
+    threshold,
+  });
+
+  assert.deepEqual(evaluateFormulaNode(dayRound(5), dayContext), {
+    valid: true,
+    value: 2,
+    fallbackUsed: false,
+    clamped: false,
+  });
+  assert.deepEqual(evaluateFormulaNode(dayRound(6), dayContext), {
+    valid: true,
+    value: 1,
+    fallbackUsed: false,
+    clamped: false,
+  });
+
+  const monthContext = {
+    previousActions: [],
+    currentValues: {},
+    now: new Date(2026, 2, 30, 12, 0, 0),
+  };
+  const monthRound = (threshold: number): FormulaNode => ({
+    id: `round-months-${threshold}`,
+    type: "round",
+    input: {
+      id: "months",
+      type: "months",
+      date: "2026-01-31",
+    },
+    threshold,
+  });
+
+  assert.deepEqual(evaluateFormulaNode(monthRound(15), monthContext), {
+    valid: true,
+    value: 2,
+    fallbackUsed: false,
+    clamped: false,
+  });
+  assert.deepEqual(evaluateFormulaNode(monthRound(31), monthContext), {
+    valid: true,
+    value: 1,
+    fallbackUsed: false,
+    clamped: false,
+  });
+
+  const futureWithFallback: FormulaNode = {
+    id: "future-fallback",
+    type: "round",
+    input: {
+      id: "fallback",
+      type: "fallback",
+      fallback: 1,
+      input: { id: "future", type: "days", date: "2026-03-01" },
+    },
+    threshold: 12,
+  };
+  assert.deepEqual(
+    evaluateFormulaNode(futureWithFallback, dayContext),
+    {
+      valid: true,
+      value: 1,
+      fallbackUsed: true,
+      clamped: false,
+    },
+  );
+});
+
+test("Runden rounds direct division with JavaScript Math.round semantics", () => {
+  const context = { previousActions: [], currentValues: {} };
+  const createDivisionRound = (
+    left: number,
+    right: number,
+  ): FormulaNode => ({
+    id: `round-division-${left}-${right}`,
+    type: "round",
+    input: {
+      id: "division",
+      type: "operator",
+      operator: "/",
+      left: { id: "left", type: "static", value: left },
+      right: { id: "right", type: "static", value: right },
+    },
+    threshold: 30,
+  });
+
+  assert.deepEqual(evaluateFormulaNode(createDivisionRound(5, 2), context), {
+    valid: true,
+    value: 3,
+    fallbackUsed: false,
+    clamped: false,
+  });
+  assert.deepEqual(evaluateFormulaNode(createDivisionRound(-3, 2), context), {
+    valid: true,
+    value: -1,
+    fallbackUsed: false,
+    clamped: false,
+  });
+});
+
 test("Current reads current properties or the live BPM", () => {
   const context = {
     previousActions: [],

@@ -10,6 +10,7 @@ import {
 } from "../src/action-model.ts";
 import {
   createNumericFormulaInput,
+  getLocalFormulaDate,
   type FormulaNode,
 } from "../src/formula-model.ts";
 import FormulaEditorDialog from "../src/components/formula/FormulaEditorDialog.vue";
@@ -88,7 +89,13 @@ test("formula input opens a custom dialog and emits only after confirmation", as
       .map((button) => button.text()),
     ["+", "−", "×", "÷"],
   );
-  assert.equal(dialog.get(".formula-palette-items").findAll("button").length, 6);
+  assert.deepEqual(
+    dialog
+      .get(".formula-palette-items")
+      .findAll("button")
+      .map((button) => button.text()),
+    ["Zahl", "Clamp", "Tage", "Monate", "Referenz", "Aktuell", "Ersatzwert", "Runden"],
+  );
   await dialog.get(".formula-node--static input").setValue("15");
   await dialog.get(".formula-dialog-actions .primary-button").trigger("click");
 
@@ -100,6 +107,97 @@ test("formula input opens a custom dialog and emits only after confirmation", as
   if (saved.expression?.type === "static") {
     assert.equal(saved.expression.value, 15);
   }
+});
+
+test("date palette nodes use the agreed colors and automatic fallback", async () => {
+  const wrapper = mount(FormulaEditorDialog, {
+    props: {
+      ...commonProps,
+      modelValue: { ...input, expression: null },
+    },
+  });
+  mounted.push(wrapper);
+
+  const palette = wrapper.get(".formula-palette-items").findAll("button");
+  assert.equal(palette[2]?.text(), "Tage");
+  assert.equal(palette[3]?.text(), "Monate");
+  assert.equal(palette[2]?.classes().includes("formula-node--days"), true);
+  assert.equal(palette[3]?.classes().includes("formula-node--months"), true);
+
+  await palette[2]?.trigger("click");
+
+  assert.equal(
+    wrapper.get<HTMLInputElement>(".formula-node--days input[type=date]").element
+      .value,
+    getLocalFormulaDate(),
+  );
+  assert.equal(wrapper.find(".formula-node--fallback").exists(), true);
+  assert.equal(
+    wrapper.get<HTMLInputElement>(".formula-node--fallback input[type=number]")
+      .element.value,
+    "1",
+  );
+});
+
+test("date palette nodes can be dropped into Runden with a contextual threshold", async () => {
+  const roundInput = {
+    ...input,
+    expression: {
+      id: "round",
+      type: "round" as const,
+      input: null,
+      threshold: 30,
+    },
+  };
+  const wrapper = mount(FormulaEditorDialog, {
+    props: { ...commonProps, modelValue: roundInput },
+  });
+  mounted.push(wrapper);
+
+  const paletteItem = wrapper
+    .findAll(".formula-palette-item")
+    .find((button) => button.text() === "Tage");
+  const inputSlot = wrapper.get('[data-formula-path="round.input"]');
+  assert.ok(paletteItem);
+
+  const dataTransfer = {
+    setData() {},
+    effectAllowed: "",
+    dropEffect: "",
+  };
+  await paletteItem.trigger("dragstart", { dataTransfer });
+  await inputSlot.trigger("dragover", { dataTransfer });
+  await inputSlot.trigger("drop", { dataTransfer });
+
+  assert.equal(wrapper.find(".formula-node--days input[type=date]").exists(), true);
+  assert.match(wrapper.get(".formula-node--round").text(), /Schwelle \(Stunden\)/);
+});
+
+test("date palette nodes added to a bound editor use fallback one", async () => {
+  const wrapper = mount(FormulaEditorDialog, {
+    props: {
+      ...commonProps,
+      modelValue: { ...dynamicInput, min: null, max: null },
+    },
+  });
+  mounted.push(wrapper);
+
+  await wrapper
+    .get(".formula-bound-card .secondary-button")
+    .trigger("click");
+  const paletteItem = wrapper
+    .findAll(".formula-palette-item")
+    .find((button) => button.text() === "Monate");
+  assert.ok(paletteItem);
+  await paletteItem.trigger("click");
+
+  assert.equal(wrapper.find(".formula-node--months").exists(), true);
+  assert.equal(wrapper.find(".formula-node--fallback").exists(), true);
+  assert.equal(
+    wrapper.get<HTMLInputElement>(".formula-node--fallback input[type=number]")
+      .element.value,
+    "1",
+  );
 });
 
 test("Remembered nodes must be returned or deleted before formula confirmation", async () => {
