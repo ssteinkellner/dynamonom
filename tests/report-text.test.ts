@@ -179,6 +179,7 @@ test("long reports include formula resolutions and automatic adjustments", () =>
         status: "completed",
         settings: runtimeSettings,
         beatCount: 8,
+        elapsedSeconds: 42,
         endReason: "automatic",
         endBpm: 126,
         formulaValues: [
@@ -200,6 +201,7 @@ test("long reports include formula resolutions and automatic adjustments", () =>
   const sections = getActionReportSections(report);
 
   assert.match(text, /\*Metronom - Lauf\*/);
+  assert.match(text, /Beats: 8x\nDauer: 42 Sekunden/);
   assert.match(text, /Formel · Starttempo: 120 \[Min 20; Max 300\] = 120/);
   assert.match(text, /Ersatzwert verwendet, begrenzt/);
   assert.match(text, /End-BPM: 126/);

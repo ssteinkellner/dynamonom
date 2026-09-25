@@ -202,6 +202,50 @@ test("metronome countdown and automatic end advance to the next action", async (
   assert.equal(store.phase, "action-stoppuhr");
 });
 
+test("metronome elapsed time starts at the first beat and excludes pauses", async () => {
+  const store = useMetronomeStore();
+  const settings = {
+    ...createDefaultMetronomeSettings(),
+    increaseTempo: false,
+    breaks: "none" as const,
+  };
+
+  assert.equal(
+    store.replaceActionDefinitions(
+      [metronomeAction("metronome", settings, "Metronom")],
+      true,
+    ),
+    true,
+  );
+  assert.equal(await store.startSession(), true);
+  assert.equal(store.phase, "countdown");
+  assert.equal(store.activeElapsedSeconds, 0);
+
+  await vi.advanceTimersByTimeAsync(2999);
+  assert.equal(store.phase, "countdown");
+  assert.equal(store.activeElapsedSeconds, 0);
+
+  await vi.advanceTimersByTimeAsync(1);
+  assert.equal(store.phase, "running");
+  assert.equal(store.activeElapsedSeconds, 0);
+
+  await vi.advanceTimersByTimeAsync(1000);
+  assert.equal(store.activeElapsedSeconds, 1);
+
+  store.pauseOrResumeMetronome();
+  assert.equal(store.phase, "paused");
+  await vi.advanceTimersByTimeAsync(3000);
+  assert.equal(store.activeElapsedSeconds, 1);
+
+  store.pauseOrResumeMetronome();
+  assert.equal(store.phase, "running");
+  await vi.advanceTimersByTimeAsync(1000);
+  assert.equal(store.activeElapsedSeconds, 2);
+
+  assert.equal(store.abortSession(), true);
+  assert.equal(store.report?.actions[0]?.elapsedSeconds, 2);
+});
+
 test("metronome results record the highest BPM that actually sounded", async () => {
   const store = useMetronomeStore();
   const settings = {

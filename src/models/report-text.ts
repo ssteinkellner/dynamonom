@@ -276,7 +276,10 @@ function appendMetronomeDetails(
     return;
   }
   if (action.beatCount !== undefined) {
-    details.push({ label: "Beats", value: `${action.beatCount}x` });
+    details.push(
+      { label: "Beats", value: `${action.beatCount}x` },
+      { label: "Dauer", value: `${action.elapsedSeconds ?? 0} Sekunden` },
+    );
   }
   details.push(
     { label: "Tempo", value: formatBpm(settings) },

@@ -82,6 +82,7 @@ export const useMetronomeStore = defineStore("metronome", () => {
   const actionResults = ref<ActionResult[]>([]);
   const currentActionIndex = ref(-1);
   const activeActionStartedAt = ref<number | null>(null);
+  const activePausedMilliseconds = ref(0);
   const activeElapsedSeconds = ref(0);
   const settings = shallowRef<RuntimeMetronomeSettings | null>(null);
   const beatCount = ref(0);
@@ -480,6 +481,7 @@ export const useMetronomeStore = defineStore("metronome", () => {
     actionResults.value = [];
     currentActionIndex.value = -1;
     activeActionStartedAt.value = null;
+    activePausedMilliseconds.value = 0;
     activeElapsedSeconds.value = 0;
     beatCount.value = 0;
     maximumPlayedBpm.value = null;
@@ -555,10 +557,14 @@ export const useMetronomeStore = defineStore("metronome", () => {
       return;
     }
 
+    const actionActivationTime = engine.now();
     result.status = "active";
-    result.startedAt = engine.now();
+    result.startedAt =
+      action.type === ACTION_TYPES.STOPWATCH ? actionActivationTime : undefined;
     result.formulaValues = [...resolved.formulaValues];
-    activeActionStartedAt.value = result.startedAt;
+    activeActionStartedAt.value =
+      action.type === ACTION_TYPES.STOPWATCH ? actionActivationTime : null;
+    activePausedMilliseconds.value = 0;
     activeElapsedSeconds.value = 0;
 
     switch (action.type) {
@@ -598,6 +604,7 @@ export const useMetronomeStore = defineStore("metronome", () => {
       actionResults.value = [];
       currentActionIndex.value = -1;
       activeActionStartedAt.value = null;
+      activePausedMilliseconds.value = 0;
       settings.value = null;
       return;
     }
@@ -678,9 +685,18 @@ export const useMetronomeStore = defineStore("metronome", () => {
     if (activeActionStartedAt.value === null) {
       return 0;
     }
+    const currentPauseMilliseconds = activeBreak.value
+      ? Math.max(0, now - activeBreak.value.startedAt)
+      : 0;
     return Math.max(
       0,
-      Math.round((now - activeActionStartedAt.value) / 1000),
+      Math.round(
+        (now -
+          activeActionStartedAt.value -
+          activePausedMilliseconds.value -
+          currentPauseMilliseconds) /
+          1000,
+      ),
     );
   }
 
@@ -774,7 +790,20 @@ export const useMetronomeStore = defineStore("metronome", () => {
     if (phase.value !== "countdown") {
       return;
     }
+    const result = currentActionResult.value;
+    if (
+      !result ||
+      result.type !== ACTION_TYPES.METRONOME ||
+      result.status !== "active"
+    ) {
+      throw new Error("The active metronome result is unavailable.");
+    }
     phase.value = "running";
+    result.startedAt = now;
+    activeActionStartedAt.value = now;
+    activePausedMilliseconds.value = 0;
+    activeElapsedSeconds.value = 0;
+    engine.scheduleInterval("action-display", sessionToken.value, 250);
     executeBeat(now);
   }
 
@@ -1113,6 +1142,7 @@ export const useMetronomeStore = defineStore("metronome", () => {
       0,
       Math.round((now - active.startedAt) / 1000),
     );
+    activePausedMilliseconds.value += Math.max(0, now - active.startedAt);
     active.record.durationSeconds = elapsedSeconds;
     active.record.ended =
       reason === "timer"
@@ -1125,6 +1155,7 @@ export const useMetronomeStore = defineStore("metronome", () => {
     activeBreak.value = null;
     activeBreakElapsedSeconds.value = 0;
     resumeCountdownValue.value = 0;
+    activeElapsedSeconds.value = getActiveActionElapsedSeconds(now);
     executionMessage.value = "";
 
     if (reason === "ended" || reason === "aborted") {
@@ -1161,6 +1192,7 @@ export const useMetronomeStore = defineStore("metronome", () => {
     settings.value = null;
     activeBreak.value = null;
     activeActionStartedAt.value = null;
+    activePausedMilliseconds.value = 0;
     startNextAction();
   }
 
@@ -1171,6 +1203,7 @@ export const useMetronomeStore = defineStore("metronome", () => {
     settings.value = null;
     activeBreak.value = null;
     activeActionStartedAt.value = null;
+    activePausedMilliseconds.value = 0;
     report.value = {
       actions: cloneActionResults(actionResults.value),
       aborted,
@@ -1186,6 +1219,7 @@ export const useMetronomeStore = defineStore("metronome", () => {
     actionResults.value = [];
     currentActionIndex.value = -1;
     activeActionStartedAt.value = null;
+    activePausedMilliseconds.value = 0;
     activeBreak.value = null;
     settingsError.value = getErrorMessage(
       error,

@@ -103,6 +103,7 @@ test("metronome cards reflect tempo progression and the hide-next setting", asyn
   store.currentBpm = 120;
   store.beatCount = 4;
   store.tempoCounter = 4;
+  store.activeElapsedSeconds = 7;
 
   const wrapper = mount(MetronomeExecutionView, {
     props: {
@@ -124,6 +125,10 @@ test("metronome cards reflect tempo progression and the hide-next setting", asyn
     wrapper.findAll(".metric .metric-value").map((value) => value.text()),
     ["4", "120", "122"],
   );
+  assert.deepEqual(
+    wrapper.findAll(".metric .metric-detail").map((detail) => detail.text()),
+    ["7 Sekunden", "BPM", "BPM"],
+  );
 
   store.settings = { ...store.settings!, increaseAfter: 1 };
   store.beatCount = 0;
@@ -139,6 +144,10 @@ test("metronome cards reflect tempo progression and the hide-next setting", asyn
   assert.deepEqual(
     wrapper.findAll(".metric .metric-label").map((label) => label.text()),
     ["Beats", "Tempo"],
+  );
+  assert.deepEqual(
+    wrapper.findAll(".metric .metric-detail").map((detail) => detail.text()),
+    ["7 Sekunden", "BPM"],
   );
   assert.equal(wrapper.find(".metric-grid--progressing").exists(), false);
 

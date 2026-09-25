@@ -107,6 +107,7 @@ function abort(): void {
       <div class="metric">
         <span class="metric-label">Beats</span>
         <strong class="metric-value">{{ store.beatCount }}</strong>
+        <span class="metric-detail">{{ store.activeElapsedSeconds }} Sekunden</span>
       </div>
       <div class="metric">
         <span class="metric-label">Tempo</span>
