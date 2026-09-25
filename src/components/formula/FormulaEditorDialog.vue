@@ -74,13 +74,13 @@ const paletteItems: readonly FormulaPaletteItem[] = [
   { type: "operator", label: "×", operator: "*" },
   { type: "operator", label: "÷", operator: "/" },
   { type: "static", label: "Zahl" },
-  { type: "clamp", label: "Clamp" },
-  { type: "days", label: "Tage" },
-  { type: "months", label: "Monate" },
+  { type: "clamp", label: "Min - Max" },
+  { type: "days", label: "Tage seit" },
+  { type: "months", label: "Monate seit" },
   { type: "reference", label: "Referenz" },
   { type: "current", label: "Aktuell" },
   { type: "fallback", label: "Ersatzwert" },
-  { type: "round", label: "Runden" },
+  { type: "round", label: "Aufrunden ab" },
 ];
 const operatorPaletteItems = paletteItems.filter((item) => item.operator);
 const otherPaletteItems = paletteItems.filter((item) => !item.operator);

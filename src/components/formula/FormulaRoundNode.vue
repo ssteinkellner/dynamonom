@@ -69,17 +69,17 @@ function updateThreshold(event: Event, node: FormulaRoundNode): void {
       <div class="formula-node-slot">
         <slot name="input" />
       </div>
-      <label v-if="roundConfig?.kind !== 'division'">
-        Schwelle ({{ thresholdLabel }})
+      <div v-if="roundConfig?.kind !== 'division'" class="formula-round-threshold">
         <input
           type="number"
           :min="thresholdMin"
           :max="thresholdMax"
           step="1"
           :value="node.threshold"
+          :aria-label="`Schwelle (${thresholdLabel})`"
           @input="updateThreshold($event, node)"
         />
-      </label>
+      </div>
     </div>
   </div>
 </template>

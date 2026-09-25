@@ -103,13 +103,13 @@ Available nodes are:
 | `-` | Subtracts the right expression from the left expression. Operators are fixed after creation; use a new palette node to choose a different operator. |
 | `*` | Multiplies the left and right expressions. Operators are fixed after creation; use a new palette node to choose a different operator. |
 | `/` | Divides the left expression by the right expression; division by zero is invalid. New `/` nodes receive the field fallback automatically. A direct division result can be rounded with `Runden`. |
-| `Clamp` | Limits an expression to a minimum and maximum. Non-target dynamic bounds may remain bare; `/`, Referenz, Aktuell, and future date bounds require a fallback ancestor. |
+| `Min - Max` | Limits an expression to a minimum and maximum. Non-target dynamic bounds may remain bare; `/`, Referenz, Aktuell, and future date bounds require a fallback ancestor. |
 | `Ersatzwert` | Uses the configured fallback value when its expression cannot be evaluated. New `/`, Referenz, and Aktuell nodes are wrapped automatically; future date nodes receive a fallback of `1`. |
 | `Referenz` | Reads an earlier action's Minuten, Summe Minuten, absolute seconds, remaining seconds, or End-BPM for an earlier Metronome action. Minuten uses exact elapsed minutes, while Summe Minuten is their triangular sum. |
 | `Runden` | Rounds Minuten or Summe Minuten with a 0–60 second threshold, Tage with a 0–23 hour threshold, Monate with a 0–31 day threshold, or a direct `/` result with normal integer rounding. |
 | `Aktuell` | Reads another enabled numeric setting from the same action. |
-| `Tage` | Counts local calendar days since a stored date. New nodes start with today; a future date is automatically wrapped with `Ersatzwert(...; 1)` and evaluates as invalid without that fallback. |
-| `Monate` | Counts strict completed calendar months since a stored date. New nodes start with today; a future date is automatically wrapped with `Ersatzwert(...; 1)` and evaluates as invalid without that fallback. |
+| `Tage seit` | Counts local calendar days since a stored date. New nodes start with today; a future date is automatically wrapped with `Ersatzwert(...; 1)` and evaluates as invalid without that fallback. |
+| `Monate seit` | Counts strict completed calendar months since a stored date. New nodes start with today; a future date is automatically wrapped with `Ersatzwert(...; 1)` and evaluates as invalid without that fallback. |
 
 Pause-duration formulas can also read live BPM and are evaluated each time a
 break begins.

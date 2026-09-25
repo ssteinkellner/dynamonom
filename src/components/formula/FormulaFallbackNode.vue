@@ -24,15 +24,15 @@ function updateFallback(event: Event, node: FormulaFallbackNode): void {
       <div class="formula-node-slot">
         <slot name="input" />
       </div>
-      <label class="formula-fallback-value">
-        Ersatzwert
+      <div class="formula-fallback-value">
         <input
           type="number"
           step="1"
           :value="node.fallback"
+          aria-label="Ersatzwert"
           @input="updateFallback($event, node)"
         />
-      </label>
+      </div>
     </div>
   </div>
 </template>

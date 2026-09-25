@@ -1156,11 +1156,6 @@ th {
   gap: 0.35rem;
 }
 
-.formula-date-marker {
-  flex: 0 0 auto;
-  font-weight: 800;
-}
-
 .formula-date-control .formula-date-input {
   flex: 1 1 auto;
 }
@@ -1193,9 +1188,16 @@ th {
 }
 
 .formula-node--fallback {
-  border-color: #9d2929;
+  border-color: #8f1d1d;
   color: #fff;
-  background: #b53b3b;
+  background-color: #b83232;
+  background-image: repeating-linear-gradient(
+    135deg,
+    #b83232 0,
+    #b83232 0.55rem,
+    #c95740 0.55rem,
+    #c95740 0.75rem
+  );
 }
 
 .formula-node--reference {
@@ -1210,11 +1212,16 @@ th {
   background: #13858a;
 }
 
-.formula-node--days,
-.formula-node--months {
+.formula-node--days {
   border-color: #b94e08;
   color: #fff;
   background: #ce641b;
+}
+
+.formula-node--months {
+  border-color: #6f452a;
+  color: #fff;
+  background: #8b5e3c;
 }
 
 .formula-node--round {
@@ -1271,10 +1278,6 @@ th {
   align-self: center;
   font-size: 1.2rem;
   font-weight: 800;
-}
-
-.formula-fallback-value {
-  color: #fff;
 }
 
 .formula-drop-zone {
@@ -1336,11 +1339,16 @@ th {
   background: #2d9ca0;
 }
 
-.formula-node--days .formula-drop-zone,
-.formula-node--months .formula-drop-zone {
+.formula-node--days .formula-drop-zone {
   border-color: #f0a56b;
   color: #fff;
   background: #df7b32;
+}
+
+.formula-node--months .formula-drop-zone {
+  border-color: #c39a78;
+  color: #fff;
+  background: #a97852;
 }
 
 .formula-drop-label {
@@ -1404,7 +1412,14 @@ th {
 }
 
 .formula-node--fallback.formula-palette-item {
-  background: #b53b3b;
+  background-color: #b83232;
+  background-image: repeating-linear-gradient(
+    135deg,
+    #b83232 0,
+    #b83232 0.55rem,
+    #c95740 0.55rem,
+    #c95740 0.75rem
+  );
 }
 
 .formula-node--reference.formula-palette-item {
@@ -1415,9 +1430,12 @@ th {
   background: #13858a;
 }
 
-.formula-node--days.formula-palette-item,
-.formula-node--months.formula-palette-item {
+.formula-node--days.formula-palette-item {
   background: #ce641b;
+}
+
+.formula-node--months.formula-palette-item {
+  background: #8b5e3c;
 }
 
 .formula-node--round.formula-palette-item {

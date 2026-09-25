@@ -99,7 +99,16 @@ test("formula input opens a custom dialog and emits only after confirmation", as
       .get(".formula-palette-items")
       .findAll("button")
       .map((button) => button.text()),
-    ["Zahl", "Clamp", "Tage", "Monate", "Referenz", "Aktuell", "Ersatzwert", "Runden"],
+    [
+      "Zahl",
+      "Min - Max",
+      "Tage seit",
+      "Monate seit",
+      "Referenz",
+      "Aktuell",
+      "Ersatzwert",
+      "Aufrunden ab",
+    ],
   );
   await dialog.get(".formula-node--static input").setValue("15");
   await dialog.get(".formula-dialog-actions .primary-button").trigger("click");
@@ -124,8 +133,8 @@ test("date palette nodes stay bare until a future date is selected", async () =>
   mounted.push(wrapper);
 
   const palette = wrapper.get(".formula-palette-items").findAll("button");
-  assert.equal(palette[2]?.text(), "Tage");
-  assert.equal(palette[3]?.text(), "Monate");
+  assert.equal(palette[2]?.text(), "Tage seit");
+  assert.equal(palette[3]?.text(), "Monate seit");
   assert.equal(palette[2]?.classes().includes("formula-node--days"), true);
   assert.equal(palette[3]?.classes().includes("formula-node--months"), true);
 
@@ -140,7 +149,7 @@ test("date palette nodes stay bare until a future date is selected", async () =>
     wrapper.find(".formula-field-scroll .formula-node--fallback").exists(),
     false,
   );
-  assert.equal(wrapper.get(".formula-date-marker").text(), "D:");
+  assert.equal(wrapper.find(".formula-date-marker").exists(), false);
   assert.equal(
     wrapper.get<HTMLInputElement>(".formula-node--days input[type=date]")
       .attributes("aria-label"),
@@ -186,7 +195,7 @@ test("date palette nodes can be dropped into Runden with a contextual threshold"
 
   const paletteItem = wrapper
     .findAll(".formula-palette-item")
-    .find((button) => button.text() === "Tage");
+    .find((button) => button.text() === "Tage seit");
   const inputSlot = wrapper.get('[data-formula-path="round.input"]');
   assert.ok(paletteItem);
 
@@ -200,7 +209,13 @@ test("date palette nodes can be dropped into Runden with a contextual threshold"
   await inputSlot.trigger("drop", { dataTransfer });
 
   assert.equal(wrapper.find(".formula-node--days input[type=date]").exists(), true);
-  assert.match(wrapper.get(".formula-node--round").text(), /Schwelle \(Stunden\)/);
+  assert.equal(wrapper.get(".formula-node--round").text(), "");
+  assert.equal(
+    wrapper
+      .get(".formula-node--round input[type=number]")
+      .attributes("aria-label"),
+    "Schwelle (Stunden)",
+  );
 });
 
 test("date palette nodes added to a bound editor use fallback one", async () => {
@@ -217,7 +232,7 @@ test("date palette nodes added to a bound editor use fallback one", async () => 
     .trigger("click");
   const paletteItem = wrapper
     .findAll(".formula-palette-item")
-    .find((button) => button.text() === "Monate");
+    .find((button) => button.text() === "Monate seit");
   assert.ok(paletteItem);
   await paletteItem.trigger("click");
   await wrapper
@@ -264,6 +279,16 @@ test("slash, reference, and current palette nodes are wrapped immediately", asyn
   assert.equal(
     slashWrapper.find(".formula-field-scroll .formula-node--fallback").exists(),
     true,
+  );
+  assert.doesNotMatch(
+    slashWrapper.get(".formula-node--fallback").text(),
+    /Ersatzwert/,
+  );
+  assert.equal(
+    slashWrapper
+      .get(".formula-node--fallback input[type=number]")
+      .attributes("aria-label"),
+    "Ersatzwert",
   );
   assert.equal(
     slashWrapper.get<HTMLInputElement>(
