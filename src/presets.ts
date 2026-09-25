@@ -357,6 +357,20 @@ function createMaximalMetronomeSettings(
     hideLockText: true,
     hideNextTempo: true,
     lockBeats: createSessionEndLock(),
+    pauseMessages: [
+      {
+        id: `test-maximal-metronome-${variant}-finite-message`,
+        fromPause: createArithmeticFormula("+", 0, 0, 0, null),
+        untilPause: createArithmeticFormula("+", 0, 1, 0, null),
+        text: `Metronom ${variant}: kurze Pause`,
+      },
+      {
+        id: `test-maximal-metronome-${variant}-open-message`,
+        fromPause: createArithmeticFormula("+", 2, 1, 0, null),
+        untilPause: null,
+        text: `Metronom ${variant}: weitere Pause`,
+      },
+    ],
   };
 }
 

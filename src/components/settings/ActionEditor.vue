@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import {
   ACTION_TYPES,
   getActionTypeLabel,
@@ -21,9 +21,11 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   "update:draft": [draft: Action];
+  "nested-draft-state": [dirty: boolean];
   save: [];
   cancel: [];
 }>();
+const nestedDraftDirty = ref(false);
 
 const nameError = computed(
   () => props.errors.find((error) => error.field === "name")?.message ?? "",
@@ -59,6 +61,11 @@ function updateStopwatchSettings(settings: StopwatchAction["settings"]): void {
     emit("update:draft", { ...props.draft, settings });
   }
 }
+
+function updateNestedDraftState(dirty: boolean): void {
+  nestedDraftDirty.value = dirty;
+  emit("nested-draft-state", dirty);
+}
 </script>
 
 <template>
@@ -87,6 +94,7 @@ function updateStopwatchSettings(settings: StopwatchAction["settings"]): void {
       :errors="settingsErrors"
       :previous-actions="previousActions"
       @update:settings="updateMetronomeSettings"
+      @nested-draft-state="updateNestedDraftState"
     />
     <StopwatchActionSettings
       v-else-if="draft.type === ACTION_TYPES.STOPWATCH"
@@ -101,7 +109,12 @@ function updateStopwatchSettings(settings: StopwatchAction["settings"]): void {
       <button class="secondary-button" type="button" @click="emit('cancel')">
         Abbrechen
       </button>
-      <button class="primary-button" type="button" @click="emit('save')">
+      <button
+        class="primary-button"
+        type="button"
+        :disabled="nestedDraftDirty"
+        @click="emit('save')"
+      >
         Bestätigen
       </button>
     </div>

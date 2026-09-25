@@ -1,4 +1,5 @@
 import {
+  type MetronomePauseMessage,
   type BreakMode,
   type MaximumMode,
   type MetronomeSettings,
@@ -55,12 +56,25 @@ export const METRONOME_NUMERIC_FIELD_BOUNDS: Readonly<
   lockBeats: { min: 1, max: null },
 });
 
+export const PAUSE_MESSAGE_NUMERIC_FIELD_BOUNDS = Object.freeze({
+  fromPause: { min: 0, max: null },
+  untilPause: { min: 0, max: null },
+});
+
 const ACTIVE_MAXIMUM_LIMIT_FIELD: Record<MaximumMode, string | null> = {
   none: null,
   stick: "maximumLimitStick",
   reset: "maximumLimitReset",
   reverse: "maximumLimitReverse",
 };
+
+let nextPauseMessageId = 1;
+
+export function createPauseMessageId(): string {
+  const id = `pause-message-${Date.now().toString(36)}-${nextPauseMessageId}`;
+  nextPauseMessageId += 1;
+  return id;
+}
 
 export function createDefaultMetronomeSettings(): MetronomeSettings {
   return {
@@ -79,6 +93,7 @@ export function createDefaultMetronomeSettings(): MetronomeSettings {
     breaks: DEFAULT_VALUES.breaks,
     breakCount: null,
     breakSeconds: null,
+    pauseMessages: [],
     sessionEndEnabled: DEFAULT_VALUES.sessionEndEnabled,
     sessionEndBeats: createField(
       "sessionEndBeats",
@@ -180,6 +195,7 @@ export function validateMetronomeActionSettings(
   const lockSettings = getBoolean("lockSettings", defaults.lockSettings);
   const hideLockText = getBoolean("hideLockText", defaults.hideLockText);
   const hideNextTempo = getBoolean("hideNextTempo", defaults.hideNextTempo);
+  const pauseMessages = getPauseMessages(raw.pauseMessages, markInvalid);
 
   const settings: MetronomeSettings = {
     bpm: getFormula("bpm", defaults.bpm) ?? defaults.bpm,
@@ -216,6 +232,7 @@ export function validateMetronomeActionSettings(
       createField("breakSeconds", 1),
       true,
     ),
+    pauseMessages,
     sessionEndEnabled,
     sessionEndBeats:
       getFormula("sessionEndBeats", defaults.sessionEndBeats) ??
@@ -228,6 +245,90 @@ export function validateMetronomeActionSettings(
 
   if (errors.length > 0) {
     return { valid: false, errors };
+  }
+
+  function getPauseMessages(
+    rawMessages: unknown,
+    markInvalid: (field: string, message: string) => void,
+  ): MetronomePauseMessage[] {
+    if (rawMessages === undefined || rawMessages === null) {
+      return [];
+    }
+    if (!Array.isArray(rawMessages)) {
+      markInvalid("pauseMessages", "Eine gültige Nachrichtenliste eingeben.");
+      return [];
+    }
+
+    return rawMessages.map((rawMessage, index) => {
+      const field = `pauseMessages[${index}]`;
+      if (!isRecord(rawMessage)) {
+        markInvalid(field, "Eine gültige Nachricht eingeben.");
+        return createDefaultPauseMessage();
+      }
+
+      const fromPause = normalizePauseMessageFormula(
+        rawMessage.fromPause,
+        0,
+        PAUSE_MESSAGE_NUMERIC_FIELD_BOUNDS.fromPause,
+        `${field}.fromPause`,
+        markInvalid,
+      );
+      const untilPause =
+        rawMessage.untilPause === undefined ||
+        rawMessage.untilPause === null ||
+        rawMessage.untilPause === ""
+          ? null
+          : normalizePauseMessageFormula(
+              rawMessage.untilPause,
+              0,
+              PAUSE_MESSAGE_NUMERIC_FIELD_BOUNDS.untilPause,
+              `${field}.untilPause`,
+              markInvalid,
+            );
+      const text =
+        typeof rawMessage.text === "string" ? rawMessage.text.trim() : "";
+      if (!text) {
+        markInvalid(`${field}.text`, "Einen Nachrichtentext eingeben.");
+      }
+
+      return {
+        id:
+          typeof rawMessage.id === "string" && rawMessage.id.trim()
+            ? rawMessage.id
+            : createPauseMessageId(),
+        fromPause,
+        untilPause,
+        text,
+      };
+    });
+  }
+
+  function normalizePauseMessageFormula(
+    rawInput: unknown,
+    defaultValue: number,
+    bounds: { min: number; max: number | null },
+    field: string,
+    markInvalid: (field: string, message: string) => void,
+  ): NumericFormulaInput {
+    const normalized = normalizeNumericFormulaInput(
+      rawInput === undefined ? createNumericFormulaInput(defaultValue, bounds.min, bounds.max) : rawInput,
+      defaultValue,
+      bounds.min,
+      bounds.max,
+    );
+    if (!normalized.valid) {
+      markInvalid(field, normalized.errors.join(" "));
+    }
+    return normalized.value;
+  }
+
+  function createDefaultPauseMessage(): MetronomePauseMessage {
+    return {
+      id: createPauseMessageId(),
+      fromPause: createNumericFormulaInput(0, 0, null),
+      untilPause: null,
+      text: "",
+    };
   }
   return { valid: true, errors, settings };
 }

@@ -20,6 +20,13 @@ export type BreakMode = "none" | "limited" | "unlimited";
 export type StopwatchEndMode = "unlimited" | "automatic" | "manual";
 export type NumericSetting = number | string;
 
+export interface MetronomePauseMessage {
+  id: string;
+  fromPause: NumericFormulaInput;
+  untilPause: NumericFormulaInput | null;
+  text: string;
+}
+
 export const ACTION_TYPE_LABELS = Object.freeze({
   [ACTION_TYPES.METRONOME]: "Metronom",
   [ACTION_TYPES.STOPWATCH]: "Stoppuhr",
@@ -43,6 +50,7 @@ export interface MetronomeSettings {
   breaks: BreakMode;
   breakCount: NumericFormulaInput | null;
   breakSeconds: NumericFormulaInput | null;
+  pauseMessages: MetronomePauseMessage[];
   sessionEndEnabled: boolean;
   sessionEndBeats: NumericFormulaInput;
   lockSettings: boolean;
@@ -445,6 +453,18 @@ export function getActionFormulaFields(action: Action): ActionFormulaField[] {
     if (action.settings.breakSeconds) {
       fields.push({ field: "breakSeconds", input: action.settings.breakSeconds });
     }
+    for (const message of action.settings.pauseMessages) {
+      fields.push({
+        field: `pauseMessageFrom:${message.id}`,
+        input: message.fromPause,
+      });
+      if (message.untilPause) {
+        fields.push({
+          field: `pauseMessageUntil:${message.id}`,
+          input: message.untilPause,
+        });
+      }
+    }
     return fields;
   }
   if (action.type === ACTION_TYPES.STOPWATCH) {
@@ -630,6 +650,16 @@ function validateCurrentNode(
   errors: ActionValidationError[],
   actionIndex: number,
 ): void {
+  if (node.property === "abPause") {
+    if (!field.startsWith("pauseMessageUntil:")) {
+      errors.push({
+        index: actionIndex,
+        field,
+        message: "Ab Pause ist nur in Bis-Pause-Nachrichten verfügbar.",
+      });
+    }
+    return;
+  }
   if (node.property === "current-bpm") {
     if (
       action.type !== ACTION_TYPES.METRONOME ||

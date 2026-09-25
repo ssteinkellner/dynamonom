@@ -278,7 +278,9 @@ export function formulaNodeRequiresFallback(
     return node.operator === "/";
   }
   if (node.type === "reference" || node.type === "current") {
-    return true;
+    return node.type === "current" && node.property === "abPause"
+      ? false
+      : true;
   }
   return isFormulaDateNode(node) && isFormulaDateInFuture(node.date, now);
 }
@@ -330,6 +332,24 @@ export function createNumericFormulaInput(
     expression: createStaticFormulaNode(value),
     min: createStaticFormulaNode(min),
     max: max === null ? null : createStaticFormulaNode(max),
+  };
+}
+
+export function createPauseMessageUntilFormulaInput(): NumericFormulaInput {
+  return {
+    expression: {
+      id: createFormulaNodeId(),
+      type: "clamp",
+      min: createStaticFormulaNode(0),
+      input: {
+        id: createFormulaNodeId(),
+        type: "current",
+        property: "abPause",
+      },
+      max: null,
+    },
+    min: createStaticFormulaNode(0),
+    max: null,
   };
 }
 

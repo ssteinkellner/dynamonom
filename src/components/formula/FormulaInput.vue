@@ -37,6 +37,9 @@ const formulaContext = computed(() => ({
     [
       ...getEnabledCurrentFormulaProperties(props.action),
       ...(props.field === "breakSeconds" ? ["current-bpm"] : []),
+      ...(props.field.startsWith("pauseMessageUntil:")
+        ? ["abPause"]
+        : []),
     ].map((property) => [
       property,
       property === "current-bpm"

@@ -26,6 +26,7 @@ import {
   getActionRuntimeMetronomeSettings,
   resolveActionFormulaValues,
   resolvePauseDuration,
+  resolvePauseMessages,
 } from "../models/action-formulas.ts";
 import type { FormulaRuntimeAction } from "../formula-engine.ts";
 import { findFormulaDependencyCycles } from "../models/formula-dependencies.ts";
@@ -97,6 +98,7 @@ export const useMetronomeStore = defineStore("metronome", () => {
   const breakRecords = ref<BreakRecord[]>([]);
   const activeBreak = ref<ActiveBreak | null>(null);
   const activeBreakElapsedSeconds = ref(0);
+  const pauseMessageTexts = ref<string[]>([]);
   const executionMessage = ref("");
   const report = shallowRef<SessionReport | null>(null);
 
@@ -463,6 +465,7 @@ export const useMetronomeStore = defineStore("metronome", () => {
     phase.value = "finished";
     settings.value = null;
     activeBreak.value = null;
+    pauseMessageTexts.value = [];
     activeActionStartedAt.value = null;
     finalizeActionSequence(true);
     return true;
@@ -488,6 +491,7 @@ export const useMetronomeStore = defineStore("metronome", () => {
     breakRecords.value = [];
     activeBreak.value = null;
     activeBreakElapsedSeconds.value = 0;
+    pauseMessageTexts.value = [];
     report.value = null;
     executionMessage.value = "";
   }
@@ -624,6 +628,7 @@ export const useMetronomeStore = defineStore("metronome", () => {
     }
     settings.value = null;
     activeBreak.value = null;
+    pauseMessageTexts.value = [];
     executionMessage.value = "";
     phase.value = "action-stoppuhr";
 
@@ -757,6 +762,7 @@ export const useMetronomeStore = defineStore("metronome", () => {
     breakRecords.value = [];
     activeBreak.value = null;
     activeBreakElapsedSeconds.value = 0;
+    pauseMessageTexts.value = [];
     executionMessage.value = "";
     if (!engine.playTone(TONE.countdownFrequency) || phase.value !== "countdown") {
       return;
@@ -1026,6 +1032,20 @@ export const useMetronomeStore = defineStore("metronome", () => {
       ];
     }
 
+    const messageResolution = resolvePauseMessages(
+      action,
+      actionResults.value.slice(0, currentActionIndex.value),
+      Object.fromEntries(
+        (result.formulaValues ?? []).map(({ field, value }) => [field, value]),
+      ),
+      currentBpm.value,
+      sessionNumber,
+    );
+    pauseMessageTexts.value = messageResolution.texts;
+    result.pauseMessageErrors = [
+      ...(result.pauseMessageErrors ?? []),
+      ...messageResolution.errors,
+    ];
     breakRecords.value.push(record);
     executionMessage.value = "";
     engine.cancel("beat");
@@ -1190,6 +1210,7 @@ export const useMetronomeStore = defineStore("metronome", () => {
     sessionToken.value += 1;
     phase.value = "transition";
     settings.value = null;
+    pauseMessageTexts.value = [];
     activeBreak.value = null;
     activeActionStartedAt.value = null;
     activePausedMilliseconds.value = 0;
@@ -1201,6 +1222,7 @@ export const useMetronomeStore = defineStore("metronome", () => {
     sessionToken.value += 1;
     phase.value = "finished";
     settings.value = null;
+    pauseMessageTexts.value = [];
     activeBreak.value = null;
     activeActionStartedAt.value = null;
     activePausedMilliseconds.value = 0;
@@ -1220,6 +1242,7 @@ export const useMetronomeStore = defineStore("metronome", () => {
     currentActionIndex.value = -1;
     activeActionStartedAt.value = null;
     activePausedMilliseconds.value = 0;
+    pauseMessageTexts.value = [];
     activeBreak.value = null;
     settingsError.value = getErrorMessage(
       error,
@@ -1259,6 +1282,7 @@ export const useMetronomeStore = defineStore("metronome", () => {
     breakRecords,
     activeBreak,
     activeBreakElapsedSeconds,
+    pauseMessageTexts,
     executionMessage,
     report,
     currentAction,

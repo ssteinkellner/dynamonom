@@ -217,6 +217,40 @@ test("long reports include formula resolutions and automatic adjustments", () =>
   );
 });
 
+test("message formula errors appear in long reports but not short reports", () => {
+  const action: MetronomeActionResult = {
+    id: "metronome",
+    type: ACTION_TYPES.METRONOME,
+    name: "Pausenlauf",
+    status: "completed",
+    settings: runtimeSettings,
+    beatCount: 4,
+    endReason: "manual",
+    pauseMessageErrors: [
+      {
+        pauseNumber: 2,
+        messageId: "message-1",
+        messageIndex: 0,
+        field: "untilPause",
+        error: "Der aktuelle Formelwert ist nicht verfügbar.",
+      },
+    ],
+  };
+  const report: SessionReport = { actions: [action], aborted: false };
+
+  assert.match(
+    buildLongReportText(report),
+    /Nachrichtenfehler:\n- Pause 2, Nachricht 1 \(message-1\), Bis Pause: Der aktuelle Formelwert ist nicht verfügbar\./,
+  );
+  assert.doesNotMatch(buildShortReportText(report), /Nachrichtenfehler/);
+  assert.equal(
+    getActionReportSections(report)[0]?.details.some(
+      (detail) => detail.label === "Nachrichtenfehler",
+    ),
+    true,
+  );
+});
+
 test("compound report properties use labeled export lines", () => {
   const action: MetronomeActionResult = {
     id: "metronome",

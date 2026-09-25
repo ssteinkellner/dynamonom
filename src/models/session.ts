@@ -37,6 +37,14 @@ export interface FormulaValueRecord {
   clamped: boolean;
 }
 
+export interface PauseMessageError {
+  pauseNumber: number;
+  messageId: string;
+  messageIndex: number;
+  field: "fromPause" | "untilPause";
+  error: string;
+}
+
 export interface BreakRecord {
   number: number;
   beat: number;
@@ -103,6 +111,7 @@ export interface MetronomeActionResult
   endReason?: "automatic" | "manual" | "aborted";
   endBpm?: number;
   maximumBpm?: number;
+  pauseMessageErrors?: PauseMessageError[];
 }
 
 export interface StopwatchActionResult

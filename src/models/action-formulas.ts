@@ -3,7 +3,7 @@ import {
   getActionFormulaFields,
   getEnabledCurrentFormulaProperties,
 } from "../action-model.ts";
-import type { Action } from "../action-model.ts";
+import type { Action, MetronomeAction } from "../action-model.ts";
 import {
   evaluateNumericFormulaInput,
   getNumericFormulaDependencies,
@@ -29,6 +29,7 @@ import { STOPWATCH_NUMERIC_FIELD_BOUNDS } from "./stopwatch-settings.ts";
 import type {
   ActionResult,
   FormulaValueRecord,
+  PauseMessageError,
   RuntimeMetronomeSettings,
 } from "./session.ts";
 
@@ -165,6 +166,80 @@ export function resolvePauseDuration(
   );
 }
 
+export interface PauseMessageResolution {
+  texts: string[];
+  errors: PauseMessageError[];
+}
+
+export function resolvePauseMessages(
+  action: MetronomeAction,
+  previousResults: readonly ActionResult[],
+  currentValues: Readonly<Record<string, number>>,
+  liveBpm: number,
+  pauseNumber: number,
+  now = new Date(),
+): PauseMessageResolution {
+  const previousActions = getFormulaRuntimeActions(previousResults);
+  const context: FormulaEvaluationContext = {
+    previousActions,
+    currentValues,
+    liveBpm,
+    pauseNumber,
+    now,
+  };
+  const bounds: FormulaOutputBounds = { min: 0, max: null };
+  const texts: string[] = [];
+  const errors: PauseMessageError[] = [];
+
+  action.settings.pauseMessages.forEach((message, messageIndex) => {
+    const from = evaluateNumericFormulaInput(
+      message.fromPause,
+      context,
+      bounds,
+    );
+    if (!from.valid) {
+      errors.push({
+        pauseNumber,
+        messageId: message.id,
+        messageIndex,
+        field: "fromPause",
+        error: from.error,
+      });
+      return;
+    }
+
+    let until: FormulaResolution | null = null;
+    if (message.untilPause) {
+      const evaluation = evaluateNumericFormulaInput(
+        message.untilPause,
+        context,
+        bounds,
+        { min: from.value, max: null },
+      );
+      if (!evaluation.valid) {
+        errors.push({
+          pauseNumber,
+          messageId: message.id,
+          messageIndex,
+          field: "untilPause",
+          error: evaluation.error,
+        });
+        return;
+      }
+      until = evaluation;
+    }
+
+    if (
+      pauseNumber >= from.value &&
+      (until === null || pauseNumber <= until.value)
+    ) {
+      texts.push(message.text);
+    }
+  });
+
+  return { texts, errors };
+}
+
 export function createFormulaValueRecord(
   action: Action,
   field: string,
@@ -225,12 +300,19 @@ export function getFormulaFieldLabel(field: string): string {
     decreaseAfter: "Verringerungsintervall",
     breakCount: "Pausenzahl",
     breakSeconds: "Pausendauer",
+    abPause: "Ab Pause",
     sessionEndBeats: "Session-Ende",
     lockBeats: "Weiter-Sperre",
     automaticSeconds: "Automatisches Ende",
     manualLimitSeconds: "Manuelles Limit",
     earlyContinueWarningSeconds: "Frühwarnung",
   };
+  if (field.startsWith("pauseMessageFrom:")) {
+    return "Bei/ab Pause";
+  }
+  if (field.startsWith("pauseMessageUntil:")) {
+    return "Bis Pause";
+  }
   return labels[field] ?? field;
 }
 
@@ -436,6 +518,7 @@ function getCurrentPropertyLabels(
 ): Readonly<Record<string, string>> {
   const labels: Record<string, string> = {
     "current-bpm": "Aktuelles BPM",
+    abPause: "Ab Pause",
   };
   if (action.type === ACTION_TYPES.METRONOME) {
     Object.assign(labels, {

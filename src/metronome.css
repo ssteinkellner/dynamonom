@@ -805,6 +805,81 @@ table {
   margin-left: 0.25rem;
 }
 
+.pause-messages-card {
+  margin-top: 0.75rem;
+}
+
+.pause-message-heading,
+.pause-message-field-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.pause-message-heading h3 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.pause-message-form {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 0.1rem solid var(--border);
+}
+
+.pause-message-form .button-row {
+  margin-top: 0;
+}
+
+.pause-messages-table-wrapper {
+  margin-top: 0.75rem;
+}
+
+.pause-messages-table {
+  min-width: 36rem;
+  table-layout: fixed;
+}
+
+.pause-messages-table th:nth-child(1) {
+  width: 22%;
+}
+
+.pause-messages-table th:nth-child(2) {
+  width: 22%;
+}
+
+.pause-messages-table th:nth-child(3) {
+  width: 42%;
+}
+
+.pause-messages-table th:nth-child(4) {
+  width: 14%;
+}
+
+.pause-messages-table td {
+  overflow-wrap: anywhere;
+  vertical-align: top;
+}
+
+.pause-message-order-cell {
+  display: grid;
+  grid-template-columns: 2.2rem minmax(0, 1fr);
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.pause-messages-table td:last-child {
+  white-space: nowrap;
+  text-align: right;
+}
+
+.pause-message-text-cell {
+  white-space: pre-wrap;
+}
+
 .action-progress {
   color: var(--muted);
 }
@@ -818,6 +893,13 @@ table {
   margin: 0.75rem 0 0;
   color: var(--muted);
   overflow-wrap: anywhere;
+}
+
+.pause-message-display {
+  margin: 0.75rem 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  text-align: center;
 }
 
 .action-clock {

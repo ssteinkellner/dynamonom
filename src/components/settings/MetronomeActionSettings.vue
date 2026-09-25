@@ -1,16 +1,24 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, nextTick, ref } from "vue";
 import type {
   Action,
   MaximumMode,
   MetronomeAction,
+  MetronomePauseMessage,
   MetronomeSettings,
 } from "../../action-model.ts";
 import {
+  cloneNumericFormulaInput,
+  createPauseMessageUntilFormulaInput,
   createNumericFormulaInput,
+  formatNumericFormulaInput,
   type NumericFormulaInput,
 } from "../../formula-model.ts";
-import { METRONOME_NUMERIC_FIELD_BOUNDS } from "../../models/metronome-settings.ts";
+import {
+  createPauseMessageId,
+  METRONOME_NUMERIC_FIELD_BOUNDS,
+  PAUSE_MESSAGE_NUMERIC_FIELD_BOUNDS,
+} from "../../models/metronome-settings.ts";
 import FormulaInput from "../formula/FormulaInput.vue";
 
 const props = defineProps<{
@@ -22,7 +30,19 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   "update:settings": [settings: MetronomeSettings];
+  "nested-draft-state": [dirty: boolean];
 }>();
+
+interface PauseMessageDraft {
+  id: string | null;
+  fromPause: NumericFormulaInput;
+  untilPause: NumericFormulaInput | null;
+  text: string;
+}
+
+const pauseMessageDraft = ref<PauseMessageDraft | null>(null);
+const pauseMessageError = ref("");
+const draggedPauseMessageId = ref<string | null>(null);
 
 type NumericField =
   | "bpm"
@@ -104,6 +124,217 @@ function updateChoice(field: "maximum" | "breaks", event: Event): void {
 
 function bounds(field: NumericField) {
   return METRONOME_NUMERIC_FIELD_BOUNDS[field] ?? { min: 1, max: null };
+}
+
+function messageField(kind: "from" | "until"): string {
+  const id = pauseMessageDraft.value?.id ?? "draft";
+  return `pauseMessage${kind === "from" ? "From" : "Until"}:${id}`;
+}
+
+function formatMessageFormula(input: NumericFormulaInput): string {
+  return formatNumericFormulaInput(input, {
+    actions: props.previousActions.map(({ id, type, name }) => ({
+      id,
+      type,
+      name,
+    })),
+    currentPropertyLabels: { abPause: "Ab Pause" },
+  });
+}
+
+function getStaticPauseBound(input: NumericFormulaInput): number | null {
+  const expression = input.expression;
+  return expression?.type === "static" &&
+    Number.isSafeInteger(expression.value)
+    ? expression.value
+    : null;
+}
+
+function getNextPauseDefault(): number {
+  const bounds = props.settings.pauseMessages.flatMap((message) => [
+    getStaticPauseBound(message.fromPause),
+    message.untilPause ? getStaticPauseBound(message.untilPause) : null,
+  ]);
+  const maximum = bounds.reduce<number>(
+    (current, value) => (value === null ? current : Math.max(current, value)),
+    -1,
+  );
+  return maximum + 1;
+}
+
+function setPauseMessageDraft(
+  draft: PauseMessageDraft | null,
+): void {
+  pauseMessageDraft.value = draft;
+  pauseMessageError.value = "";
+  emit("nested-draft-state", draft !== null);
+}
+
+function beginAddPauseMessage(): void {
+  if (pauseMessageDraft.value) {
+    return;
+  }
+  const fromPause = getNextPauseDefault();
+  setPauseMessageDraft({
+    id: null,
+    fromPause: createNumericFormulaInput(
+      fromPause,
+      PAUSE_MESSAGE_NUMERIC_FIELD_BOUNDS.fromPause.min,
+      PAUSE_MESSAGE_NUMERIC_FIELD_BOUNDS.fromPause.max,
+    ),
+    untilPause: null,
+    text: "",
+  });
+}
+
+function editPauseMessage(message: MetronomePauseMessage): void {
+  setPauseMessageDraft({
+    id: message.id,
+    fromPause: cloneNumericFormulaInput(message.fromPause),
+    untilPause: message.untilPause
+      ? cloneNumericFormulaInput(message.untilPause)
+      : null,
+    text: message.text,
+  });
+}
+
+function updatePauseMessageFormula(
+  field: "fromPause" | "untilPause",
+  value: NumericFormulaInput,
+): void {
+  if (!pauseMessageDraft.value) {
+    return;
+  }
+  pauseMessageDraft.value = { ...pauseMessageDraft.value, [field]: value };
+}
+
+function addUntilPause(): void {
+  if (!pauseMessageDraft.value) {
+    return;
+  }
+  updatePauseMessageFormula(
+    "untilPause",
+    createPauseMessageUntilFormulaInput(),
+  );
+}
+
+function clearUntilPause(): void {
+  if (!pauseMessageDraft.value) {
+    return;
+  }
+  pauseMessageDraft.value = { ...pauseMessageDraft.value, untilPause: null };
+}
+
+function updatePauseMessageText(event: Event): void {
+  const input = event.target;
+  if (!(input instanceof HTMLTextAreaElement) || !pauseMessageDraft.value) {
+    return;
+  }
+  pauseMessageDraft.value = {
+    ...pauseMessageDraft.value,
+    text: input.value,
+  };
+}
+
+function savePauseMessage(): void {
+  const draft = pauseMessageDraft.value;
+  if (!draft) {
+    return;
+  }
+  const text = draft.text.trim();
+  if (!text) {
+    pauseMessageError.value = "Einen Nachrichtentext eingeben.";
+    return;
+  }
+
+  const message: MetronomePauseMessage = {
+    id: draft.id ?? createPauseMessageId(),
+    fromPause: cloneNumericFormulaInput(draft.fromPause),
+    untilPause: draft.untilPause
+      ? cloneNumericFormulaInput(draft.untilPause)
+      : null,
+    text,
+  };
+  const messages = [...props.settings.pauseMessages];
+  const existingIndex = messages.findIndex(({ id }) => id === message.id);
+  if (existingIndex === -1) {
+    messages.push(message);
+  } else {
+    messages[existingIndex] = message;
+  }
+  emit("update:settings", { ...props.settings, pauseMessages: messages });
+  setPauseMessageDraft(null);
+}
+
+function cancelPauseMessage(): void {
+  setPauseMessageDraft(null);
+}
+
+function deletePauseMessage(id: string): void {
+  emit("update:settings", {
+    ...props.settings,
+    pauseMessages: props.settings.pauseMessages.filter(
+      (message) => message.id !== id,
+    ),
+  });
+}
+
+function movePauseMessage(id: string, targetIndex: number): void {
+  const messages = [...props.settings.pauseMessages];
+  const sourceIndex = messages.findIndex((message) => message.id === id);
+  if (
+    sourceIndex < 0 ||
+    targetIndex < 0 ||
+    targetIndex >= messages.length ||
+    sourceIndex === targetIndex
+  ) {
+    return;
+  }
+  const [message] = messages.splice(sourceIndex, 1);
+  if (!message) {
+    return;
+  }
+  messages.splice(targetIndex, 0, message);
+  emit("update:settings", { ...props.settings, pauseMessages: messages });
+}
+
+function handlePauseMessageReorderKey(
+  event: KeyboardEvent,
+  index: number,
+  id: string,
+): void {
+  if (!event.altKey || (event.key !== "ArrowUp" && event.key !== "ArrowDown")) {
+    return;
+  }
+  event.preventDefault();
+  movePauseMessage(id, index + (event.key === "ArrowUp" ? -1 : 1));
+  void nextTick(() => {
+    document
+      .querySelector<HTMLButtonElement>(
+        `[data-pause-message-handle="${id}"]`,
+      )
+      ?.focus();
+  });
+}
+
+function startDraggingPauseMessage(id: string, event: DragEvent): void {
+  draggedPauseMessageId.value = id;
+  event.dataTransfer?.setData("text/plain", id);
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = "move";
+  }
+}
+
+function dropOnPauseMessage(id: string): void {
+  const sourceId = draggedPauseMessageId.value;
+  draggedPauseMessageId.value = null;
+  if (!sourceId || sourceId === id) {
+    return;
+  }
+  const targetIndex = props.settings.pauseMessages.findIndex(
+    (message) => message.id === id,
+  );
+  movePauseMessage(sourceId, targetIndex);
 }
 </script>
 
@@ -394,6 +625,207 @@ function bounds(field: NumericField) {
         </div>
         <p v-if="settings.breakSeconds === null" class="field-help">
           Ohne Pausendauer kann die Pause manuell beendet werden.
+        </p>
+      </div>
+
+      <div v-if="settings.breaks !== 'none'" class="option-card pause-messages-card">
+        <div class="pause-message-heading">
+          <h3>Nachricht</h3>
+          <button
+            class="icon-button secondary-button"
+            type="button"
+            aria-label="Nachricht hinzufügen"
+            :disabled="pauseMessageDraft !== null"
+            @click="beginAddPauseMessage"
+          >
+            +
+          </button>
+        </div>
+        <p class="field-help">
+          Nachrichten werden während der passenden Pausen unter dem Pause-
+          Button angezeigt.
+        </p>
+
+        <div v-if="pauseMessageDraft" class="pause-message-form">
+          <div class="field input-wrapper">
+            <label :for="`pause-message-from-${pauseMessageDraft.id ?? 'draft'}`">
+              Bei/ab Pause
+            </label>
+            <FormulaInput
+              :id="`pause-message-from-${pauseMessageDraft.id ?? 'draft'}`"
+              :model-value="pauseMessageDraft.fromPause"
+              :action="action"
+              :previous-actions="previousActions"
+              :field="messageField('from')"
+              label="Bei/ab Pause"
+              :default-value="0"
+              :hard-min="PAUSE_MESSAGE_NUMERIC_FIELD_BOUNDS.fromPause.min"
+              :hard-max="PAUSE_MESSAGE_NUMERIC_FIELD_BOUNDS.fromPause.max"
+              @update:model-value="
+                updatePauseMessageFormula('fromPause', $event)
+              "
+            />
+          </div>
+
+          <div class="field input-wrapper">
+            <div class="pause-message-field-heading">
+              <label
+                :for="`pause-message-until-${pauseMessageDraft.id ?? 'draft'}`"
+              >
+                Bis Pause
+              </label>
+              <button
+                v-if="pauseMessageDraft.untilPause"
+                class="icon-button secondary-button"
+                type="button"
+                aria-label="Bis Pause entfernen"
+                @click="clearUntilPause"
+              >
+                ×
+              </button>
+              <button
+                v-else
+                class="icon-button secondary-button"
+                type="button"
+                aria-label="Bis Pause hinzufügen"
+                @click="addUntilPause"
+              >
+                +
+              </button>
+            </div>
+            <FormulaInput
+              v-if="pauseMessageDraft.untilPause"
+              :id="`pause-message-until-${pauseMessageDraft.id ?? 'draft'}`"
+              :model-value="pauseMessageDraft.untilPause"
+              :action="action"
+              :previous-actions="previousActions"
+              :field="messageField('until')"
+              label="Bis Pause"
+              :default-value="0"
+              :hard-min="PAUSE_MESSAGE_NUMERIC_FIELD_BOUNDS.untilPause.min"
+              :hard-max="PAUSE_MESSAGE_NUMERIC_FIELD_BOUNDS.untilPause.max"
+              @update:model-value="
+                updatePauseMessageFormula('untilPause', $event)
+              "
+            />
+            <span v-else class="field-help">Optional</span>
+          </div>
+
+          <div class="field input-wrapper">
+            <label
+              :for="`pause-message-text-${pauseMessageDraft.id ?? 'draft'}`"
+            >
+              Text
+            </label>
+            <textarea
+              :id="`pause-message-text-${pauseMessageDraft.id ?? 'draft'}`"
+              rows="3"
+              :value="pauseMessageDraft.text"
+              @input="updatePauseMessageText"
+            />
+          </div>
+          <p v-if="pauseMessageError" class="field-error" role="alert">
+            {{ pauseMessageError }}
+          </p>
+          <div class="button-row">
+            <button
+              class="secondary-button"
+              type="button"
+              @click="cancelPauseMessage"
+            >
+              Abbrechen
+            </button>
+            <button
+              class="primary-button"
+              type="button"
+              @click="savePauseMessage"
+            >
+              Nachricht speichern
+            </button>
+          </div>
+        </div>
+
+        <div
+          v-if="settings.pauseMessages.length > 0"
+          class="table-wrapper pause-messages-table-wrapper"
+        >
+          <table class="pause-messages-table">
+            <thead>
+              <tr>
+                <th scope="col">Bei/ab</th>
+                <th scope="col">Bis</th>
+                <th scope="col">Text</th>
+                <th scope="col">Aktionen</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="(message, index) in settings.pauseMessages"
+                :key="message.id"
+                :class="{
+                  'is-dragging': draggedPauseMessageId === message.id,
+                }"
+                @dragover.prevent
+                @drop.prevent="dropOnPauseMessage(message.id)"
+              >
+                <td>
+                  <div class="pause-message-order-cell">
+                    <button
+                      :data-pause-message-handle="message.id"
+                      class="action-drag-handle"
+                      type="button"
+                      draggable="true"
+                      :aria-label="`Nachricht ${index + 1} verschieben`"
+                      @keydown="
+                        handlePauseMessageReorderKey(
+                          $event,
+                          index,
+                          message.id,
+                        )
+                      "
+                      @dragstart="
+                        startDraggingPauseMessage(message.id, $event)
+                      "
+                      @dragend="draggedPauseMessageId = null"
+                    >
+                      ↕
+                    </button>
+                    <span>{{ formatMessageFormula(message.fromPause) }}</span>
+                  </div>
+                </td>
+                <td>
+                  {{
+                    message.untilPause
+                      ? formatMessageFormula(message.untilPause)
+                      : "—"
+                  }}
+                </td>
+                <td class="pause-message-text-cell">{{ message.text }}</td>
+                <td>
+                  <button
+                    class="icon-button secondary-button"
+                    type="button"
+                    :aria-label="`Nachricht ${index + 1} bearbeiten`"
+                    @click="editPauseMessage(message)"
+                  >
+                    ✎
+                  </button>
+                  <button
+                    class="icon-button secondary-button"
+                    type="button"
+                    :aria-label="`Nachricht ${index + 1} löschen`"
+                    @click="deletePauseMessage(message.id)"
+                  >
+                    ×
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p v-else class="field-help">Noch keine Nachrichten konfiguriert.</p>
+        <p v-if="errors.pauseMessages" class="field-error">
+          {{ errors.pauseMessages }}
         </p>
       </div>
     </fieldset>

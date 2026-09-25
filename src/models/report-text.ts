@@ -13,6 +13,7 @@ import type {
   BreakRecord,
   FormulaValueRecord,
   MetronomeActionResult,
+  PauseMessageError,
   RuntimeMetronomeSettings,
   RuntimeStopwatchSettings,
   SessionReport,
@@ -259,6 +260,15 @@ function appendMetronomeDetails(
     createReportDetailLines("Pausen", getRuntimeBreakLines(settings, formulas)),
     createReportDetailLines("Ende", getRuntimeEndLines(settings, formulas)),
   );
+  if (action.pauseMessageErrors && action.pauseMessageErrors.length > 0) {
+    details.push(
+      createReportDetailLines(
+        "Nachrichtenfehler",
+        getPauseMessageErrorLines(action.pauseMessageErrors),
+        true,
+      ),
+    );
+  }
   if (action.endBpm !== undefined) {
     details.push(createReportDetail("End-BPM", String(action.endBpm)));
   }
@@ -285,8 +295,9 @@ function createReportDetail(label: string, value: string): ReportDetail {
 function createReportDetailLines(
   label: string,
   lines: ReportDetailLine[],
+  forceLines = false,
 ): ReportDetail {
-  if (lines.length === 1) {
+  if (lines.length === 1 && !forceLines) {
     return createReportDetail(label, lines[0]?.value ?? "");
   }
   return { label, lines };
@@ -627,6 +638,7 @@ function getStopwatchEndLines(
       ),
     });
   }
+
   if (settings.endMode !== "unlimited" && settings.earlyContinueWarning) {
     lines.push({
       label: "Frühwarnung",
@@ -638,6 +650,17 @@ function getStopwatchEndLines(
     });
   }
   return lines;
+}
+
+function getPauseMessageErrorLines(
+  errors: readonly PauseMessageError[],
+): ReportDetailLine[] {
+  return errors.map((entry) => ({
+    label: `Pause ${entry.pauseNumber}, Nachricht ${entry.messageIndex + 1} (${entry.messageId}), ${
+      entry.field === "fromPause" ? "Bei/ab Pause" : "Bis Pause"
+    }`,
+    value: entry.error,
+  }));
 }
 
 function formatMaximumMode(

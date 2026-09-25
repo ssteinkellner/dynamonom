@@ -10,9 +10,11 @@ import {
 } from "../src/action-model.ts";
 import {
   createNumericFormulaInput,
+  createPauseMessageUntilFormulaInput,
   getLocalFormulaDate,
   type FormulaNode,
 } from "../src/formula-model.ts";
+import { createDefaultMetronomeSettings } from "../src/models/metronome-settings.ts";
 import FormulaEditorDialog from "../src/components/formula/FormulaEditorDialog.vue";
 import FormulaCurrentNode from "../src/components/formula/FormulaCurrentNode.vue";
 import FormulaInput from "../src/components/formula/FormulaInput.vue";
@@ -60,6 +62,7 @@ test("formula input opens a custom dialog and emits only after confirmation", as
       id: "duration-formula",
     },
   });
+
   mounted.push(wrapper);
 
   const trigger = wrapper.get("#duration-formula");
@@ -121,6 +124,65 @@ test("formula input opens a custom dialog and emits only after confirmation", as
   if (saved.expression?.type === "static") {
     assert.equal(saved.expression.value, 15);
   }
+});
+
+test("pause message upper bounds expose Ab Pause without requiring a fallback", async () => {
+  const metronomeAction = createDefaultAction(
+    ACTION_TYPES.METRONOME,
+    [],
+    createDefaultMetronomeSettings(),
+  );
+  const wrapper = mount(FormulaEditorDialog, {
+    props: {
+      ...commonProps,
+      action: metronomeAction,
+      field: "pauseMessageUntil:message-1",
+      label: "Bis Pause",
+      modelValue: createPauseMessageUntilFormulaInput(),
+      defaultValue: 0,
+      hardMin: 0,
+      hardMax: null,
+    },
+  });
+  mounted.push(wrapper);
+
+  const currentSelect = wrapper.get<HTMLSelectElement>(
+    ".formula-node--current select",
+  ).element;
+  assert.ok(
+    Array.from(currentSelect.options).some(
+      (option) => option.value === "abPause" && option.text === "Ab Pause",
+    ),
+  );
+  assert.equal(
+    wrapper.find(".formula-field-scroll .formula-node--fallback").exists(),
+    false,
+  );
+
+  await wrapper.get(".formula-dialog-actions .primary-button").trigger("click");
+  assert.equal(wrapper.emitted("confirm")?.length, 1);
+
+  const lowerWrapper = mount(FormulaEditorDialog, {
+    props: {
+      ...commonProps,
+      action: metronomeAction,
+      field: "pauseMessageFrom:message-1",
+      label: "Bei/ab Pause",
+      modelValue: createNumericFormulaInput(0, 0, null),
+      defaultValue: 0,
+      hardMin: 0,
+      hardMax: null,
+    },
+  });
+  mounted.push(lowerWrapper);
+  assert.equal(
+    Array.from(
+      lowerWrapper.get<HTMLSelectElement>(
+        ".formula-node--current select",
+      ).element.options,
+    ).some((option) => option.value === "abPause"),
+    false,
+  );
 });
 
 test("date palette nodes stay bare until a future date is selected", async () => {

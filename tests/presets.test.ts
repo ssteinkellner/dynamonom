@@ -137,5 +137,8 @@ test("test - maximal activates all action settings with formulas", () => {
     assert.equal(action.settings.lockSettings, true);
     assert.equal(action.settings.hideLockText, true);
     assert.equal(action.settings.hideNextTempo, true);
+    assert.equal(action.settings.pauseMessages.length, 2);
+    assert.notEqual(action.settings.pauseMessages[0]?.untilPause, null);
+    assert.equal(action.settings.pauseMessages[1]?.untilPause, null);
   }
 });

@@ -99,6 +99,9 @@ const currentProperties = computed(() => {
   if (props.field === "breakSeconds") {
     options.unshift({ value: "current-bpm", label: "Aktuelles BPM" });
   }
+  if (props.field.startsWith("pauseMessageUntil:")) {
+    options.unshift({ value: "abPause", label: "Ab Pause" });
+  }
   return options;
 });
 const isEditingBound = computed(() => boundEditor.value !== null);

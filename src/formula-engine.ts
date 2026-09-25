@@ -25,6 +25,7 @@ export interface FormulaEvaluationContext {
   previousActions: readonly FormulaRuntimeAction[];
   currentValues: Readonly<Record<string, number>>;
   liveBpm?: number;
+  pauseNumber?: number;
   now?: Date;
 }
 
@@ -68,6 +69,8 @@ export function evaluateFormulaNode(
       const value =
         node.property === "current-bpm"
           ? context.liveBpm
+          : node.property === "abPause"
+            ? context.pauseNumber
           : context.currentValues[node.property];
       return typeof value === "number" && Number.isFinite(value)
         ? { valid: true, value, fallbackUsed: false, clamped: false }
@@ -185,7 +188,9 @@ export function getFormulaCurrentDependencies(
   }
   switch (node.type) {
     case "current":
-      return node.property === "current-bpm" ? [] : [node.property];
+      return node.property === "current-bpm" || node.property === "abPause"
+        ? []
+        : [node.property];
     case "operator":
       return [
         ...getFormulaCurrentDependencies(node.left),

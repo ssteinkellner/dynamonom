@@ -133,6 +133,19 @@ function abort(): void {
         {{ pauseLabel }}
       </button>
     </div>
+    <p
+      v-if="store.pauseMessageTexts.length > 0"
+      class="pause-message-display"
+      aria-live="polite"
+    >
+      <template
+        v-for="(text, index) in store.pauseMessageTexts"
+        :key="`${index}-${text}`"
+      >
+        <span>{{ text }}</span>
+        <br v-if="index < store.pauseMessageTexts.length - 1" />
+      </template>
+    </p>
     <div class="button-row action-execution-actions">
       <button class="danger-button" type="button" @click="abort">
         Abbrechen

@@ -10,6 +10,7 @@ import type {
   StopwatchAction,
 } from "../src/action-model.ts";
 import {
+  createPauseMessageUntilFormulaInput,
   createNumericFormulaInput,
   type FormulaNode,
   type FormulaMetric,
@@ -532,6 +533,64 @@ test("pause formulas use the current BPM and record their resolved duration", as
     120,
   );
   store.abortSession();
+});
+
+test("pause messages match inclusively and persist until the next pause", async () => {
+  const store = useMetronomeStore();
+  const settings = {
+    ...createDefaultMetronomeSettings(),
+    increaseTempo: false,
+    pauseMessages: [
+      {
+        id: "message-finite",
+        fromPause: formula(0, 0),
+        untilPause: formula(1, 0),
+        text: "Erste Pause",
+      },
+      {
+        id: "message-open",
+        fromPause: formula(1, 0),
+        untilPause: null,
+        text: "Ab dieser Pause",
+      },
+      {
+        id: "message-dynamic",
+        fromPause: formula(0, 0),
+        untilPause: createPauseMessageUntilFormulaInput(),
+        text: "Aktuelle Pause",
+      },
+    ],
+  };
+  assert.equal(
+    store.replaceActionDefinitions(
+      [metronomeAction("metronome", settings)],
+      true,
+    ),
+    true,
+  );
+  assert.equal(await store.startSession(), true);
+  await vi.advanceTimersByTimeAsync(3000);
+
+  store.pauseOrResumeMetronome();
+  assert.deepEqual(store.pauseMessageTexts, [
+    "Erste Pause",
+    "Ab dieser Pause",
+    "Aktuelle Pause",
+  ]);
+  store.pauseOrResumeMetronome();
+  assert.deepEqual(store.pauseMessageTexts, [
+    "Erste Pause",
+    "Ab dieser Pause",
+    "Aktuelle Pause",
+  ]);
+
+  store.pauseOrResumeMetronome();
+  assert.deepEqual(store.pauseMessageTexts, [
+    "Ab dieser Pause",
+    "Aktuelle Pause",
+  ]);
+  assert.equal(store.report, null);
+  assert.equal(store.abortSession(), true);
 });
 
 test("Current-property cycles block a session before execution", async () => {

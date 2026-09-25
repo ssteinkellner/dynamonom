@@ -31,6 +31,7 @@ const draftIndex = ref<number | null>(null);
 const editorErrors = ref<ActionValidationError[]>([]);
 const newActionType = ref("");
 const draggedActionId = ref<string | null>(null);
+const nestedDraftDirty = ref(false);
 
 const actionTypes: readonly { value: ActionType; label: string }[] = [
   { value: ACTION_TYPES.METRONOME, label: "Metronom" },
@@ -43,7 +44,8 @@ const draftIsDirty = computed(() => {
   }
   return (
     draftMode.value === "add" ||
-    JSON.stringify(draft.value) !== JSON.stringify(originalDraft.value)
+    JSON.stringify(draft.value) !== JSON.stringify(originalDraft.value) ||
+    nestedDraftDirty.value
   );
 });
 
@@ -107,6 +109,9 @@ function formatMetronomeSummary(
   } else {
     summary.push("Pausen: begrenzt");
   }
+  if (settings.pauseMessages.length > 0) {
+    summary.push(`Nachrichten: ${settings.pauseMessages.length}`);
+  }
 
   return summary.join("; ");
 }
@@ -144,6 +149,7 @@ function closeDraft(): void {
   originalDraft.value = null;
   draftMode.value = null;
   draftIndex.value = null;
+  nestedDraftDirty.value = false;
   editorErrors.value = [];
   void nextTick(() => {
     scrollTo(actionsFieldset.value);
@@ -258,6 +264,10 @@ function saveDraft(): void {
 function updateDraft(nextDraft: Action): void {
   draft.value = nextDraft;
   editorErrors.value = [];
+}
+
+function updateNestedDraftState(dirty: boolean): void {
+  nestedDraftDirty.value = dirty;
 }
 
 async function deleteAction(action: Action): Promise<void> {
@@ -425,6 +435,7 @@ defineExpose({ closeIfAllowed });
         :errors="editorErrors"
         :previous-actions="previousActions"
         @update:draft="updateDraft"
+        @nested-draft-state="updateNestedDraftState"
         @save="saveDraft"
         @cancel="closeIfAllowed"
       />
