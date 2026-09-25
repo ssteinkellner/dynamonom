@@ -75,6 +75,14 @@ const activeMaximumField = computed<
       ? "maximumLimitReverse"
       : "maximumLimitStick",
 );
+const pauseMessageValidationError = computed(
+  () =>
+    props.errors.pauseMessages ??
+    Object.entries(props.errors).find(([field]) =>
+      field.startsWith("pauseMessages["),
+    )?.[1] ??
+    "",
+);
 
 function updateNumeric(field: NumericField, value: NumericFormulaInput): void {
   emit("update:settings", { ...props.settings, [field]: value });
@@ -118,6 +126,9 @@ function updateBoolean(
 function updateChoice(field: "maximum" | "breaks", event: Event): void {
   const input = event.target;
   if (input instanceof HTMLSelectElement) {
+    if (field === "breaks" && input.value === "none") {
+      setPauseMessageDraft(null);
+    }
     emit("update:settings", { ...props.settings, [field]: input.value });
   }
 }
@@ -150,11 +161,19 @@ function getStaticPauseBound(input: NumericFormulaInput): number | null {
     : null;
 }
 
-function getNextPauseDefault(): number {
+function getNextPauseDefault(includeDraft = false): number {
   const bounds = props.settings.pauseMessages.flatMap((message) => [
     getStaticPauseBound(message.fromPause),
     message.untilPause ? getStaticPauseBound(message.untilPause) : null,
   ]);
+  if (includeDraft && pauseMessageDraft.value) {
+    bounds.push(
+      getStaticPauseBound(pauseMessageDraft.value.fromPause),
+      pauseMessageDraft.value.untilPause
+        ? getStaticPauseBound(pauseMessageDraft.value.untilPause)
+        : null,
+    );
+  }
   const maximum = bounds.reduce<number>(
     (current, value) => (value === null ? current : Math.max(current, value)),
     -1,
@@ -214,7 +233,7 @@ function addUntilPause(): void {
   }
   updatePauseMessageFormula(
     "untilPause",
-    createPauseMessageUntilFormulaInput(),
+    createPauseMessageUntilFormulaInput(getNextPauseDefault(true)),
   );
 }
 
@@ -628,9 +647,12 @@ function dropOnPauseMessage(id: string): void {
         </p>
       </div>
 
-      <div v-if="settings.breaks !== 'none'" class="option-card pause-messages-card">
+      <fieldset
+        v-if="settings.breaks !== 'none'"
+        class="pause-messages-fieldset"
+      >
+        <legend>Nachrichten</legend>
         <div class="pause-message-heading">
-          <h3>Nachricht</h3>
           <button
             class="icon-button secondary-button"
             type="button"
@@ -824,10 +846,10 @@ function dropOnPauseMessage(id: string): void {
           </table>
         </div>
         <p v-else class="field-help">Noch keine Nachrichten konfiguriert.</p>
-        <p v-if="errors.pauseMessages" class="field-error">
-          {{ errors.pauseMessages }}
+        <p v-if="pauseMessageValidationError" class="field-error">
+          {{ pauseMessageValidationError }}
         </p>
-      </div>
+      </fieldset>
     </fieldset>
 
     <fieldset>

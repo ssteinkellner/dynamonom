@@ -126,7 +126,7 @@ test("formula input opens a custom dialog and emits only after confirmation", as
   }
 });
 
-test("pause message upper bounds expose Ab Pause without requiring a fallback", async () => {
+test("pause message minimum bounds display Ab Pause without requiring a fallback", async () => {
   const metronomeAction = createDefaultAction(
     ACTION_TYPES.METRONOME,
     [],
@@ -146,13 +146,28 @@ test("pause message upper bounds expose Ab Pause without requiring a fallback", 
   });
   mounted.push(wrapper);
 
-  const currentSelect = wrapper.get<HTMLSelectElement>(
-    ".formula-node--current select",
-  ).element;
-  assert.ok(
-    Array.from(currentSelect.options).some(
-      (option) => option.value === "abPause" && option.text === "Ab Pause",
+  const prefilled = createPauseMessageUntilFormulaInput();
+  assert.equal(prefilled.expression?.type, "static");
+  assert.equal(
+    prefilled.expression?.type === "static" ? prefilled.expression.value : null,
+    1,
+  );
+  assert.equal(prefilled.min?.type, "current");
+  assert.equal(
+    prefilled.min?.type === "current" ? prefilled.min.property : null,
+    "abPause",
+  );
+  assert.equal(prefilled.max, null);
+
+  const minimumCard = wrapper.findAll(".formula-bound-card")[0];
+  assert.ok(minimumCard);
+  assert.equal(minimumCard.find("span").text(), "Aktuell: Ab Pause");
+  assert.equal(minimumCard.find("button").exists(), false);
+  assert.equal(
+    wrapper.findAll(".formula-bound-card button").some((button) =>
+      button.text().includes("Minimum"),
     ),
+    false,
   );
   assert.equal(
     wrapper.find(".formula-field-scroll .formula-node--fallback").exists(),
@@ -168,7 +183,14 @@ test("pause message upper bounds expose Ab Pause without requiring a fallback", 
       action: metronomeAction,
       field: "pauseMessageFrom:message-1",
       label: "Bei/ab Pause",
-      modelValue: createNumericFormulaInput(0, 0, null),
+      modelValue: {
+        ...createNumericFormulaInput(0, 0, null),
+        expression: {
+          id: "invalid-ab-pause",
+          type: "current",
+          property: "abPause",
+        },
+      },
       defaultValue: 0,
       hardMin: 0,
       hardMax: null,

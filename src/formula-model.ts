@@ -335,20 +335,16 @@ export function createNumericFormulaInput(
   };
 }
 
-export function createPauseMessageUntilFormulaInput(): NumericFormulaInput {
+export function createPauseMessageUntilFormulaInput(
+  defaultValue = 1,
+): NumericFormulaInput {
   return {
-    expression: {
+    expression: createStaticFormulaNode(defaultValue),
+    min: {
       id: createFormulaNodeId(),
-      type: "clamp",
-      min: createStaticFormulaNode(0),
-      input: {
-        id: createFormulaNodeId(),
-        type: "current",
-        property: "abPause",
-      },
-      max: null,
+      type: "current",
+      property: "abPause",
     },
-    min: createStaticFormulaNode(0),
     max: null,
   };
 }

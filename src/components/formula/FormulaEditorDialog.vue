@@ -84,13 +84,22 @@ const paletteItems: readonly FormulaPaletteItem[] = [
 ];
 const operatorPaletteItems = paletteItems.filter((item) => item.operator);
 const otherPaletteItems = paletteItems.filter((item) => !item.operator);
+const isPauseMessageUntilField = computed(() =>
+  props.field.startsWith("pauseMessageUntil:"),
+);
 
 const activeRemembered = computed(() =>
   boundEditor.value ? boundEditor.value.remembered : mainRemembered.value,
 );
 const showResultBounds = computed(() => {
   const expression = working.value.expression;
-  return expression !== null && expression.type !== "static";
+  return (
+    isPauseMessageUntilField.value ||
+    (expression !== null &&
+      (expression.type !== "static" ||
+        working.value.min?.type !== "static" ||
+        working.value.max?.type !== "static"))
+  );
 });
 const currentProperties = computed(() => {
   const options = getEnabledCurrentFormulaProperties(props.action)
@@ -98,9 +107,6 @@ const currentProperties = computed(() => {
     .map((value) => ({ value, label: getFormulaFieldLabel(value) }));
   if (props.field === "breakSeconds") {
     options.unshift({ value: "current-bpm", label: "Aktuelles BPM" });
-  }
-  if (props.field.startsWith("pauseMessageUntil:")) {
-    options.unshift({ value: "abPause", label: "Ab Pause" });
   }
   return options;
 });
@@ -110,6 +116,16 @@ const boundTitle = computed(() =>
     ? "Minimum bearbeiten"
     : "Maximum bearbeiten",
 );
+const formatCurrentProperties = computed(() => {
+  const properties = [...currentProperties.value];
+  if (
+    isPauseMessageUntilField.value &&
+    !properties.some(({ value }) => value === "abPause")
+  ) {
+    properties.unshift({ value: "abPause", label: "Ab Pause" });
+  }
+  return properties;
+});
 
 function formatNode(node: FormulaNode | null): string {
   return formatFormulaNode(node, {
@@ -119,7 +135,7 @@ function formatNode(node: FormulaNode | null): string {
       name,
     })),
     currentPropertyLabels: Object.fromEntries(
-      currentProperties.value.map(({ value, label }) => [value, label]),
+      formatCurrentProperties.value.map(({ value, label }) => [value, label]),
     ),
   });
 }
@@ -522,6 +538,9 @@ function removeNode(nodeId: string): void {
 }
 
 function editBound(kind: "min" | "max"): void {
+  if (kind === "min" && isPauseMessageUntilField.value) {
+    return;
+  }
   const node = working.value[kind];
   boundEditor.value = {
     kind,
@@ -976,6 +995,7 @@ function getFallbackSeed(
             <strong>Minimum</strong>
             <span>{{ formatNode(working.min) }}</span>
             <button
+              v-if="!isPauseMessageUntilField"
               class="secondary-button"
               type="button"
               @click="editBound('min')"

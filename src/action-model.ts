@@ -588,7 +588,7 @@ function validateFormulaReferences(
     const index = actionIndices[normalizedIndex] ?? normalizedIndex;
     const enabledProperties = new Set(getEnabledCurrentFormulaProperties(action));
     for (const { field, input } of getActionFormulaFields(action)) {
-      for (const node of getFormulaNodesFromInput(input)) {
+      for (const { node, location } of getFormulaNodesFromInput(input)) {
         if (node.type === "reference") {
           validateReferenceNode(
             node,
@@ -606,6 +606,7 @@ function validateFormulaReferences(
             enabledProperties,
             errors,
             index,
+            location,
           );
         }
       }
@@ -649,13 +650,17 @@ function validateCurrentNode(
   enabledProperties: ReadonlySet<string>,
   errors: ActionValidationError[],
   actionIndex: number,
+  location: "expression" | "min" | "max",
 ): void {
   if (node.property === "abPause") {
-    if (!field.startsWith("pauseMessageUntil:")) {
+    if (
+      !field.startsWith("pauseMessageUntil:") ||
+      location !== "min"
+    ) {
       errors.push({
         index: actionIndex,
         field,
-        message: "Ab Pause ist nur in Bis-Pause-Nachrichten verfügbar.",
+        message: "Ab Pause ist nur als Minimum einer Bis-Pause-Nachricht verfügbar.",
       });
     }
     return;
@@ -685,9 +690,22 @@ function validateCurrentNode(
 
 function getFormulaNodesFromInput(
   input: NumericFormulaInput,
-): FormulaNode[] {
-  return [input.expression, input.min, input.max].flatMap((node) =>
-    node ? collectFormulaNodes(node) : [],
+): { node: FormulaNode; location: "expression" | "min" | "max" }[] {
+  const parts: readonly [
+    "expression" | "min" | "max",
+    FormulaNode | null,
+  ][] = [
+    ["expression", input.expression],
+    ["min", input.min],
+    ["max", input.max],
+  ];
+  return parts.flatMap(([location, node]) =>
+    node
+      ? collectFormulaNodes(node).map((nestedNode) => ({
+          node: nestedNode,
+          location,
+        }))
+      : [],
   );
 }
 
