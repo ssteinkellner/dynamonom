@@ -70,7 +70,18 @@ async function copyReport(format: "long" | "short"): Promise<void> {
         <dl class="report-details">
           <div v-for="detail in section.details" :key="detail.label">
             <dt>{{ detail.label }}</dt>
-            <dd>{{ detail.value }}</dd>
+            <dd>
+              <div
+                v-for="(line, lineIndex) in detail.lines"
+                :key="`${detail.label}-${lineIndex}`"
+                class="report-detail-line"
+              >
+                <strong v-if="line.label" class="report-detail-line-label">
+                  {{ line.label }}:
+                </strong>
+                <span>{{ line.value }}</span>
+              </div>
+            </dd>
           </div>
         </dl>
 

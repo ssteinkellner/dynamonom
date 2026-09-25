@@ -90,7 +90,9 @@ test("long report headings identify each action and separate sections", () => {
       "",
       "*Stoppuhr - Abschluss*",
       "Status: Nicht gestartet",
-      "Ende: Manuell limitieren auf 60 Sekunden",
+      "Ende:",
+      "- Manuelles Limit: Manuell limitieren auf 60 Sekunden",
+      "- Frühwarnung: bei mehr als 10 Sekunden",
     ].join("\n"),
   );
 });
@@ -202,15 +204,85 @@ test("long reports include formula resolutions and automatic adjustments", () =>
 
   assert.match(text, /\*Metronom - Lauf\*/);
   assert.match(text, /Beats: 8x\nDauer: 42 Sekunden/);
-  assert.match(text, /Formel · Starttempo: 120 \[Min 20; Max 300\] = 120/);
+  assert.match(
+    text,
+    /Tempo: 120 BPM; 120 \[Min 20; Max 300\] \(Ersatzwert verwendet, begrenzt\)/,
+  );
   assert.match(text, /Ersatzwert verwendet, begrenzt/);
   assert.match(text, /End-BPM: 126/);
   assert.ok(
-    sections[0]?.details.some(
-      (detail) =>
-        detail.label === "Formel · Starttempo" &&
-        detail.value.includes("begrenzt"),
-    ),
+    sections[0]?.details
+      .find((detail) => detail.label === "Tempo")
+      ?.lines.some((line) => line.value.includes("begrenzt")),
+  );
+});
+
+test("compound report properties use labeled export lines", () => {
+  const action: MetronomeActionResult = {
+    id: "metronome",
+    type: ACTION_TYPES.METRONOME,
+    name: "Steigerung",
+    status: "completed",
+    settings: {
+      ...runtimeSettings,
+      increaseTempo: true,
+      increaseBy: 2,
+      increaseAfter: 10,
+      maximum: "stick",
+      maximumLimit: 180,
+    },
+    beatCount: 8,
+    elapsedSeconds: 42,
+    endReason: "automatic",
+    formulaValues: [
+      {
+        field: "bpm",
+        label: "Starttempo",
+        expression: "120 [Min 20; Max 300]",
+        value: 120,
+        isStatic: false,
+        fallbackUsed: false,
+        clamped: false,
+      },
+      {
+        field: "increaseBy",
+        label: "Tempo-Steigerung",
+        expression: "2 [Min 1; Max 20]",
+        value: 2,
+        isStatic: false,
+        fallbackUsed: false,
+        clamped: false,
+      },
+      {
+        field: "increaseAfter",
+        label: "Steigerungsintervall",
+        expression: "10 [Min 1; Max unbegrenzt]",
+        value: 10,
+        isStatic: false,
+        fallbackUsed: false,
+        clamped: false,
+      },
+    ],
+  };
+
+  assert.equal(
+    buildLongReportText({ actions: [action], aborted: false }),
+    [
+      "*Metronom - Steigerung*",
+      "Status: Automatisch beendet",
+      "Beats: 8x",
+      "Dauer: 42 Sekunden",
+      "Tempo:",
+      "- Starttempo: 120 BPM; 120 [Min 20; Max 300]",
+      "- Tempo-Steigerung: +2 BPM; 2 [Min 1; Max 20]",
+      "- Steigerungsintervall: alle 10 Beats; 10 [Min 1; Max unbegrenzt]",
+      "- BPM-Limit: 180 BPM",
+      "- Bei Limit: halten",
+      "Betonung: aus",
+      "Pausen: Keine",
+      "Ende: Nach 8 Beats",
+      "Pausen: Keine Pausen gebraucht",
+    ].join("\n"),
   );
 });
 
@@ -275,7 +347,13 @@ test("short reports mark actions that have not started", () => {
   );
   assert.equal(
     buildLongReportText(report),
-    "*Stoppuhr - Wartezeit*\nStatus: Nicht gestartet\nEnde: Automatisch nach 12 Sekunden",
+    [
+      "*Stoppuhr - Wartezeit*",
+      "Status: Nicht gestartet",
+      "Ende:",
+      "- Automatisches Ende: Automatisch nach 12 Sekunden",
+      "- Frühwarnung: bei mehr als 10 Sekunden",
+    ].join("\n"),
   );
 });
 

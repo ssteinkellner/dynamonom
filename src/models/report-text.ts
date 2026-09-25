@@ -19,9 +19,14 @@ import type {
   StopwatchActionResult,
 } from "./session.ts";
 
+export interface ReportDetailLine {
+  label?: string;
+  value: string;
+}
+
 export interface ReportDetail {
   label: string;
-  value: string;
+  lines: ReportDetailLine[];
 }
 
 export interface ActionReportSection {
@@ -52,17 +57,17 @@ export function getActionReportSections(
 export function getActionReportDetails(action: ActionResult): ReportDetail[] {
   if (action.status === "not-started") {
     const details: ReportDetail[] = [
-      { label: "Status", value: "Nicht gestartet" },
+      createReportDetail("Status", "Nicht gestartet"),
     ];
     if (action.initializationError) {
-      details.push({ label: "Fehler", value: action.initializationError });
+      details.push(createReportDetail("Fehler", action.initializationError));
     }
     appendConfiguredActionDetails(details, action);
     return details;
   }
 
   const details: ReportDetail[] = [
-    { label: "Status", value: getActionStatusLabel(action) },
+    createReportDetail("Status", getActionStatusLabel(action)),
   ];
   switch (action.type) {
     case ACTION_TYPES.METRONOME:
@@ -72,7 +77,6 @@ export function getActionReportDetails(action: ActionResult): ReportDetail[] {
       appendStopwatchDetails(details, action);
       break;
   }
-  appendFormulaDetails(details, action.formulaValues ?? []);
   return details;
 }
 
@@ -80,9 +84,7 @@ export function buildLongReportText(report: SessionReport): string {
   return report.actions
     .map((action) => {
       const title = `${getActionTypeLabel(action.type)} - ${action.name}`;
-      const lines = getActionReportDetails(action).map(
-        ({ label, value }) => `${label}: ${value}`,
-      );
+      const lines = getActionReportDetails(action).flatMap(formatLongReportDetail);
       if (
         action.type === ACTION_TYPES.METRONOME &&
         action.status !== "not-started"
@@ -218,7 +220,9 @@ function appendConfiguredStopwatchDetails(
   details: ReportDetail[],
   settings: StopwatchSettings | RuntimeStopwatchSettings,
 ): void {
-  details.push({ label: "Ende", value: formatStopwatchEnd(settings) });
+  details.push(
+    createReportDetailLines("Ende", getStopwatchEndLines(settings)),
+  );
 }
 
 function appendConfiguredMetronomeDetails(
@@ -226,43 +230,10 @@ function appendConfiguredMetronomeDetails(
   settings: MetronomeSettings,
 ): void {
   details.push(
-    {
-      label: "Tempo",
-      value: `${formatNumericFormulaInput(settings.bpm)} BPM`,
-    },
-    {
-      label: "Betonung",
-      value: settings.accentuate
-        ? `alle ${formatNumericFormulaInput(settings.accentRepeat)} Beats`
-        : "aus",
-    },
-    {
-      label: "Tempo-Steigerung",
-      value: settings.increaseTempo
-        ? `${formatNumericFormulaInput(settings.increaseBy)} BPM alle ${formatNumericFormulaInput(settings.increaseAfter)} Beats`
-        : "aus",
-    },
-    {
-      label: "Pausen",
-      value:
-        settings.breaks === "none"
-          ? "Keine"
-          : settings.breaks === "unlimited"
-            ? "Unbegrenzt"
-            : "Begrenzt",
-    },
-    {
-      label: "Session-Ende",
-      value: settings.sessionEndEnabled
-        ? `${formatNumericFormulaInput(settings.sessionEndBeats)} Beats`
-        : "Manuelles Weiter",
-    },
-    {
-      label: "Weiter-Sperre",
-      value: settings.lockSettings
-        ? `${formatNumericFormulaInput(settings.lockBeats)} Beats`
-        : "keine",
-    },
+    createReportDetailLines("Tempo", getConfiguredTempoLines(settings)),
+    createReportDetailLines("Betonung", getConfiguredAccentLines(settings)),
+    createReportDetailLines("Pausen", getConfiguredBreakLines(settings)),
+    createReportDetailLines("Ende", getConfiguredEndLines(settings)),
   );
 }
 
@@ -275,32 +246,21 @@ function appendMetronomeDetails(
     appendConfiguredMetronomeDetails(details, settings);
     return;
   }
+  const formulas = createFormulaMap(action.formulaValues ?? []);
   if (action.beatCount !== undefined) {
     details.push(
-      { label: "Beats", value: `${action.beatCount}x` },
-      { label: "Dauer", value: `${action.elapsedSeconds ?? 0} Sekunden` },
+      createReportDetail("Beats", `${action.beatCount}x`),
+      createReportDetail("Dauer", `${action.elapsedSeconds ?? 0} Sekunden`),
     );
   }
   details.push(
-    { label: "Tempo", value: formatBpm(settings) },
-    {
-      label: "Betonung",
-      value: settings.accentuate
-        ? `alle ${settings.accentRepeat} Beats`
-        : "aus",
-    },
-    { label: "Tempoverlauf", value: formatMetronomeTempoProgression(settings) },
-    { label: "Pausen", value: formatBreaks(settings) },
-    { label: "Ende", value: formatSessionEnd(settings) },
-    {
-      label: "Weiter-Sperre",
-      value: settings.lockSettings
-        ? `bis ${settings.lockBeats} Beats`
-        : "keine",
-    },
+    createReportDetailLines("Tempo", getRuntimeTempoLines(settings, formulas)),
+    createReportDetailLines("Betonung", getRuntimeAccentLines(settings, formulas)),
+    createReportDetailLines("Pausen", getRuntimeBreakLines(settings, formulas)),
+    createReportDetailLines("Ende", getRuntimeEndLines(settings, formulas)),
   );
   if (action.endBpm !== undefined) {
-    details.push({ label: "End-BPM", value: String(action.endBpm) });
+    details.push(createReportDetail("End-BPM", String(action.endBpm)));
   }
 }
 
@@ -308,28 +268,395 @@ function appendStopwatchDetails(
   details: ReportDetail[],
   action: StopwatchActionResult,
 ): void {
+  const formulas = createFormulaMap(action.formulaValues ?? []);
   details.push(
-    { label: "Dauer", value: `${action.elapsedSeconds ?? 0} Sekunden` },
-    { label: "Ende", value: formatStopwatchEnd(action.settings) },
+    createReportDetail("Dauer", `${action.elapsedSeconds ?? 0} Sekunden`),
+    createReportDetailLines(
+      "Ende",
+      getStopwatchEndLines(action.settings, formulas),
+    ),
   );
 }
 
-function appendFormulaDetails(
-  details: ReportDetail[],
+function createReportDetail(label: string, value: string): ReportDetail {
+  return { label, lines: [{ value }] };
+}
+
+function createReportDetailLines(
+  label: string,
+  lines: ReportDetailLine[],
+): ReportDetail {
+  if (lines.length === 1) {
+    return createReportDetail(label, lines[0]?.value ?? "");
+  }
+  return { label, lines };
+}
+
+function formatLongReportDetail(detail: ReportDetail): string[] {
+  if (detail.lines.length === 1 && !detail.lines[0]?.label) {
+    return [`${detail.label}: ${detail.lines[0]?.value ?? ""}`];
+  }
+  return [
+    `${detail.label}:`,
+    ...detail.lines.map(
+      (line) => `- ${line.label ? `${line.label}: ` : ""}${line.value}`,
+    ),
+  ];
+}
+
+function createFormulaMap(
   formulaValues: readonly FormulaValueRecord[],
-): void {
-  formulaValues.filter((formula) => !formula.isStatic).forEach((formula) => {
-    const adjustments = [
-      formula.fallbackUsed ? "Ersatzwert verwendet" : "",
-      formula.clamped ? "begrenzt" : "",
-    ].filter(Boolean);
-    details.push({
-      label: `Formel · ${formula.label}`,
-      value: `${formula.expression} = ${formula.value}${
-        adjustments.length > 0 ? ` (${adjustments.join(", ")})` : ""
-      }`,
-    });
+): ReadonlyMap<string, FormulaValueRecord> {
+  return new Map(formulaValues.map((formula) => [formula.field, formula]));
+}
+
+function formatValueWithFormula(
+  value: string,
+  field: string,
+  formulas: ReadonlyMap<string, FormulaValueRecord>,
+): string {
+  const formula = formulas.get(field);
+  if (!formula || formula.isStatic) {
+    return value;
+  }
+  const adjustments = [
+    formula.fallbackUsed ? "Ersatzwert verwendet" : "",
+    formula.clamped ? "begrenzt" : "",
+  ].filter(Boolean);
+  return `${value}; ${formula.expression}${
+    adjustments.length > 0 ? ` (${adjustments.join(", ")})` : ""
+  }`;
+}
+
+function getConfiguredTempoLines(
+  settings: MetronomeSettings,
+): ReportDetailLine[] {
+  const lines: ReportDetailLine[] = [
+    {
+      label: "Starttempo",
+      value: `${formatNumericFormulaInput(settings.bpm)} BPM`,
+    },
+  ];
+  if (!settings.increaseTempo) {
+    return lines;
+  }
+  lines.push(
+    {
+      label: "Tempo-Steigerung",
+      value: `+${formatNumericFormulaInput(settings.increaseBy)} BPM`,
+    },
+    {
+      label: "Steigerungsintervall",
+      value: `alle ${formatNumericFormulaInput(settings.increaseAfter)} Beats`,
+    },
+  );
+  if (settings.maximum === "none") {
+    lines.push({ label: "Maximum", value: "unbegrenzt" });
+  } else {
+    const maximumLimit =
+      settings.maximum === "stick"
+        ? settings.maximumLimitStick
+        : settings.maximum === "reset"
+          ? settings.maximumLimitReset
+          : settings.maximumLimitReverse;
+    lines.push(
+      {
+        label: "BPM-Limit",
+        value: `${formatNumericFormulaInput(maximumLimit)} BPM`,
+      },
+      { label: "Bei Limit", value: formatMaximumMode(settings.maximum) },
+    );
+  }
+  if (settings.maximum === "reverse") {
+    lines.push(
+      {
+        label: "Tempo-Verringerung",
+        value: `-${formatNumericFormulaInput(settings.decreaseBy)} BPM`,
+      },
+      {
+        label: "Verringerungsintervall",
+        value: `alle ${formatNumericFormulaInput(settings.decreaseAfter)} Beats`,
+      },
+    );
+  }
+  return lines;
+}
+
+function getRuntimeTempoLines(
+  settings: RuntimeMetronomeSettings,
+  formulas: ReadonlyMap<string, FormulaValueRecord>,
+): ReportDetailLine[] {
+  const lines: ReportDetailLine[] = [
+    {
+      label: "Starttempo",
+      value: formatValueWithFormula(
+        `${settings.initialBpm} BPM`,
+        "bpm",
+        formulas,
+      ),
+    },
+  ];
+  if (!settings.increaseTempo) {
+    return lines;
+  }
+  lines.push(
+    {
+      label: "Tempo-Steigerung",
+      value: formatValueWithFormula(
+        `+${settings.increaseBy} BPM`,
+        "increaseBy",
+        formulas,
+      ),
+    },
+    {
+      label: "Steigerungsintervall",
+      value: formatValueWithFormula(
+        `alle ${settings.increaseAfter} Beats`,
+        "increaseAfter",
+        formulas,
+      ),
+    },
+  );
+  if (settings.maximum === "none") {
+    lines.push({ label: "Maximum", value: "unbegrenzt" });
+  } else {
+    const maximumField = `maximumLimit${capitalize(settings.maximum)}`;
+    lines.push(
+      {
+        label: "BPM-Limit",
+        value: formatValueWithFormula(
+          `${settings.maximumLimit} BPM`,
+          maximumField,
+          formulas,
+        ),
+      },
+      { label: "Bei Limit", value: formatMaximumMode(settings.maximum) },
+    );
+  }
+  if (settings.maximum === "reverse") {
+    lines.push(
+      {
+        label: "Tempo-Verringerung",
+        value: formatValueWithFormula(
+          `-${settings.decreaseBy} BPM`,
+          "decreaseBy",
+          formulas,
+        ),
+      },
+      {
+        label: "Verringerungsintervall",
+        value: formatValueWithFormula(
+          `alle ${settings.decreaseAfter} Beats`,
+          "decreaseAfter",
+          formulas,
+        ),
+      },
+    );
+  }
+  return lines;
+}
+
+function getConfiguredAccentLines(
+  settings: MetronomeSettings,
+): ReportDetailLine[] {
+  return settings.accentuate
+    ? [
+        {
+          label: "Intervall",
+          value: `alle ${formatNumericFormulaInput(settings.accentRepeat)} Beats`,
+        },
+      ]
+    : [{ value: "aus" }];
+}
+
+function getRuntimeAccentLines(
+  settings: RuntimeMetronomeSettings,
+  formulas: ReadonlyMap<string, FormulaValueRecord>,
+): ReportDetailLine[] {
+  return settings.accentuate
+    ? [
+        {
+          label: "Intervall",
+          value: formatValueWithFormula(
+            `alle ${settings.accentRepeat} Beats`,
+            "accentRepeat",
+            formulas,
+          ),
+        },
+      ]
+    : [{ value: "aus" }];
+}
+
+function getConfiguredBreakLines(
+  settings: MetronomeSettings,
+): ReportDetailLine[] {
+  if (settings.breaks === "none") {
+    return [{ value: "Keine" }];
+  }
+  if (settings.breaks === "unlimited") {
+    return [{ value: "Unbegrenzt" }];
+  }
+  return [
+    {
+      label: "Pausenzahl",
+      value:
+        settings.breakCount === null
+          ? "unbegrenzt"
+          : `${formatNumericFormulaInput(settings.breakCount)} Pausen`,
+    },
+    {
+      label: "Pausendauer",
+      value: settings.breakSeconds
+        ? `${formatNumericFormulaInput(settings.breakSeconds)} Sekunden`
+        : "manuelle Dauer",
+    },
+  ];
+}
+
+function getRuntimeBreakLines(
+  settings: RuntimeMetronomeSettings,
+  formulas: ReadonlyMap<string, FormulaValueRecord>,
+): ReportDetailLine[] {
+  if (settings.breaks === "none") {
+    return [{ value: "Keine" }];
+  }
+  if (settings.breaks === "unlimited") {
+    return [{ value: "Unbegrenzt" }];
+  }
+  const lines: ReportDetailLine[] = [
+    {
+      label: "Pausenzahl",
+      value:
+        settings.breakCount === null
+          ? "unbegrenzt"
+          : formatValueWithFormula(
+              `${settings.breakCount} Pausen`,
+              "breakCount",
+              formulas,
+            ),
+    },
+  ];
+  const breakFormula = formulas.get("breakSeconds");
+  lines.push({
+    label: "Pausendauer",
+    value: breakFormula
+      ? formatValueWithFormula(
+          `${breakFormula.value} Sekunden`,
+          "breakSeconds",
+          formulas,
+        )
+      : settings.breakSecondsRaw
+        ? `${settings.breakSecondsRaw} Sekunden`
+        : "manuelle Dauer",
   });
+  return lines;
+}
+
+function getConfiguredEndLines(
+  settings: MetronomeSettings,
+): ReportDetailLine[] {
+  const lines: ReportDetailLine[] = [
+    settings.sessionEndEnabled
+      ? {
+          label: "Session-Ende",
+          value: `${formatNumericFormulaInput(settings.sessionEndBeats)} Beats`,
+        }
+      : { label: "Session-Ende", value: "Manuelles Weiter" },
+  ];
+  if (settings.lockSettings) {
+    lines.push({
+      label: "Weiter-Sperre",
+      value: `bis ${formatNumericFormulaInput(settings.lockBeats)} Beats`,
+    });
+  }
+  return lines;
+}
+
+function getRuntimeEndLines(
+  settings: RuntimeMetronomeSettings,
+  formulas: ReadonlyMap<string, FormulaValueRecord>,
+): ReportDetailLine[] {
+  const lines: ReportDetailLine[] = [
+    settings.sessionEndEnabled
+      ? {
+          label: "Session-Ende",
+          value: formatValueWithFormula(
+            `Nach ${settings.sessionEndBeats} Beats`,
+            "sessionEndBeats",
+            formulas,
+          ),
+        }
+      : { label: "Session-Ende", value: "Manuelles Weiter" },
+  ];
+  if (settings.lockSettings) {
+    lines.push({
+      label: "Weiter-Sperre",
+      value: formatValueWithFormula(
+        `bis ${settings.lockBeats} Beats`,
+        "lockBeats",
+        formulas,
+      ),
+    });
+  }
+  return lines;
+}
+
+function getStopwatchEndLines(
+  settings: StopwatchSettings | RuntimeStopwatchSettings,
+  formulas: ReadonlyMap<string, FormulaValueRecord> = new Map(),
+): ReportDetailLine[] {
+  const lines: ReportDetailLine[] = [];
+  if (settings.endMode === "unlimited") {
+    lines.push({ value: "Unbegrenzt" });
+  } else if (settings.endMode === "automatic") {
+    lines.push({
+      label: "Automatisches Ende",
+      value: formatValueWithFormula(
+        `Automatisch nach ${formatStopwatchSeconds(settings.automaticSeconds)} Sekunden`,
+        "automaticSeconds",
+        formulas,
+      ),
+    });
+  } else {
+    lines.push({
+      label: "Manuelles Limit",
+      value: formatValueWithFormula(
+        `Manuell limitieren auf ${formatStopwatchSeconds(settings.manualLimitSeconds)} Sekunden`,
+        "manualLimitSeconds",
+        formulas,
+      ),
+    });
+  }
+  if (settings.endMode !== "unlimited" && settings.earlyContinueWarning) {
+    lines.push({
+      label: "Frühwarnung",
+      value: formatValueWithFormula(
+        `bei mehr als ${formatStopwatchSeconds(settings.earlyContinueWarningSeconds)} Sekunden`,
+        "earlyContinueWarningSeconds",
+        formulas,
+      ),
+    });
+  }
+  return lines;
+}
+
+function formatMaximumMode(
+  mode: RuntimeMetronomeSettings["maximum"] | MetronomeSettings["maximum"],
+): string {
+  if (mode === "stick") {
+    return "halten";
+  }
+  if (mode === "reset") {
+    return "zurücksetzen";
+  }
+  if (mode === "reverse") {
+    return "umkehren";
+  }
+  return "unbegrenzt";
+}
+
+function capitalize(value: string): string {
+  return `${value[0]?.toUpperCase() ?? ""}${value.slice(1)}`;
 }
 
 function getActionStatusLabel(action: ActionResult): string {
@@ -352,18 +679,6 @@ function getActionStatusLabel(action: ActionResult): string {
   return "Manuell beendet";
 }
 
-function formatStopwatchEnd(
-  settings: StopwatchSettings | RuntimeStopwatchSettings,
-): string {
-  if (settings.endMode === "unlimited") {
-    return "Unbegrenzt";
-  }
-  if (settings.endMode === "automatic") {
-    return `Automatisch nach ${formatStopwatchSeconds(settings.automaticSeconds)} Sekunden`;
-  }
-  return `Manuell limitieren auf ${formatStopwatchSeconds(settings.manualLimitSeconds)} Sekunden`;
-}
-
 function formatStopwatchSeconds(
   value: NumericFormulaInput | number | null,
 ): string {
@@ -374,68 +689,6 @@ function formatStopwatchSeconds(
     return "unbekannt";
   }
   return formatNumericFormulaInput(value);
-}
-
-function formatBpm(settings: RuntimeMetronomeSettings): string {
-  if (!settings.increaseTempo) {
-    return `${settings.initialBpm} BPM`;
-  }
-  const range =
-    settings.maximum === "none"
-      ? `${settings.initialBpm} BPM`
-      : `${settings.initialBpm} - ${settings.maximumLimit} BPM`;
-  const progression =
-    `${range}; +${settings.increaseBy} BPM alle ${settings.increaseAfter} Beats`;
-  return settings.maximum === "reverse"
-    ? `${progression}; -${settings.decreaseBy} BPM alle ${settings.decreaseAfter} Beats`
-    : progression;
-}
-
-function formatMetronomeTempoProgression(
-  settings: RuntimeMetronomeSettings,
-): string {
-  if (!settings.increaseTempo) {
-    return "Aus";
-  }
-  const progression =
-    `+${settings.increaseBy} BPM alle ${settings.increaseAfter} Beats`;
-  if (settings.maximum === "none") {
-    return `${progression}; unbegrenzt`;
-  }
-  if (settings.maximum === "stick") {
-    return `${progression}; bei ${settings.maximumLimit} BPM halten`;
-  }
-  if (settings.maximum === "reset") {
-    return `${progression}; bei ${settings.maximumLimit} BPM zurücksetzen`;
-  }
-  return `${progression}; bei ${settings.maximumLimit} BPM umkehren; -${settings.decreaseBy} BPM alle ${settings.decreaseAfter} Beats`;
-}
-
-function formatBreaks(settings: RuntimeMetronomeSettings): string {
-  if (settings.breaks === "none") {
-    return "Keine";
-  }
-  if (settings.breaks === "unlimited") {
-    return "Unbegrenzt";
-  }
-  const count =
-    settings.breakCount === null
-      ? "unbegrenzte Anzahl"
-      : String(settings.breakCount);
-  const duration = settings.breakSecondsRaw
-    ? `Dauer ${settings.breakSecondsRaw}s`
-    : "manuelle Dauer";
-  return `Begrenzt: ${count}; ${duration}`;
-}
-
-function formatSessionEnd(settings: RuntimeMetronomeSettings): string {
-  const end = settings.sessionEndEnabled
-    ? `Nach ${settings.sessionEndBeats} Beats`
-    : "Manuelles Weiter";
-  if (!settings.lockSettings) {
-    return end;
-  }
-  return `${end}; Einstellungen gesperrt, bis ${settings.lockBeats} Beats vergangen sind`;
 }
 
 function formatBreakRecordsLong(records: readonly BreakRecord[]): string[] {

@@ -869,6 +869,14 @@ table {
   overflow-wrap: anywhere;
 }
 
+.report-detail-line + .report-detail-line {
+  margin-top: 0.35rem;
+}
+
+.report-detail-line-label {
+  margin-right: 0.35rem;
+}
+
 .report-breaks {
   margin-top: 1rem;
 }

@@ -37,6 +37,11 @@ test("report sections and action buttons preserve their requested order and styl
   const wrapper = mount(ReportView, { props: { report } });
 
   assert.equal(wrapper.get(".report-card h3").text(), "Metronom - Warm-up");
+  assert.ok(
+    wrapper
+      .findAll(".report-detail-line")
+      .some((line) => line.text() === "Starttempo: 120 BPM"),
+  );
   assert.match(wrapper.get(".report-breaks").text(), /Keine Pausen gebraucht/);
   const rows = wrapper.findAll(".report-action-row");
   assert.equal(rows.length, 2);
