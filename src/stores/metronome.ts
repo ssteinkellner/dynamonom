@@ -213,9 +213,9 @@ export const useMetronomeStore = defineStore("metronome", () => {
   }
 
   function applyPreset(preset: MetronomePreset): boolean {
-    const validation = validateDefinitions(preset.values.actions, true);
+    const validation = validateDefinitions(preset.actions, true);
     if (!validation.valid) {
-      actionError.value = formatActionErrors(validation.errors, preset.values.actions);
+      actionError.value = formatActionErrors(validation.errors, preset.actions);
       return false;
     }
 

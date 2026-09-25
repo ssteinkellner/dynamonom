@@ -32,7 +32,7 @@ const importFieldError = computed(() => {
 
 const presetEntries = computed<PresetViewEntry[]>(() =>
   Object.entries(METRONOME_PRESETS).map(([id, preset]) => {
-    const validation = store.validateDefinitions(preset.values.actions, true);
+    const validation = store.validateDefinitions(preset.actions, true);
     return {
       id,
       label: preset.label,
